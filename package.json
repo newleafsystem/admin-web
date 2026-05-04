@@ -17,6 +17,7 @@
     "dev:api": "npm run dev -w @newleaf/api",
     "dev:admin": "npm run dev -w @newleaf/admin",
     "build": "npm run build -w @newleaf/admin",
+    "deploy:build": "npm run firebase:build",
     "assemble:video": "node scripts/assemble-video.js",
     "render:timeline": "node scripts/render-timeline.js",
     "check:project-ready": "node scripts/check-project-ready.js",
