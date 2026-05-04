@@ -1,0 +1,26 @@
+{
+  "development": {
+    "stage": "dev",
+    "firebaseProjectId": "newleaf-dev",
+    "gcpProjectId": "newleaf-dev",
+    "firestoreDatabase": "(default)",
+    "storageBucket": "newleaf-dev.appspot.com",
+    "adminHostingTarget": "admin-dev"
+  },
+  "staging": {
+    "stage": "stg",
+    "firebaseProjectId": "newleaf-stg",
+    "gcpProjectId": "newleaf-stg",
+    "firestoreDatabase": "(default)",
+    "storageBucket": "newleaf-stg.appspot.com",
+    "adminHostingTarget": "admin-stg"
+  },
+  "production": {
+    "stage": "prod",
+    "firebaseProjectId": "newleaf-prod",
+    "gcpProjectId": "newleaf-prod",
+    "firestoreDatabase": "(default)",
+    "storageBucket": "newleaf-prod.appspot.com",
+    "adminHostingTarget": "admin-prod"
+  }
+}

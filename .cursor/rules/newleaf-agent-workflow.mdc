@@ -1,0 +1,75 @@
+---
+description: NewLeaf AI agent workflow, verification, and reporting rules
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# NewLeaf Agent Workflow
+
+## Start Every Task
+
+- Inspect relevant files before editing.
+- Read the nearest code plus `README.md`, `AGENTS.md`, and relevant docs under `docs/` when behavior is affected.
+- Base statements on the actual repo. If something is not present, say `not currently present`.
+- For larger changes, produce a short implementation plan before editing.
+
+## Scope Control
+
+- Keep changes focused on the user request.
+- Do not silently change architecture.
+- Do not rewrite working code unnecessarily.
+- Do not introduce heavy dependencies without a clear need.
+- Do not delete user files, uploads, generated media, or local state unless explicitly asked and path scope is verified.
+- For docs-only tasks, do not change application logic.
+
+## Multi-Agent Guidance
+
+When the tool environment supports multiple agents and the prompt contains independent workstreams, split work by ownership:
+
+- `explorer`: read-only discovery and risk analysis.
+- `worker`: bounded implementation in clearly owned files.
+- `verifier`: independent checks and regression review.
+
+Do not delegate the immediate blocking step if your next local action depends on that result. For code-edit delegates, assign disjoint write scopes and tell workers not to revert unrelated changes.
+
+## Verification
+
+Use real commands from `package.json` only.
+
+Common commands:
+
+```bash
+npm install
+npm run dev
+npm run dev:api
+npm run dev:admin
+npm run dev:restart
+npm run dev:stop
+npm run check
+npm test
+npm run build -w @newleaf/admin
+npm run assemble:video -- <path-to-manifest.json>
+npm run check:project-ready -- <path-to-manifest.json>
+npm run render:timeline -- <path-to-timeline.json>
+```
+
+For FFmpeg-heavy work, run a render only when safe and useful. If FFmpeg is missing or rendering is too heavy for the current task, provide exact manual verification commands.
+
+## Reporting
+
+Final reports should include:
+
+- what changed;
+- key files;
+- checks run and results;
+- setup or restart needed;
+- remaining risks or blocked provider-side work.
+
+Keep the report concise and concrete.
+
+## Security
+
+- Never expose secrets from `.env`, `.local-data`, OAuth tokens, API keys, provider payloads, or generated credential files.
+- Sanitize examples and docs.
+- Do not paste real provider responses if they contain tokens or account secrets.

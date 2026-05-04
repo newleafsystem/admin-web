@@ -1,0 +1,19 @@
+{
+  "name": "@newleaf/video-assembler",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Manifest-driven local video assembly utilities for NewLeaf HeyGen clips.",
+  "exports": {
+    ".": "./src/index.js",
+    "./download-segment": "./src/downloadSegment.js",
+    "./segment-status": "./src/segmentStatusService.js"
+  },
+  "scripts": {
+    "check": "node --check src/index.js && node --check src/videoAssembler.js && node --check src/videoTimelineRenderer.js && node --check src/downloadSegment.js && node --check src/segmentStatusService.js && node --check src/videoAssembler.validation.test.js && node --check src/segmentStatusService.validation.test.js && node --check src/downloadSegment.validation.test.js && node --check src/videoTimelineRenderer.validation.test.js",
+    "test": "node src/videoAssembler.validation.test.js && node src/segmentStatusService.validation.test.js && node src/downloadSegment.validation.test.js && node src/videoTimelineRenderer.validation.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

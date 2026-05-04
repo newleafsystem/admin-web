@@ -1,0 +1,44 @@
+{
+  "name": "newleaf-api-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API-first NewLeaf content generation, video generation, review, and social publishing platform.",
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
+  "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1",
+    "dev:start": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1",
+    "dev:restart": "powershell -ExecutionPolicy Bypass -File ./scripts/start-dev.ps1 -Restart",
+    "dev:stop": "powershell -ExecutionPolicy Bypass -File ./scripts/stop-dev.ps1",
+    "dev:api": "npm run dev -w @newleaf/api",
+    "dev:admin": "npm run dev -w @newleaf/admin",
+    "build": "npm run build -w @newleaf/admin",
+    "assemble:video": "node scripts/assemble-video.js",
+    "render:timeline": "node scripts/render-timeline.js",
+    "check:project-ready": "node scripts/check-project-ready.js",
+    "firebase:build": "node scripts/build-firebase-hosting.js",
+    "firebase:deploy:hosting": "npm run firebase:build && npx -y firebase-tools@latest deploy --only hosting",
+    "firebase:deploy:rules": "npx -y firebase-tools@latest deploy --only firestore,storage,remoteconfig",
+    "firebase:deploy": "npm run firebase:build && npx -y firebase-tools@latest deploy --only hosting,firestore,storage,remoteconfig",
+    "env:normalize": "node scripts/normalize-env-file.js",
+    "firestore:create-smart-collection": "node scripts/create-smart-collection.js",
+    "gcp:sync-env": "node scripts/sync-google-cloud-env.js",
+    "gcp:sync-env:prod": "node scripts/sync-google-cloud-env.js --env-file .env.production",
+    "gcp:sync-env:prod:update": "node scripts/sync-google-cloud-env.js --env-file .env.production --update-cloud-run",
+    "gcp:setup-api": "bash scripts/setup-google-cloud-run-api.sh",
+    "gcp:setup-renderer": "bash scripts/setup-google-cloud-run-renderer.sh",
+    "check": "node --check scripts/assemble-video.js && node --check scripts/render-timeline.js && node --check scripts/check-project-ready.js && node --check scripts/create-smart-collection.js && node --check scripts/normalize-env-file.js && node --check scripts/build-firebase-hosting.js && npm run check --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "firebase": "^12.12.1"
+  }
+}

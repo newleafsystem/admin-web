@@ -1,0 +1,330 @@
+openapi: 3.1.0
+info:
+  title: NewLeaf Service API
+  version: 0.1.0
+  description: |
+    Backend-to-backend API for vendor text-to-HeyGen submissions.
+
+    Vendors receive a key ID and one-time signing secret from the NewLeaf Vendors page.
+    Every protected request must include `x-newleaf-key-id`, `x-newleaf-timestamp`,
+    and `x-newleaf-signature`.
+
+    Signature base string:
+
+    ```
+    METHOD
+    PATH_WITH_QUERY
+    TIMESTAMP
+    SHA256_RAW_BODY_HEX
+    ```
+
+    The signature value is `sha256=<hex hmac>` using HMAC-SHA256 with the vendor
+    signing secret. Use `idempotencyKey` when submitting jobs so retries do not
+    create duplicate HeyGen requests.
+
+    Swagger UI is documentation-first for this API. Protected calls should be
+    sent from a backend, Postman pre-request script, or local signing script that
+    can generate the exact HMAC headers for the request body.
+servers:
+  - url: http://localhost:8080/api/v1
+security:
+  - newleafKeyId: []
+    newleafTimestamp: []
+    newleafSignature: []
+components:
+  securitySchemes:
+    newleafKeyId:
+      type: apiKey
+      in: header
+      name: x-newleaf-key-id
+      description: Public vendor key ID created from the NewLeaf Vendors page.
+    newleafTimestamp:
+      type: apiKey
+      in: header
+      name: x-newleaf-timestamp
+      description: Unix timestamp in seconds. Must be within the configured tolerance window.
+    newleafSignature:
+      type: apiKey
+      in: header
+      name: x-newleaf-signature
+      description: HMAC-SHA256 signature formatted as sha256=<hex>.
+  schemas:
+    Segment:
+      type: object
+      required: [title, prompt]
+      properties:
+        sequence:
+          type: integer
+          minimum: 1
+        segmentKey:
+          type: string
+        title:
+          type: string
+        prompt:
+          type: string
+        required:
+          type: boolean
+          default: true
+    SubmitTextToHeyGenJob:
+      type: object
+      required: [title]
+      description: Submit a script or explicit ordered segments for HeyGen video generation.
+      properties:
+        title:
+          type: string
+          maxLength: 300
+        script:
+          type: string
+          description: Plain script text, or base64 text when scriptEncoding is base64. Required unless scriptBase64 or segments are supplied.
+        scriptBase64:
+          type: string
+          description: UTF-8 script encoded as standard base64 or base64url.
+        scriptEncoding:
+          type: string
+          enum: [plain, base64]
+          default: plain
+        targetDurationSec:
+          type: integer
+          minimum: 1
+          maximum: 3600
+        thumbnailLabel:
+          type: string
+        metadata:
+          type: object
+          description: Vendor-owned metadata echoed into internal job metadata for traceability.
+        idempotencyKey:
+          type: string
+          description: Stable vendor key used to avoid duplicate job creation on retries.
+        autoStart:
+          type: boolean
+          default: true
+        segmentMode:
+          type: string
+          enum: [single, slides, segments]
+          default: single
+        segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Segment'
+    ServiceJob:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        sourceType:
+          type: string
+        status:
+          type: string
+        stage:
+          type: string
+        assembly:
+          type:
+            - object
+            - 'null'
+    ProviderJob:
+      type: object
+      properties:
+        id:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+        externalId:
+          type:
+            - string
+            - 'null'
+    Artifact:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        mimeType:
+          type: string
+        sizeBytes:
+          type:
+            - integer
+            - 'null'
+        contentUrl:
+          type: string
+    ServiceJobResponse:
+      type: object
+      properties:
+        job:
+          $ref: '#/components/schemas/ServiceJob'
+        providerJobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProviderJob'
+        artifacts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Artifact'
+        manifest:
+          type:
+            - object
+            - 'null'
+        task:
+          type:
+            - object
+            - 'null'
+        idempotentReplay:
+          type: boolean
+paths:
+  /service/docs:
+    get:
+      security: []
+      summary: Open Swagger UI documentation.
+      description: Public documentation page for vendors. Credentials are still required for protected API calls.
+      responses:
+        '200':
+          description: Swagger UI HTML.
+          content:
+            text/html:
+              schema:
+                type: string
+  /service/openapi.yaml:
+    get:
+      security: []
+      summary: Download the OpenAPI contract.
+      description: Public OpenAPI YAML contract used by the Swagger UI page.
+      responses:
+        '200':
+          description: OpenAPI YAML.
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /service/text-to-heygen/jobs:
+    post:
+      summary: Submit a text-to-HeyGen job.
+      description: |
+        Creates a service-owned content job from a vendor script. The script can be
+        sent as plain text, base64, markdown slides, or explicit ordered segments.
+        The backend owns HeyGen credentials and generation state.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitTextToHeyGenJob'
+            examples:
+              plainScript:
+                summary: Plain script, one HeyGen prompt
+                value:
+                  title: BABA Iron Condor
+                  script: Full narration script here.
+                  targetDurationSec: 240
+                  idempotencyKey: baba-iron-condor-2026-05-01
+                  segmentMode: single
+                  autoStart: true
+              base64Slides:
+                summary: Base64 markdown slides
+                value:
+                  title: BABA Iron Condor
+                  scriptBase64: IyBCQUJBIElyb24gQ29uZG9y...
+                  scriptEncoding: base64
+                  targetDurationSec: 240
+                  idempotencyKey: baba-iron-condor-2026-05-01
+                  segmentMode: slides
+                  autoStart: true
+              explicitSegments:
+                summary: Explicit ordered segments
+                value:
+                  title: BABA Iron Condor
+                  segmentMode: segments
+                  idempotencyKey: baba-iron-condor-segmented
+                  segments:
+                    - sequence: 10
+                      segmentKey: intro
+                      title: Intro
+                      prompt: Introduce the BABA iron condor setup.
+                      required: true
+                    - sequence: 20
+                      segmentKey: risk
+                      title: Risk Management
+                      prompt: Explain max loss, exit rules, and the educational disclaimer.
+                      required: true
+      responses:
+        '201':
+          description: Script submitted but not started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceJobResponse'
+        '202':
+          description: HeyGen request started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceJobResponse'
+        '401':
+          description: Missing or invalid service credentials.
+        '403':
+          description: Service client cannot access the resource or scope.
+  /service/jobs/{jobId}:
+    get:
+      summary: Get service-owned job status.
+      description: Returns only jobs created by the calling service client.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Job status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceJobResponse'
+        '403':
+          description: Service client does not own the job.
+        '404':
+          description: Job not found.
+  /service/jobs/{jobId}/retry:
+    post:
+      summary: Retry a failed or script-ready service job.
+      description: Reuses the original service job and script metadata. This does not create a new public publish intent.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '202':
+          description: Retry started.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceJobResponse'
+  /service/jobs/{jobId}/artifacts/{artifactId}/content:
+    get:
+      summary: Stream a service-owned artifact.
+      description: Supports full and ranged responses for service-owned local artifacts. Provider URL artifacts redirect to the provider URL.
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: artifactId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Artifact stream.
+        '206':
+          description: Partial artifact stream.
+        '403':
+          description: Service client does not own the job.
+        '404':
+          description: Artifact not found.

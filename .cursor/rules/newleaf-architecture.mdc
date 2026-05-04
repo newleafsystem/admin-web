@@ -1,0 +1,78 @@
+---
+description: NewLeaf architecture, media pipeline, and source-of-truth rules
+globs:
+  - "apps/api/**/*"
+  - "apps/admin/**/*"
+  - "packages/**/*"
+  - "scripts/**/*"
+  - "docs/**/*"
+alwaysApply: true
+---
+
+# NewLeaf Architecture Rules
+
+NewLeaf System is an npm workspace using JavaScript ES modules.
+
+- Backend: Express in `apps/api`.
+- Frontend: React 19 + Vite in `apps/admin`.
+- Video rendering and assembly: `packages/video-assembler`.
+- Publisher adapter scaffold: `packages/publishers`.
+- Local development state: `.local-data`.
+- TypeScript, NestJS, Next.js, Jest, Vitest, and Mocha are not currently present.
+
+## Main Workflow
+
+```text
+HeyGen clips or screen recordings
+-> manifest / timeline JSON
+-> validation
+-> FFmpeg rendering or assembly
+-> final MP4
+-> review / publishing / future storage
+```
+
+## Source Of Truth
+
+- Timeline JSON is the source of truth for NewLeaf Video Studio edits.
+- Manifest `sequence` is the source of truth for multi-clip HeyGen assembly.
+- HeyGen clips can complete in random order.
+- Final clip order must come from numeric sequence or timeline metadata only.
+- Never rely on HeyGen completion order, file creation time, download time, folder listing order, provider id order, or array insertion order for final assembly.
+
+## Media Architecture
+
+- FFmpeg is the backend render/export engine.
+- The admin UI edits timeline metadata and preview state. It does not destructively edit source videos.
+- Original uploaded media must not be mutated by trim, cut, mute, overlay, thumbnail, or render flows.
+- Store temporary render files under `temp/{projectId}/`.
+- Store local final outputs under `output/` or configured local data storage.
+- Keep uploaded assets under allowed upload/project directories.
+- Validate manifests and timelines before invoking FFmpeg.
+
+## Video Defaults
+
+Unless project settings override them, render final MP4 output as:
+
+- 1920x1080
+- 30fps
+- H.264 / `libx264`
+- AAC audio
+- `yuv420p`
+- 48kHz audio
+
+Use sequence numbers such as `10`, `20`, `30` so future segments can be inserted without renumbering the full project.
+
+## Future Roadmap
+
+Treat these as roadmap unless the user explicitly asks to implement them:
+
+- draggable timeline UI
+- waveform editor
+- zoom/pan keyframes
+- cursor highlight automation
+- subtitles
+- YouTube upload after render
+- Firebase Storage / Google Cloud Storage
+- async render queue
+- render progress tracking
+- full admin Video Studio

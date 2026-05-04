@@ -1,0 +1,91 @@
+name: Google Cloud Run Services
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      deploy_api:
+        description: Deploy the API Cloud Run service
+        required: false
+        default: true
+        type: boolean
+      deploy_renderer:
+        description: Deploy the FFmpeg renderer Cloud Run service
+        required: false
+        default: true
+        type: boolean
+
+concurrency:
+  group: google-cloud-run-services
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'newleaf-trading' }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+      GOOGLE_CLOUD_RUN_API_SERVICE: ${{ vars.GOOGLE_CLOUD_RUN_API_SERVICE || 'newleaf-api' }}
+      GOOGLE_CLOUD_RUN_RENDERER_SERVICE: ${{ vars.GOOGLE_CLOUD_RUN_RENDERER_SERVICE || 'newleaf-ffmpeg-renderer' }}
+      REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
+      PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://admin.newleafsystem.com' }}
+      ADMIN_BASE_URL: ${{ vars.ADMIN_BASE_URL || 'https://admin.newleafsystem.com' }}
+      SOCIAL_CALLBACK_BASE_URL: ${{ vars.SOCIAL_CALLBACK_BASE_URL || 'https://admin.newleafsystem.com' }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || 'https://admin.newleafsystem.com' }}
+      MEDIA_RENDERER_URL: ${{ vars.MEDIA_RENDERER_URL }}
+      MEDIA_RENDER_HMAC_SECRET: ${{ secrets.MEDIA_RENDER_HMAC_SECRET }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run checks
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Deploy renderer
+        if: ${{ github.event_name == 'push' || inputs.deploy_renderer }}
+        run: bash scripts/setup-google-cloud-run-renderer.sh
+
+      - name: Resolve renderer URL
+        if: ${{ github.event_name == 'push' || inputs.deploy_api }}
+        shell: bash
+        run: |
+          if [[ -n "${MEDIA_RENDERER_URL:-}" ]]; then
+            exit 0
+          fi
+
+          if renderer_url="$(gcloud run services describe "${GOOGLE_CLOUD_RUN_RENDERER_SERVICE}" --region "${GCP_REGION}" --format='value(status.url)' 2>/dev/null)" && [[ -n "${renderer_url}" ]]; then
+            echo "MEDIA_RENDERER_URL=${renderer_url}" >> "${GITHUB_ENV}"
+          else
+            echo "Renderer service URL could not be resolved; API deploy will continue without MEDIA_RENDERER_URL."
+          fi
+
+      - name: Deploy API
+        if: ${{ github.event_name == 'push' || inputs.deploy_api }}
+        run: bash scripts/setup-google-cloud-run-api.sh

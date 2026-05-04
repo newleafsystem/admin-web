@@ -1,0 +1,64 @@
+---
+description: NewLeaf admin UI patterns for React/Vite sections
+globs:
+  - "apps/admin/**/*"
+alwaysApply: false
+---
+
+# NewLeaf Admin UI Patterns
+
+The admin frontend is a React 19 + Vite operations console in `apps/admin`.
+
+Important files:
+
+- `apps/admin/src/App.jsx` owns top-level route selection, shared state, and refresh workflows.
+- `apps/admin/src/api.js` owns all API calls and response normalization.
+- `apps/admin/src/sections/*` contains feature-specific screens.
+- `apps/admin/src/components/*` contains shared UI components.
+- `apps/admin/src/styles.css` contains global UI styling.
+
+## UI Role
+
+- Build an operations console, not a marketing site.
+- Keep screens compact, scannable, and action-oriented.
+- Prefer tables, compact panels, modals, accordions, and video cards.
+- Avoid decorative landing-page layouts, oversized hero content, and nested cards.
+- Avoid exposing provider complexity unless it helps an admin decide what to do next.
+
+## API Boundary
+
+- The admin UI calls NewLeaf APIs only.
+- It must not call HeyGen, YouTube, X, LinkedIn, Meta, TikTok, OpenAI, or storage providers directly.
+- Provider secrets, OAuth tokens, retries, polling, webhook verification, and publishing state belong to the backend.
+
+## Video Studio UI
+
+- The UI edits timeline JSON and metadata.
+- Preview behavior is separate from backend final rendering.
+- Do not mutate original uploaded media from the UI.
+- For MVP editor work, keep controls simple: upload, preview, numeric trim inputs, mute, replacement audio, avatar PiP settings, callout text, render.
+- Do not overbuild a full nonlinear editor unless explicitly asked.
+
+## Interaction Rules
+
+- Use custom confirmation modals, not browser `confirm`, `alert`, or `prompt`.
+- Use clickable rows for accordion expansion when the user asked for row expansion.
+- Keep checkboxes and toggles visually proportional to their labels.
+- Use icon buttons for common actions when practical, including sync, more actions, delete, save, and upload.
+- Ensure text fits inside buttons, cards, tables, and modals on desktop and mobile.
+
+## Brand And Compliance
+
+- Brand: NewLeaf System.
+- Visual tone: premium fintech, deep forest green, muted gold, calm, clean, risk-aware.
+- Avoid hype, casino/trading-guru visuals, guaranteed-profit claims, and aggressive sales language.
+- Trading content must be educational and risk-aware.
+- Prefer `model-estimated`, `may act as`, `data-supported`, `defined risk`, and `not guaranteed`.
+- Never say a trade is safe, guaranteed, risk-free, certain, or unable to lose.
+
+## Button Guidance
+
+- Primary actions should use the NewLeaf primary brand treatment.
+- Secondary actions should stay quiet and readable.
+- Destructive actions should be visually distinct and confirm intent.
+- Platform-specific buttons may use platform brand accents where they improve recognition.

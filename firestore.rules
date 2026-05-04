@@ -1,0 +1,162 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function roleList() {
+      return signedIn() && request.auth.token.roles is list
+        ? request.auth.token.roles
+        : [];
+    }
+
+    function hasAnyRole(roles) {
+      return signedIn() && (
+        roleList().hasAny(roles) ||
+        (request.auth.token.role is string && roles.hasAny([request.auth.token.role])) ||
+        (request.auth.token.admin == true && roles.hasAny(['admin']))
+      );
+    }
+
+    function canOperateContent() {
+      return hasAnyRole(['admin', 'editor', 'reviewer', 'publisher', 'viewer']);
+    }
+
+    function canEditContent() {
+      return hasAnyRole(['admin', 'editor']);
+    }
+
+    function canApprove() {
+      return hasAnyRole(['admin', 'reviewer']);
+    }
+
+    function canPublish() {
+      return hasAnyRole(['admin', 'publisher']);
+    }
+
+    function validString(value, maxLength) {
+      return value is string && value.size() > 0 && value.size() <= maxLength;
+    }
+
+    function validNullableString(value, maxLength) {
+      return value == null || (value is string && value.size() <= maxLength);
+    }
+
+    function isValidSmartCollection(data) {
+      return data.keys().hasOnly([
+        'id',
+        'name',
+        'description',
+        'type',
+        'status',
+        'visibility',
+        'ownerUid',
+        'criteria',
+        'sort',
+        'columns',
+        'metadata',
+        'createdBy',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasAll(['id', 'name', 'type', 'status', 'visibility', 'criteria', 'sort', 'columns', 'metadata', 'createdBy', 'createdAt', 'updatedAt']) &&
+      validString(data.id, 160) &&
+      validString(data.name, 120) &&
+      validNullableString(data.description, 500) &&
+      data.type in ['content_jobs', 'video_assets', 'published_videos', 'audit_events'] &&
+      data.status in ['active', 'archived'] &&
+      data.visibility in ['private', 'team'] &&
+      validNullableString(data.ownerUid, 128) &&
+      data.criteria is map &&
+      data.criteria.keys().size() <= 30 &&
+      data.sort is map &&
+      data.sort.keys().size() <= 10 &&
+      data.columns is list &&
+      data.columns.size() <= 30 &&
+      data.metadata is map &&
+      data.metadata.keys().size() <= 30 &&
+      validString(data.createdBy, 128) &&
+      validString(data.createdAt, 80) &&
+      validString(data.updatedAt, 80);
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || hasAnyRole(['admin']));
+      allow create, update, delete: if hasAnyRole(['admin']);
+    }
+
+    match /contentJobs/{jobId} {
+      allow read: if canOperateContent();
+      allow create: if canEditContent();
+      allow update: if canEditContent() || canApprove() || canPublish();
+      allow delete: if hasAnyRole(['admin']);
+    }
+
+    match /artifacts/{artifactId} {
+      allow read: if canOperateContent();
+      allow write: if false;
+    }
+
+    match /providerJobs/{providerJobId} {
+      allow read: if canOperateContent();
+      allow write: if false;
+    }
+
+    match /connectedAccounts/{accountId} {
+      allow read: if hasAnyRole(['admin', 'publisher']);
+      allow write: if false;
+    }
+
+    match /publishPlans/{planId} {
+      allow read: if canOperateContent();
+      allow create, update: if canPublish();
+      allow delete: if hasAnyRole(['admin']);
+    }
+
+    match /publishAttempts/{attemptId} {
+      allow read: if canOperateContent();
+      allow write: if false;
+    }
+
+    match /auditLogs/{auditId} {
+      allow read: if hasAnyRole(['admin']);
+      allow write: if false;
+    }
+
+    match /serviceClients/{clientId} {
+      allow read: if hasAnyRole(['admin']);
+      allow write: if false;
+    }
+
+    match /smartCollections/{collectionId} {
+      allow read: if canOperateContent();
+      allow create: if canEditContent() &&
+        isValidSmartCollection(request.resource.data) &&
+        request.resource.data.createdBy == request.auth.uid;
+      allow update: if canEditContent() &&
+        isValidSmartCollection(request.resource.data) &&
+        request.resource.data.id == resource.data.id &&
+        request.resource.data.createdAt == resource.data.createdAt &&
+        request.resource.data.createdBy == resource.data.createdBy;
+      allow delete: if hasAnyRole(['admin']);
+    }
+
+    match /webhookEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /oauthStates/{stateId} {
+      allow read, write: if false;
+    }
+
+    match /repositorySecrets/{secretId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

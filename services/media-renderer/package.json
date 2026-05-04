@@ -1,0 +1,17 @@
+{
+  "name": "@newleaf/media-renderer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Google Cloud Run FFmpeg renderer for NewLeaf media jobs.",
+  "scripts": {
+    "start": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/auth.js && node --check src/storage.js && node --check src/render.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.17.3"
+  }
+}

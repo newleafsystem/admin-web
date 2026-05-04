@@ -1,0 +1,13 @@
+Follow `.cursor/rules/newleaf-agent-guide.mdc` plus these split rules:
+
+- `.cursor/rules/newleaf-architecture.mdc`
+- `.cursor/rules/newleaf-backend-patterns.mdc`
+- `.cursor/rules/newleaf-ui-patterns.mdc`
+- `.cursor/rules/newleaf-agent-workflow.mdc`
+
+Key rules:
+- Timeline JSON and manifest sequence metadata are the source of truth.
+- Never rely on HeyGen completion order or filesystem order.
+- Do not mutate original uploaded media.
+- Keep provider secrets in backend services only.
+- Run `npm run check`, `npm test`, and `npm run build -w @newleaf/admin` before finishing code changes when practical.

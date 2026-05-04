@@ -1,0 +1,73 @@
+---
+description: NewLeaf backend, service, provider, upload, and FFmpeg patterns
+globs:
+  - "apps/api/**/*"
+  - "packages/video-assembler/**/*"
+  - "packages/publishers/**/*"
+  - "scripts/**/*"
+alwaysApply: false
+---
+
+# NewLeaf Backend Patterns
+
+The backend is Express with JavaScript ES modules in `apps/api`.
+
+Important files:
+
+- `apps/api/src/app.js` wires middleware and route modules.
+- `apps/api/src/config.js` parses environment variables.
+- `apps/api/src/routes/*` contains Express routers.
+- `apps/api/src/services/*` contains provider, job, review, publishing, video, and workflow logic.
+- `apps/api/src/lib/repository.js` owns the local repository abstraction.
+- `packages/video-assembler/src/*` owns FFmpeg assembly and timeline rendering.
+- `packages/publishers/src/*` owns publisher adapter scaffolding.
+
+## Route And Service Patterns
+
+- Routes should be created as `createXRouter(...)` factories.
+- Keep provider-facing logic in services, not route handlers.
+- Use existing helpers such as `requireRole`, `asyncHandler`, `httpErrors`, and validation helpers where available.
+- Inject dependencies into services instead of importing mutable singletons when practical.
+- Repository access should go through `apps/api/src/lib/repository.js` or the relevant local data service.
+- Job status changes should use `jobStateService` when transitions matter.
+
+## Provider And Publishing Rules
+
+- Provider callbacks, queue tasks, retries, imports, deletes, and publish attempts must be idempotent.
+- Publishing should not create duplicate public posts for the same job/platform unless the admin explicitly creates a new job or publish intent.
+- Store provider ids as soon as they are available.
+- Preserve audit history for deletes, failures, updates, retries, and external syncs.
+- Deleted provider videos should remain as audit records unless the user explicitly requests hard local deletion.
+- Backend services own OAuth token refresh, provider scopes, token health, retries, polling, webhooks, and request/response snapshots.
+
+## FFmpeg And Media Rules
+
+- Build FFmpeg commands as argument arrays, not shell strings.
+- Validate all input paths before FFmpeg runs.
+- Verify resolved paths remain inside the intended upload, project, temp, output, or local data root.
+- Never overwrite original uploaded media.
+- Use project-scoped temp directories such as `temp/{projectId}/`.
+- Return clear errors such as `FFmpeg is not installed or not available in PATH.`
+- Stream large files where practical.
+- Do not log secrets or provider tokens.
+
+## Video Assembly Rules
+
+- Manifest `sequence` is the only source of truth for HeyGen clip order.
+- Do not rely on provider completion order, file names unless generated from sequence, filesystem order, created timestamps, or provider ids.
+- Validate duplicate sequence values and duplicate segment keys.
+- Required segments must be completed and locally available before stitching.
+- Optional failed segments may be skipped only when the implemented validation explicitly allows it.
+
+## Video Studio Rules
+
+- Timeline JSON is the source of truth for editor operations.
+- Render from timeline metadata, not destructive source edits.
+- Keep render APIs minimal and safe.
+- Synchronous render is acceptable only for short local MVP videos. Long-running render should move to a queue later.
+
+## Environment And Secrets
+
+- Never commit real API keys, OAuth tokens, service account files, provider responses, or storage credentials.
+- Use `.env.example` for placeholders only.
+- Backend-only values include HeyGen, YouTube, X, LinkedIn, Meta, TikTok, OpenAI, storage, and service API credentials.

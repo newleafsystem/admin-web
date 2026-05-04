@@ -1,0 +1,19 @@
+{
+  "name": "@newleaf/publishers",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Plain JavaScript publisher adapter scaffold for NewLeaf social publishing workers.",
+  "exports": {
+    ".": "./src/index.js",
+    "./adapters": "./src/adapters/index.js",
+    "./validation": "./src/validation.js"
+  },
+  "scripts": {
+    "check": "npm run test",
+    "test": "node --check src/index.js && node --check src/interface.js && node --check src/validation.js && node --check src/idempotency.js && node --check src/placeholder-publisher.js && node --check src/adapters/youtube.js && node --check src/adapters/x-twitter.js && node --check src/adapters/linkedin.js && node --check src/adapters/meta.js && node --check src/adapters/tiktok.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

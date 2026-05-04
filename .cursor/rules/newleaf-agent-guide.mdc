@@ -1,0 +1,112 @@
+---
+description: NewLeaf System repository guide for Cursor agents
+globs:
+  - "**/*"
+alwaysApply: true
+---
+
+# NewLeaf Agent Guide
+
+This is the general Cursor rule. Also follow the split rules when touching those areas:
+
+- `.cursor/rules/newleaf-architecture.mdc`
+- `.cursor/rules/newleaf-backend-patterns.mdc`
+- `.cursor/rules/newleaf-ui-patterns.mdc`
+- `.cursor/rules/newleaf-agent-workflow.mdc`
+
+## Project
+
+NewLeaf System is a Node.js video automation and admin operations platform. It handles HeyGen clips, screen recordings, manifest/timeline JSON, FFmpeg rendering, review, publishing preparation, and future YouTube / Google Cloud Storage publishing.
+
+Actual stack:
+
+- npm workspaces
+- JavaScript ES modules
+- Express API in `apps/api`
+- React 19 + Vite admin UI in `apps/admin`
+- shared FFmpeg/video utilities in `packages/video-assembler`
+- publisher adapter scaffold in `packages/publishers`
+- plain Node validation tests; Jest/Vitest/Mocha are not currently present
+
+## Architecture Rules
+
+- Timeline JSON is the source of truth for Video Studio edits.
+- Manifest `sequence` is the source of truth for HeyGen multi-clip assembly.
+- Do not rely on HeyGen completion order, filesystem order, file creation time, download time, or provider id order.
+- Do not mutate original uploaded media during edit operations.
+- FFmpeg is the backend render/export engine. The UI edits metadata and preview state.
+- Keep frontend preview separate from backend final render.
+- Keep render logic modular and testable.
+- Admin UI calls NewLeaf APIs only. Provider APIs and secrets stay in backend services.
+
+## Video Conventions
+
+- Use sequence numbers such as `10`, `20`, `30` to allow insertion later.
+- Default final MP4: 1920x1080, 30fps, H.264/libx264, AAC, yuv420p, 48kHz audio.
+- Temporary render files go under `temp/{projectId}/` or project-local `temp/`.
+- Outputs go under `output/` or configured storage.
+- Uploads must stay under allowed upload/project directories.
+- Never overwrite original uploads.
+- Validate timelines/manifests before FFmpeg starts.
+
+## Security
+
+- Never commit or expose secrets from `.env`, `.local-data`, OAuth tokens, HeyGen keys, YouTube tokens, provider callbacks, or storage credentials.
+- Use `.env.example` for placeholder environment variables.
+- Sanitize filenames and upload paths.
+- Reject arbitrary absolute paths from user input.
+- Check resolved paths stay inside the intended project/upload root.
+- Build FFmpeg commands with argument arrays, not shell strings.
+- Stream large files where possible.
+- Do not expose secrets in logs. Return clear actionable errors.
+
+## Coding Style
+
+- Preserve existing JavaScript ES module style.
+- Prefer small modules and testable functions.
+- Avoid heavy dependencies unless clearly justified.
+- Keep changes focused; do not rewrite working code unnecessarily.
+- Use existing Express router/service/repository patterns.
+- Use custom admin modals, not browser prompts.
+- Update docs when routes, env vars, setup, or behavior changes.
+
+## Commands
+
+```bash
+npm install
+npm run dev
+npm run dev:api
+npm run dev:admin
+npm run dev:restart
+npm run dev:stop
+npm run check
+npm test
+npm run build -w @newleaf/admin
+npm run assemble:video -- <path-to-manifest.json>
+npm run check:project-ready -- <path-to-manifest.json>
+npm run render:timeline -- <path-to-timeline.json>
+```
+
+`npm run lint` exists at root, but no concrete workspace lint scripts are currently present.
+
+## Domain Rules
+
+- Brand: NewLeaf System.
+- Visual style: premium fintech, deep forest green, muted gold, clean, risk-aware.
+- Avoid hype, casino/trading-guru visuals, guaranteed-profit claims, and aggressive sales copy.
+- Options/trading content must be educational and risk-aware.
+- Use language like `model-estimated`, `may act as`, `data-supported`, `defined risk`, and `not guaranteed`.
+- Do not say trades are safe, guaranteed, risk-free, or certain.
+
+## Agent Behavior
+
+- Inspect first, then edit.
+- For large changes, give a short plan.
+- Do not silently change architecture.
+- Do not delete user files or generated media unless explicitly asked.
+- Do not modify original uploaded videos unless explicitly asked.
+- Report files changed, commands run, how to test, and remaining gaps.
+
+## Future Roadmap
+
+Treat these as future work unless explicitly requested: draggable timeline UI, waveform editor, zoom/pan keyframes, cursor highlighting, subtitles, YouTube upload, Firebase Storage / Google Cloud Storage, async render queue, render progress tracking, and full admin Video Studio.
