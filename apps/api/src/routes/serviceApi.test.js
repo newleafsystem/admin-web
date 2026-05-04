@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 
 process.env.NEWLEAF_SKIP_DOTENV = '1';
 process.env.NODE_ENV = 'test';
+process.env.REQUIRE_AUTH = 'false';
 process.env.SERVICE_API_KEY_HASHES = '';
 process.env.SERVICE_API_SIGNATURE_TOLERANCE_SEC = '300';
 
