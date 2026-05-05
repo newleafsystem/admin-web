@@ -519,6 +519,8 @@ export default function App() {
           sourceType: targetJob.sourceType,
           artifactCount: result.artifactCount,
           providerJobCount: result.providerJobCount,
+          publishPlanCount: result.publishPlanCount,
+          publishAttemptCount: result.publishAttemptCount,
           reason: "admin_deleted_review"
         })
       );

@@ -21,6 +21,9 @@ const QUEUE_DELETABLE_STATUSES = new Set([
   'video_requested',
   'video_ready',
   'review_required',
+  'approved',
+  'publishing',
+  'partial_failed',
   'failed',
 ]);
 
@@ -115,6 +118,12 @@ export function createJobsRouter({
     '/:jobId',
     requireRole('admin', 'reviewer'),
     asyncHandler(async (req, res) => {
+      const body = req.body ? requireObject(req.body) : {};
+      rejectUnknownFields(body, ['reason']);
+      const reason = optionalString(body, 'reason', {
+        maxLength: 500,
+        defaultValue: 'admin_deleted_content_queue_job',
+      });
       const job = await repository.getJob(req.params.jobId);
       if (!job) throw notFound('Job not found', { jobId: req.params.jobId });
       if (!QUEUE_DELETABLE_STATUSES.has(job.status)) {
@@ -129,21 +138,35 @@ export function createJobsRouter({
         repository.listPublishPlans({ jobId: job.id }),
         repository.listPublishAttempts({ jobId: job.id }),
       ]);
-      if (publishPlans.length > 0 || publishAttempts.length > 0) {
-        throw conflict('Job has publishing records and cannot be deleted from the content queue', {
+      const providerBackedAttempts = publishAttempts.filter((attempt) =>
+        attempt.status !== 'deleted' && (attempt.status === 'published' || attempt.providerPostId || attempt.providerUrl),
+      );
+      if (providerBackedAttempts.length > 0) {
+        throw conflict('Job has live provider publication records. Delete published videos first, then remove the queue job.', {
           jobId: job.id,
-          publishPlanCount: publishPlans.length,
-          publishAttemptCount: publishAttempts.length,
+          providerPublicationCount: providerBackedAttempts.length,
+          providerPublicationIds: providerBackedAttempts.map((attempt) => attempt.id),
         });
       }
 
+      const archivedPublishing = await archivePublishingRecordsForQueueDelete(repository, {
+        job,
+        publishPlans,
+        publishAttempts,
+        actorUid: req.user.uid,
+        reason,
+      });
       const deleted = await repository.deleteJob(job.id);
       res.json({
-        deleted,
+        deleted: {
+          ...deleted,
+          publishPlans: archivedPublishing.publishPlans,
+          publishAttempts: archivedPublishing.publishAttempts,
+        },
         task: {
           type: 'delete_content_queue_job',
           queued: false,
-          note: 'Content job, local artifact records, and provider job records were removed from the repository.',
+          note: 'Content job, local artifact records, provider job records, and failed or stuck publishing records were removed from the active queue.',
         },
       });
     }),
@@ -486,4 +509,59 @@ function assertTextToHeyGenJob(job, operation) {
       sourceType: job.sourceType,
     });
   }
+}
+
+async function archivePublishingRecordsForQueueDelete(repository, { job, publishPlans, publishAttempts, actorUid, reason }) {
+  const archivedAt = new Date().toISOString();
+  const archivedAttempts = [];
+  for (const attempt of publishAttempts) {
+    if (attempt.status === 'deleted') {
+      archivedAttempts.push(attempt);
+      continue;
+    }
+    const archived = await repository.updatePublishAttempt(attempt.id, {
+      status: 'deleted',
+      providerUrl: null,
+      errorCode: null,
+      errorMessage: null,
+      metadata: {
+        ...(attempt.metadata ?? {}),
+        archivedToAuditAt: archivedAt,
+        archiveReason: reason,
+        previousStatus: attempt.status,
+        archivedBy: actorUid ?? null,
+        providerDeleted: false,
+        publisherStatus: 'Removed from active content queue.',
+        progressStage: 'deleted',
+        progressPercent: 100,
+        progressLabel: 'Removed from active content queue.',
+      },
+    });
+    archivedAttempts.push(archived);
+  }
+
+  const archivedPlans = [];
+  for (const plan of publishPlans) {
+    if (plan.status === 'deleted') {
+      archivedPlans.push(plan);
+      continue;
+    }
+    const archived = await repository.updatePublishPlan(plan.id, {
+      status: 'deleted',
+      metadata: {
+        ...(plan.metadata ?? {}),
+        archivedToAuditAt: archivedAt,
+        archiveReason: reason,
+        previousStatus: plan.status,
+        archivedBy: actorUid ?? null,
+        sourceJobStatus: job.status,
+      },
+    });
+    archivedPlans.push(archived);
+  }
+
+  return {
+    publishPlans: archivedPlans,
+    publishAttempts: archivedAttempts,
+  };
 }

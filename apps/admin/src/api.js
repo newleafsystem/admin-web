@@ -299,7 +299,9 @@ export async function deleteReviewJob(jobId, reason = "admin_deleted_review") {
   return {
     job: normalizeJob(body.deleted?.job, [], []),
     artifactCount: body.deleted?.artifacts?.length ?? 0,
-    providerJobCount: body.deleted?.providerJobs?.length ?? 0
+    providerJobCount: body.deleted?.providerJobs?.length ?? 0,
+    publishPlanCount: body.deleted?.publishPlans?.length ?? 0,
+    publishAttemptCount: body.deleted?.publishAttempts?.length ?? 0
   };
 }
 

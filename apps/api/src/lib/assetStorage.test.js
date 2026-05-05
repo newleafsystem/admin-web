@@ -10,6 +10,7 @@ const {
   isObjectStorageProvider,
   sanitizeFilename,
   shouldUseObjectStorage,
+  uploadFileToObjectStorage,
 } = await import('./assetStorage.js');
 
 assert.equal(isObjectStorageProvider('gcs'), true);
@@ -27,5 +28,6 @@ assert.equal(key, 'uploads/job_one/video/123-Bad Name_.mp4');
 assert.equal(assertSafeObjectKey(key), key);
 assert.throws(() => assertSafeObjectKey('../secret.mp4'), /Invalid object storage key/);
 assert.throws(() => assertSafeObjectKey('/uploads/file.mp4'), /Invalid object storage key/);
+assert.equal(typeof uploadFileToObjectStorage, 'function');
 
 console.log('Asset storage tests passed.');

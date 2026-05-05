@@ -3,6 +3,14 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
 import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import {
+  buildObjectStorageKey,
+  isObjectStorageProvider,
+  materializeObjectStorageArtifact,
+  shouldUseObjectStorage,
+  uploadBufferToObjectStorage,
+  uploadFileToObjectStorage,
+} from '../lib/assetStorage.js';
 
 const THUMBNAIL_MIME_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp']);
 const DEFAULT_THUMBNAIL_WIDTH = 1280;
@@ -24,21 +32,31 @@ export function createVideoThumbnailService(options = {}) {
       const filePath = path.resolve(localDataDir, storageKey);
       assertInsideLocalStorage(filePath, localDataDir);
 
-      await fsp.mkdir(path.dirname(filePath), { recursive: true });
-      await fsp.writeFile(filePath, buffer);
+      const objectStorage = shouldUseObjectStorage()
+        ? await uploadBufferToObjectStorage({
+            storageKey: buildObjectStorageKey({ jobId, kind: 'thumbnail', filename: safeFilename }),
+            buffer,
+            mimeType: normalizeImageMimeType(mimeType),
+          })
+        : null;
+
+      if (!objectStorage) {
+        await fsp.mkdir(path.dirname(filePath), { recursive: true });
+        await fsp.writeFile(filePath, buffer);
+      }
 
       const artifact = await repository.createArtifact({
         jobId,
         kind: 'thumbnail',
-        storageProvider: 'local-disk',
-        storageKey,
+        storageProvider: objectStorage?.storageProvider ?? 'local-disk',
+        storageKey: objectStorage?.storageKey ?? storageKey,
         mimeType: normalizeImageMimeType(mimeType),
-        sizeBytes: buffer.length,
+        sizeBytes: objectStorage?.sizeBytes ?? buffer.length,
         metadata: {
           filename: safeFilename,
-          localPath: filePath,
           source: 'admin_upload',
           uploadedBy: actorUid,
+          ...(objectStorage?.metadata ?? { localPath: filePath }),
         },
       });
 
@@ -62,7 +80,12 @@ export function createVideoThumbnailService(options = {}) {
         throw conflict('No local video is available to generate a thumbnail', { jobId });
       }
 
-      const inputPath = resolveLocalArtifactPath(videoArtifact, localDataDir);
+      const inputPath = isObjectStorageProvider(videoArtifact.storageProvider)
+        ? (await materializeObjectStorageArtifact(videoArtifact, {
+            localDataDir,
+            purpose: 'thumbnail-source',
+          })).filePath
+        : resolveLocalArtifactPath(videoArtifact, localDataDir);
       const outputStorageKey = path.join('generated', safePathSegment(jobId), 'thumbnails', `${Date.now()}-thumbnail.jpg`);
       const outputPath = path.resolve(localDataDir, outputStorageKey);
       assertInsideLocalStorage(outputPath, localDataDir);
@@ -76,20 +99,31 @@ export function createVideoThumbnailService(options = {}) {
       });
 
       const stat = await fsp.stat(outputPath);
+      const objectStorage = shouldUseObjectStorage()
+        ? await uploadFileToObjectStorage({
+            storageKey: buildObjectStorageKey({
+              jobId,
+              kind: 'thumbnail',
+              filename: path.basename(outputPath),
+            }),
+            filePath: outputPath,
+            mimeType: 'image/jpeg',
+          })
+        : null;
       const artifact = await repository.createArtifact({
         jobId,
         kind: 'thumbnail',
-        storageProvider: 'local-disk',
-        storageKey: outputStorageKey,
+        storageProvider: objectStorage?.storageProvider ?? 'local-disk',
+        storageKey: objectStorage?.storageKey ?? outputStorageKey,
         mimeType: 'image/jpeg',
-        sizeBytes: stat.size,
+        sizeBytes: objectStorage?.sizeBytes ?? stat.size,
         metadata: {
           filename: path.basename(outputPath),
-          localPath: outputPath,
           source: 'ffmpeg_snapshot',
           generatedFromArtifactId: videoArtifact.id,
           atSeconds: normalizeTimestamp(atSeconds),
           generatedBy: actorUid,
+          ...(objectStorage?.metadata ?? { localPath: outputPath }),
         },
       });
 
@@ -135,12 +169,12 @@ function assertImagePayload({ buffer, mimeType }) {
 
 function selectVideoArtifact(job, artifacts) {
   const current = artifacts.find((artifact) => artifact.id === job.currentVideoArtifactId && artifact.kind === 'video');
-  if (current?.storageProvider === 'local-disk') {
+  if (current && (current.storageProvider === 'local-disk' || isObjectStorageProvider(current.storageProvider))) {
     return current;
   }
 
   return [...artifacts]
-    .filter((artifact) => artifact.kind === 'video' && artifact.storageProvider === 'local-disk')
+    .filter((artifact) => artifact.kind === 'video' && (artifact.storageProvider === 'local-disk' || isObjectStorageProvider(artifact.storageProvider)))
     .sort((left, right) => Date.parse(right.updatedAt ?? right.createdAt ?? 0) - Date.parse(left.updatedAt ?? left.createdAt ?? 0))[0];
 }
 

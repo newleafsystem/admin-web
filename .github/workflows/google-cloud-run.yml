@@ -86,6 +86,8 @@ jobs:
             exit 0
           fi
 
+          api=true
+          renderer=false
           before="${{ github.event.before }}"
           if [[ -z "$before" || "$before" =~ ^0+$ ]]; then
             before="$(git rev-list --max-parents=0 HEAD)"
@@ -94,25 +96,14 @@ jobs:
           if ! git cat-file -e "$before^{commit}" 2>/dev/null; then
             {
               echo "Previous commit $before is not available in this checkout."
-              echo "Deploying both Cloud Run services as a safe fallback."
+              echo "Deploying the API as a safe fallback."
             } >> "$GITHUB_STEP_SUMMARY"
             echo "api=true" >> "$GITHUB_OUTPUT"
-            echo "renderer=true" >> "$GITHUB_OUTPUT"
+            echo "renderer=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           changed_files="$(git diff --name-only "$before" "${{ github.sha }}")"
-          api=false
-          renderer=false
-
-          if echo "$changed_files" | grep -Eq '^\.github/workflows/google-cloud-run\.yml$'; then
-            api=true
-            renderer=true
-          fi
-
-          if echo "$changed_files" | grep -Eq '^(apps/api/|packages/|services/api/|scripts/setup-google-cloud-run-api\.sh$|package\.json$|package-lock\.json$)'; then
-            api=true
-          fi
 
           if echo "$changed_files" | grep -Eq '^(services/media-renderer/|scripts/setup-google-cloud-run-renderer\.sh)'; then
             renderer=true

@@ -241,6 +241,9 @@ function ContentJobDetailsModal({
     "video_requested",
     "video_ready",
     "review_required",
+    "approved",
+    "publishing",
+    "partial_failed",
     "failed"
   ].includes(job.status);
 

@@ -11,6 +11,7 @@ import {
 } from '@newleaf/video-assembler';
 import { config } from '../config.js';
 import { conflict } from '../lib/httpErrors.js';
+import { buildObjectStorageKey, shouldUseObjectStorage, uploadFileToObjectStorage } from '../lib/assetStorage.js';
 
 const DEFAULT_ASSEMBLY_SETTINGS = Object.freeze({
   width: 1920,
@@ -203,19 +204,33 @@ export function createVideoAssemblyService(options = {}) {
         logger: { info: () => {}, warn: () => {}, error: () => {} },
       });
       const outputStat = await stat(assemblyResult.outputPath);
+      const filename = path.basename(assemblyResult.outputPath);
+      const objectStorage = shouldUseObjectStorage()
+        ? await uploadFileToObjectStorage({
+            storageKey: buildObjectStorageKey({
+              jobId: providerJob.jobId,
+              kind: 'video',
+              filename,
+            }),
+            filePath: assemblyResult.outputPath,
+            mimeType: 'video/mp4',
+          })
+        : null;
       const artifact = await repository.createArtifact({
         jobId: providerJob.jobId,
         kind: 'video',
-        storageProvider: 'local-disk',
-        storageKey: toLocalStorageKey(assemblyResult.outputPath),
+        storageProvider: objectStorage?.storageProvider ?? 'local-disk',
+        storageKey: objectStorage?.storageKey ?? toLocalStorageKey(assemblyResult.outputPath),
         mimeType: 'video/mp4',
-        sizeBytes: outputStat.size,
+        sizeBytes: objectStorage?.sizeBytes ?? outputStat.size,
         metadata: {
           provider: 'heygen',
           assemblyProjectId: assembly.projectId,
           manifestPath: entry.manifestPath,
           source: 'video_assembler',
           segmentCount: entry.manifest.segments.length,
+          filename,
+          ...(objectStorage?.metadata ?? { localPath: assemblyResult.outputPath }),
         },
       });
 

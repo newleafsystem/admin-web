@@ -45,6 +45,26 @@ export async function uploadBufferToObjectStorage({ storageKey, buffer, mimeType
   };
 }
 
+export async function uploadFileToObjectStorage({ storageKey, filePath, mimeType }) {
+  const file = objectStorageBucket().file(assertSafeObjectKey(storageKey));
+  await pipeline(fs.createReadStream(filePath), file.createWriteStream({
+    resumable: false,
+    metadata: {
+      contentType: mimeType || 'application/octet-stream',
+    },
+  }));
+  const [metadata] = await file.getMetadata();
+  return {
+    storageProvider: 'gcs',
+    storageKey,
+    sizeBytes: Number(metadata.size ?? 0),
+    metadata: {
+      bucket: objectStorageBucketName(),
+      objectGeneration: metadata.generation ?? null,
+    },
+  };
+}
+
 export async function getObjectStorageMetadata(artifact) {
   const file = objectStorageBucket().file(assertSafeObjectKey(artifact.storageKey));
   const [metadata] = await file.getMetadata();
