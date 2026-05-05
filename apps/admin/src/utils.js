@@ -132,6 +132,23 @@ export function isArchivedPublishPlan(plan) {
   );
 }
 
+export function hasActivePublishingWork({ publishPlans = [], publications = [] } = {}) {
+  const activeStatuses = new Set(["queued", "retrying", "uploading", "processing", "delete_requested"]);
+
+  return (
+    publishPlans.some((plan) => {
+      if (isArchivedPublishPlan(plan)) {
+        return false;
+      }
+      return (
+        plan.status === "publishing" ||
+        (plan.attempts ?? []).some((attempt) => activeStatuses.has(attempt.status))
+      );
+    }) ||
+    publications.some((publication) => activeStatuses.has(publication.status))
+  );
+}
+
 export function isArchivedContentQueueJob(job, { publishPlans = [], publications = [] } = {}) {
   if (!job) {
     return false;

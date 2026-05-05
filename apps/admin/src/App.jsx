@@ -53,6 +53,7 @@ import {
   getPlatformConfig,
   getRemainingPublishPlatforms,
   getViewFromLocation,
+  hasActivePublishingWork,
   isArchivedContentQueueJob,
   isArchivedPublishPlan,
   isReviewableJob,
@@ -198,13 +199,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const hasActivePublishing = publishPlans.some((plan) =>
-      plan.status === "publishing" ||
-      plan.attempts.some((attempt) => ["queued", "retrying", "uploading", "processing"].includes(attempt.status))
-    );
-    const shouldPoll =
-      !isLoading &&
-      (activeView === "Published Videos" || hasActivePublishing);
+    const shouldPoll = !isLoading && hasActivePublishingWork({ publishPlans, publications });
     if (!shouldPoll) {
       return undefined;
     }
@@ -241,7 +236,7 @@ export default function App() {
       isMounted = false;
       window.clearInterval(intervalId);
     };
-  }, [activeView, isLoading, publishPlans]);
+  }, [isLoading, publishPlans, publications]);
 
   const selectedJob = useMemo(
     () => jobs.find((job) => job.id === selectedJobId) ?? jobs[0],
