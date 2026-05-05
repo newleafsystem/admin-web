@@ -31,10 +31,11 @@ export function authenticateRequest(options = {}) {
       }
 
       const decodedToken = await auth.verifyIdToken(match[1]);
+      const email = decodedToken.email ?? null;
       req.user = {
         uid: decodedToken.uid,
-        email: decodedToken.email ?? null,
-        roles: normalizeRoles(decodedToken.roles ?? decodedToken.role),
+        email,
+        roles: resolveRoles(decodedToken, email),
         claims: decodedToken,
         authMode: 'firebase',
       };
@@ -63,4 +64,17 @@ function normalizeRoles(value) {
     return [value.trim()];
   }
   return [];
+}
+
+function resolveRoles(decodedToken, email) {
+  const roles = normalizeRoles(decodedToken.roles ?? decodedToken.role);
+  if (roles.length > 0) {
+    return roles;
+  }
+
+  if (email && config.auth.adminEmails.includes(email.toLowerCase())) {
+    return ['admin', 'editor', 'reviewer', 'publisher', 'viewer'];
+  }
+
+  return roles;
 }

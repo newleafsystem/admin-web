@@ -2191,3 +2191,51 @@ textarea.script-editor:focus {
     justify-content: flex-start;
   }
 }
+.auth-screen {
+  align-items: center;
+  background: #f7f5ef;
+  display: flex;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth-panel {
+  background: #ffffff;
+  border: 1px solid #d7decd;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(11, 45, 35, 0.08);
+  margin: 0 auto;
+  max-width: 420px;
+  padding: 28px;
+  width: 100%;
+}
+
+.auth-panel h1 {
+  font-size: 32px;
+  margin: 4px 0 12px;
+}
+
+.auth-panel p {
+  color: #526257;
+}
+
+.auth-session-bar {
+  align-items: center;
+  background: #0b2d23;
+  color: #f7f5ef;
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  min-height: 42px;
+  padding: 6px 16px;
+}
+
+.auth-session-bar span {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.auth-session-bar .ghost {
+  border-color: rgba(247, 245, 239, 0.45);
+  color: #f7f5ef;
+}

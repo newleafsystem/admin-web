@@ -19,6 +19,23 @@ if (
   process.exit(1);
 }
 
+if (env.REQUIRE_AUTH === 'true') {
+  const missingFirebaseValues = [
+    'VITE_FIREBASE_API_KEY',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'VITE_FIREBASE_PROJECT_ID',
+    'VITE_FIREBASE_APP_ID',
+  ].filter((name) => !env[name]?.trim());
+
+  if (missingFirebaseValues.length > 0) {
+    console.error(
+      `Refusing to build authenticated Firebase Hosting bundle. Missing: ${missingFirebaseValues.join(', ')}.`,
+    );
+    console.error('Set these as GitHub repository variables or use REQUIRE_AUTH=false for local-only builds.');
+    process.exit(1);
+  }
+}
+
 const result = spawnSync('npm', ['run', 'build', '-w', '@newleaf/admin'], {
   env,
   shell: process.platform === 'win32',

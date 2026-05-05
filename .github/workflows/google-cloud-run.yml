@@ -37,6 +37,7 @@ jobs:
       SKIP_PROVISIONING: ${{ vars.SKIP_PROVISIONING || 'true' }}
       CLOUD_BUILD_SUPPRESS_LOGS: ${{ vars.CLOUD_BUILD_SUPPRESS_LOGS || 'true' }}
       REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
+      AUTH_ADMIN_EMAILS: ${{ vars.AUTH_ADMIN_EMAILS }}
       FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID || 'newleafdb' }}
       PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://admin.newleafsystem.com' }}
       ADMIN_BASE_URL: ${{ vars.ADMIN_BASE_URL || 'https://admin.newleafsystem.com' }}
@@ -44,6 +45,12 @@ jobs:
       CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || 'https://admin.newleafsystem.com' }}
       MEDIA_RENDERER_URL: ${{ vars.MEDIA_RENDERER_URL }}
       MEDIA_RENDER_HMAC_SECRET: ${{ secrets.MEDIA_RENDER_HMAC_SECRET }}
+      YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REDIRECT_URI: ${{ vars.YOUTUBE_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/youtube/oauth/callback' }}
+      YOUTUBE_SCOPES: ${{ vars.YOUTUBE_SCOPES || 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl' }}
+      YOUTUBE_DEFAULT_PRIVACY_STATUS: ${{ vars.YOUTUBE_DEFAULT_PRIVACY_STATUS || 'private' }}
+      YOUTUBE_DEFAULT_CATEGORY_ID: ${{ vars.YOUTUBE_DEFAULT_CATEGORY_ID || '22' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4

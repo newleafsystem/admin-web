@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config.js";
+import { getAuthToken } from "./firebaseClient.js";
 
 export async function fetchOperationsSnapshot() {
   const [jobs, publishPlans, connectedAccounts, publications, serviceClients] = await Promise.all([
@@ -570,7 +571,12 @@ export async function revokeServiceClient(clientId) {
 
 async function apiFetch(url, options) {
   try {
-    return await fetch(url, options);
+    const token = await getAuthToken();
+    const headers = new Headers(options?.headers ?? {});
+    if (token && !headers.has("authorization")) {
+      headers.set("authorization", `Bearer ${token}`);
+    }
+    return await fetch(url, { ...(options ?? {}), headers });
   } catch (error) {
     throw new Error(
       `Unable to reach API at ${API_BASE_URL}. Restart the API server and confirm CORS_ALLOWED_ORIGINS includes this admin origin. ${error.message}`

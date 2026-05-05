@@ -197,9 +197,29 @@ env_vars=(
   "VIDEO_STORAGE_DIR=/tmp/newleaf-video-assembler"
 )
 
+add_env_if_present() {
+  local name="$1"
+  local value="${!name:-}"
+  if [[ -n "${value}" ]]; then
+    env_vars+=("${name}=${value}")
+  fi
+}
+
+if [[ -n "${AUTH_ADMIN_EMAILS:-}" ]]; then
+  env_vars+=("AUTH_ADMIN_EMAILS=${AUTH_ADMIN_EMAILS}")
+fi
+
 if [[ -n "${MEDIA_RENDERER_URL:-}" ]]; then
   env_vars+=("MEDIA_RENDERER_URL=${MEDIA_RENDERER_URL}")
 fi
+
+add_env_if_present YOUTUBE_CLIENT_ID
+add_env_if_present YOUTUBE_REDIRECT_URI
+add_env_if_present YOUTUBE_SCOPES
+add_env_if_present YOUTUBE_DEFAULT_PRIVACY_STATUS
+add_env_if_present YOUTUBE_DEFAULT_CATEGORY_ID
+add_env_if_present YOUTUBE_UPLOAD_CHUNK_BYTES
+add_env_if_present YOUTUBE_AUTO_RESUME_QUEUED_UPLOADS
 
 deploy_args=(
   run deploy "${SERVICE_NAME}"

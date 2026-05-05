@@ -192,6 +192,13 @@ This keeps browser API calls same-origin through Firebase Hosting.
 
 The `npm run firebase:build` command forces `VITE_API_BASE_URL=/api/v1` unless you deliberately override it, so local `.env` values cannot accidentally ship a bundle that calls `localhost:8080`.
 
+Firebase values are applied in two different places:
+
+- GitHub repository variables prefixed with `VITE_` are available only during the Vite build. They are compiled into the static admin bundle so the browser can initialize Firebase Auth and Analytics.
+- GitHub secrets and non-`VITE_` repository variables are used by deployment workflows and Cloud Run runtime configuration. Firebase Hosting does not read GitHub variables at request time after the static bundle is deployed.
+
+The Firebase web SDK config is public browser configuration, not a backend secret. Keep provider client secrets, API signing secrets, OAuth refresh tokens, and service account JSON in GitHub Secrets or Google Secret Manager, not in `VITE_` values.
+
 **Hybrid local UI against production API**
 
 This is possible for smoke testing, but it should not be the default because it can create or mutate real production jobs, OAuth state, provider records, and publish attempts.
@@ -252,8 +259,7 @@ Required DNS at names.co.uk:
 
 Required GitHub secrets and variables:
 
-- `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING` for Firebase Hosting deploys.
-- `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` for the Cloud Run deploy workflow.
+- `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` for Firebase Hosting and Cloud Run deploy workflows.
 - `MEDIA_RENDER_HMAC_SECRET` for API-to-renderer signing.
 - `GCP_PROJECT_ID=newleaf-trading`
 - `GCP_REGION=us-central1`
@@ -264,11 +270,23 @@ Required GitHub secrets and variables:
 - `SKIP_PROVISIONING=true`
 - `CLOUD_BUILD_SUPPRESS_LOGS=true`
 - `REQUIRE_AUTH=true`
+- `AUTH_ADMIN_EMAILS=<space-separated-admin-google-emails>`
 - `FIRESTORE_DATABASE_ID=newleafdb`
 - `PUBLIC_BASE_URL=https://admin.newleafsystem.com`
 - `ADMIN_BASE_URL=https://admin.newleafsystem.com`
 - `SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com`
 - `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com`
+- `VITE_FIREBASE_API_KEY=<firebase-web-api-key>`
+- `VITE_FIREBASE_AUTH_DOMAIN=newleaf-trading.firebaseapp.com`
+- `VITE_FIREBASE_PROJECT_ID=newleaf-trading`
+- `VITE_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>`
+- `VITE_FIREBASE_MESSAGING_SENDER_ID=<firebase-sender-id>`
+- `VITE_FIREBASE_APP_ID=<firebase-web-app-id>`
+- `VITE_FIREBASE_MEASUREMENT_ID=<firebase-measurement-id>`
+- `YOUTUBE_CLIENT_ID=<google-oauth-web-client-id>`
+- `YOUTUBE_CLIENT_SECRET` as a GitHub secret
+- `YOUTUBE_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/youtube/oauth/callback`
+- `YOUTUBE_SCOPES=https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl`
 
 You can push the repository variables and deployment secrets with GitHub CLI:
 
@@ -282,7 +300,21 @@ Run a dry run first:
 ENV_FILE=.env.production npm run github:setup-actions -- --repo <github-owner>/<repo-name> --dry-run
 ```
 
-The script sets repository variables and these secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`, `MEDIA_RENDER_HMAC_SECRET`, and `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING` when `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE` or `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING` is provided. It does not print secret values.
+The script sets repository variables and these secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`, `MEDIA_RENDER_HMAC_SECRET`, and optional provider secrets that are present in the env file. It does not print secret values. Firebase Hosting uses GitHub OIDC / Google Workload Identity, so a separate Firebase service-account JSON secret is not required.
+
+To automate both GitHub Actions configuration and Google Secret Manager / Cloud Run runtime sync from one env file:
+
+```bash
+npm run deploy:configure -- --env-file .env.production --repo <github-owner>/<repo-name>
+```
+
+Run a preview first:
+
+```bash
+npm run deploy:configure -- --env-file .env.production --repo <github-owner>/<repo-name> --dry-run
+```
+
+The bootstrap command derives production-safe defaults, fetches missing Firebase web SDK config through Firebase CLI when possible, discovers or falls back to the conventional GitHub Workload Identity provider path, and generates `MEDIA_RENDER_HMAC_SECRET` when it is missing. It refuses to push `localhost` or `127.0.0.1` URLs unless `--allow-local-values` is explicitly passed. By default it skips Google API enablement and assumes one-time Google project provisioning is already complete.
 
 Sync production secrets and runtime values from `.env.production` to Google Secret Manager:
 

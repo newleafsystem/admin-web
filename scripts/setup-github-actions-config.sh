@@ -10,6 +10,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ENV_FILE:-${ROOT_DIR}/.env.production}"
 REPO="${GITHUB_REPOSITORY:-}"
 DRY_RUN=false
+ALLOW_LOCAL_VALUES=false
 
 usage() {
   cat <<EOF
@@ -20,6 +21,7 @@ Options:
   --env-file <path>   Env file to read. Defaults to .env.production.
   --repo <owner/repo> GitHub repository. Defaults to GITHUB_REPOSITORY or gh repo view.
   --dry-run           Print variable/secret names that would be set.
+  --allow-local-values Allow localhost URLs to be pushed intentionally.
   -h, --help          Show this help.
 
 Required env values:
@@ -48,6 +50,10 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=true
       shift
       ;;
+    --allow-local-values)
+      ALLOW_LOCAL_VALUES=true
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -70,13 +76,34 @@ fi
 source "${ROOT_DIR}/scripts/load-env-file.sh"
 load_env_file "${ENV_FILE}"
 
-if ! command -v gh >/dev/null 2>&1; then
+find_gh() {
+  local candidate
+  if candidate="$(command -v gh 2>/dev/null)"; then
+    printf '%s\n' "${candidate}"
+    return 0
+  fi
+
+  for candidate in \
+    "/c/Program Files/GitHub CLI/gh.exe" \
+    "/mnt/c/Program Files/GitHub CLI/gh.exe" \
+    "/c/Program Files (x86)/GitHub CLI/gh.exe" \
+    "/mnt/c/Program Files (x86)/GitHub CLI/gh.exe"; do
+    if [[ -x "${candidate}" ]]; then
+      printf '%s\n' "${candidate}"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+if ! GH_BIN="$(find_gh)"; then
   echo "ERROR: GitHub CLI 'gh' is not installed or not in PATH." >&2
   exit 1
 fi
 
 if [[ -z "${REPO}" ]]; then
-  REPO="$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true)"
+  REPO="$("${GH_BIN}" repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null || true)"
 fi
 
 if [[ -z "${REPO}" ]]; then
@@ -85,7 +112,7 @@ if [[ -z "${REPO}" ]]; then
 fi
 
 if [[ "${DRY_RUN}" != "true" ]]; then
-  gh auth status >/dev/null
+  "${GH_BIN}" auth status >/dev/null
 fi
 
 has_value() {
@@ -114,13 +141,13 @@ set_variable() {
     return 0
   fi
 
-  gh variable set "${name}" --repo "${REPO}" --body "${value}" >/dev/null
+  "${GH_BIN}" variable set "${name}" --repo "${REPO}" --body "${value}" >/dev/null
   echo "Set repository variable ${name}"
 }
 
 secret_exists() {
   local name="$1"
-  gh secret list --repo "${REPO}" --json name --jq '.[].name' | grep -qx "${name}"
+  "${GH_BIN}" secret list --repo "${REPO}" --json name --jq '.[].name' | grep -qx "${name}"
 }
 
 set_secret_value() {
@@ -136,7 +163,7 @@ set_secret_value() {
     return 0
   fi
 
-  gh secret set "${name}" --repo "${REPO}" --body "${value}" >/dev/null
+  "${GH_BIN}" secret set "${name}" --repo "${REPO}" --body "${value}" >/dev/null
   echo "Set secret ${name}"
 }
 
@@ -156,14 +183,45 @@ set_secret_file() {
     return 0
   fi
 
-  gh secret set "${name}" --repo "${REPO}" < "${file_path}" >/dev/null
+  "${GH_BIN}" secret set "${name}" --repo "${REPO}" < "${file_path}" >/dev/null
   echo "Set secret ${name} from file"
 }
+
+derive_defaults() {
+  local project_id="${GCP_PROJECT_ID:-${FIREBASE_PROJECT_ID:-newleaf-trading}}"
+  if [[ -z "${GCS_BUCKET:-}" && -n "${FIREBASE_STORAGE_BUCKET:-}" ]]; then
+    GCS_BUCKET="${FIREBASE_STORAGE_BUCKET}"
+  fi
+  if [[ -z "${GCS_BUCKET:-}" && -n "${project_id}" ]]; then
+    GCS_BUCKET="${project_id}.firebasestorage.app"
+  fi
+}
+
+derive_defaults
 
 require_value GCS_BUCKET
 require_value MEDIA_RENDER_HMAC_SECRET
 require_value GCP_WORKLOAD_IDENTITY_PROVIDER
 require_value GCP_SERVICE_ACCOUNT
+
+if [[ "${ALLOW_LOCAL_VALUES}" != "true" ]]; then
+  for pair in \
+    "PUBLIC_BASE_URL=${PUBLIC_BASE_URL:-}" \
+    "ADMIN_BASE_URL=${ADMIN_BASE_URL:-}" \
+    "SOCIAL_CALLBACK_BASE_URL=${SOCIAL_CALLBACK_BASE_URL:-}" \
+    "CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-}" \
+    "YOUTUBE_REDIRECT_URI=${YOUTUBE_REDIRECT_URI:-}" \
+    "X_REDIRECT_URI=${X_REDIRECT_URI:-}" \
+    "LINKEDIN_REDIRECT_URI=${LINKEDIN_REDIRECT_URI:-}" \
+    "META_REDIRECT_URI=${META_REDIRECT_URI:-}" \
+    "TIKTOK_REDIRECT_URI=${TIKTOK_REDIRECT_URI:-}"; do
+    if [[ "${pair}" =~ localhost|127\.0\.0\.1 ]]; then
+      echo "ERROR: Refusing to push local URL value to GitHub Actions: ${pair%%=*}" >&2
+      echo "Use .env.production values or pass --allow-local-values for an intentional test setup." >&2
+      exit 1
+    fi
+  done
+fi
 
 echo "Configuring GitHub Actions for ${REPO}"
 echo "Using env file: ${ENV_FILE}"
@@ -177,11 +235,24 @@ set_variable SKIP_ENABLE_APIS "${SKIP_ENABLE_APIS:-true}"
 set_variable SKIP_PROVISIONING "${SKIP_PROVISIONING:-true}"
 set_variable CLOUD_BUILD_SUPPRESS_LOGS "${CLOUD_BUILD_SUPPRESS_LOGS:-true}"
 set_variable REQUIRE_AUTH "${REQUIRE_AUTH:-true}"
+set_variable AUTH_ADMIN_EMAILS "${AUTH_ADMIN_EMAILS:-}"
 set_variable FIRESTORE_DATABASE_ID "${FIRESTORE_DATABASE_ID:-newleafdb}"
 set_variable PUBLIC_BASE_URL "${PUBLIC_BASE_URL:-https://admin.newleafsystem.com}"
 set_variable ADMIN_BASE_URL "${ADMIN_BASE_URL:-https://admin.newleafsystem.com}"
 set_variable SOCIAL_CALLBACK_BASE_URL "${SOCIAL_CALLBACK_BASE_URL:-${PUBLIC_BASE_URL:-https://admin.newleafsystem.com}}"
 set_variable CORS_ALLOWED_ORIGINS "${CORS_ALLOWED_ORIGINS:-${ADMIN_BASE_URL:-https://admin.newleafsystem.com}}"
+set_variable VITE_FIREBASE_API_KEY "${VITE_FIREBASE_API_KEY:-}"
+set_variable VITE_FIREBASE_AUTH_DOMAIN "${VITE_FIREBASE_AUTH_DOMAIN:-}"
+set_variable VITE_FIREBASE_PROJECT_ID "${VITE_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID:-}}"
+set_variable VITE_FIREBASE_STORAGE_BUCKET "${VITE_FIREBASE_STORAGE_BUCKET:-${FIREBASE_STORAGE_BUCKET:-${GCS_BUCKET:-}}}"
+set_variable VITE_FIREBASE_MESSAGING_SENDER_ID "${VITE_FIREBASE_MESSAGING_SENDER_ID:-}"
+set_variable VITE_FIREBASE_APP_ID "${VITE_FIREBASE_APP_ID:-}"
+set_variable VITE_FIREBASE_MEASUREMENT_ID "${VITE_FIREBASE_MEASUREMENT_ID:-}"
+set_variable YOUTUBE_CLIENT_ID "${YOUTUBE_CLIENT_ID:-}"
+set_variable YOUTUBE_REDIRECT_URI "${YOUTUBE_REDIRECT_URI:-${SOCIAL_CALLBACK_BASE_URL:-https://admin.newleafsystem.com}/api/v1/social/youtube/oauth/callback}"
+set_variable YOUTUBE_SCOPES "${YOUTUBE_SCOPES:-https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl}"
+set_variable YOUTUBE_DEFAULT_PRIVACY_STATUS "${YOUTUBE_DEFAULT_PRIVACY_STATUS:-private}"
+set_variable YOUTUBE_DEFAULT_CATEGORY_ID "${YOUTUBE_DEFAULT_CATEGORY_ID:-22}"
 
 if has_value "${MEDIA_RENDERER_URL:-}"; then
   set_variable MEDIA_RENDERER_URL "${MEDIA_RENDERER_URL}"
@@ -190,6 +261,7 @@ fi
 set_secret_value GCP_WORKLOAD_IDENTITY_PROVIDER "${GCP_WORKLOAD_IDENTITY_PROVIDER}"
 set_secret_value GCP_SERVICE_ACCOUNT "${GCP_SERVICE_ACCOUNT}"
 set_secret_value MEDIA_RENDER_HMAC_SECRET "${MEDIA_RENDER_HMAC_SECRET}"
+set_secret_value YOUTUBE_CLIENT_SECRET "${YOUTUBE_CLIENT_SECRET:-}"
 
 firebase_secret_name="FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING"
 if has_value "${FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE:-}"; then

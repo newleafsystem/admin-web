@@ -7,6 +7,17 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const GCLOUD_CANDIDATES = [
+  'C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd',
+  'C:\\Program Files\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud.cmd',
+  'C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud',
+  'C:\\Program Files\\Google\\Cloud SDK\\google-cloud-sdk\\bin\\gcloud',
+];
+const GCLOUD_ROOT_CANDIDATES = [
+  'C:\\Program Files (x86)\\Google\\Cloud SDK\\google-cloud-sdk',
+  'C:\\Program Files\\Google\\Cloud SDK\\google-cloud-sdk',
+];
+let cachedGcloudPath;
 
 const SECRET_SPECS = [
   { env: 'HEYGEN_API_KEY', secret: 'NEWLEAF_HEYGEN_API_KEY', services: ['api'] },
@@ -224,16 +235,123 @@ function findClosingQuote(value, quote) {
   return -1;
 }
 
-function runGcloud(args, options = {}) {
-  const command = ['gcloud', ...args].join(' ');
-  const result = spawnSync('gcloud', args, {
-    input: options.input,
+function findExecutable(name, candidates = []) {
+  const probe = process.platform === 'win32' ? 'where.exe' : 'which';
+  const result = spawnSync(probe, [name], {
     encoding: 'utf8',
-    stdio: options.input === undefined ? ['ignore', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'],
+    shell: false,
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
 
+  if (result.status === 0) {
+    const matches = result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    if (process.platform === 'win32') {
+      const cmdMatch = matches.find((line) => /\.(cmd|exe)$/i.test(line));
+      if (cmdMatch) return cmdMatch;
+      const cmdSibling = matches.map((line) => `${line}.cmd`).find((line) => existsSync(line));
+      if (cmdSibling) return cmdSibling;
+    }
+    if (matches[0]) return matches[0];
+  }
+
+  return candidates.find((candidate) => existsSync(candidate)) || '';
+}
+
+function getGcloudPath() {
+  if (cachedGcloudPath !== undefined) {
+    return cachedGcloudPath;
+  }
+  cachedGcloudPath = process.env.GCLOUD_BIN || findExecutable('gcloud', GCLOUD_CANDIDATES);
+  return cachedGcloudPath;
+}
+
+function getGcloudDisplayPath() {
+  const gcloudPath = getGcloudPath();
+  return getWindowsGcloudPythonInvocation(gcloudPath)?.display || gcloudPath;
+}
+
+function quoteWindowsArg(value) {
+  const text = String(value);
+  if (!/[()\s"&^<>|]/.test(text)) {
+    return text;
+  }
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function wrapWindowsCommandLine(commandLine) {
+  return commandLine.startsWith('"') ? `"${commandLine}"` : commandLine;
+}
+
+function getWindowsGcloudPythonInvocation(gcloudPath) {
+  if (process.platform !== 'win32') {
+    return null;
+  }
+
+  const roots = [];
+  if (gcloudPath && gcloudPath !== 'gcloud') {
+    const binDir = path.dirname(gcloudPath);
+    roots.push(path.resolve(binDir, '..'));
+  }
+  roots.push(...GCLOUD_ROOT_CANDIDATES);
+
+  for (const root of roots) {
+    const pythonPath = path.join(root, 'platform', 'bundledpython', 'python.exe');
+    const gcloudPyPath = path.join(root, 'lib', 'gcloud.py');
+    if (existsSync(pythonPath) && existsSync(gcloudPyPath)) {
+      return {
+        command: pythonPath,
+        argsPrefix: [gcloudPyPath],
+        display: gcloudPyPath,
+      };
+    }
+  }
+
+  return null;
+}
+
+function spawnGcloud(args, options = {}) {
+  const gcloudPath = getGcloudPath();
+  if (!gcloudPath) {
+    return {
+      status: null,
+      error: new Error('Google Cloud CLI was not found.'),
+      stdout: '',
+      stderr: '',
+    };
+  }
+
+  const stdio = options.input === undefined ? ['ignore', 'pipe', 'pipe'] : ['pipe', 'pipe', 'pipe'];
+  const pythonInvocation = getWindowsGcloudPythonInvocation(gcloudPath);
+  if (pythonInvocation) {
+    return spawnSync(pythonInvocation.command, [...pythonInvocation.argsPrefix, ...args], {
+      input: options.input,
+      encoding: 'utf8',
+      stdio,
+    });
+  }
+
+  if (process.platform === 'win32' && /\.cmd$/i.test(gcloudPath)) {
+    const commandLine = wrapWindowsCommandLine([gcloudPath, ...args].map(quoteWindowsArg).join(' '));
+    return spawnSync(process.env.ComSpec || 'cmd.exe', ['/d', '/c', commandLine], {
+      input: options.input,
+      encoding: 'utf8',
+      stdio,
+    });
+  }
+
+  return spawnSync(gcloudPath, args, {
+    input: options.input,
+    encoding: 'utf8',
+    stdio,
+  });
+}
+
+function runGcloud(args, options = {}) {
+  const command = ['gcloud', ...args].join(' ');
+  const result = spawnGcloud(args, options);
+
   if (result.error) {
-    throw new Error(`Unable to run gcloud. Is Google Cloud CLI installed and in PATH? ${result.error.message}`);
+    throw new Error(`Unable to run gcloud at ${getGcloudDisplayPath() || 'gcloud'}: ${result.error.message}`);
   }
 
   if (result.status !== 0) {
@@ -245,9 +363,19 @@ function runGcloud(args, options = {}) {
 }
 
 function commandExists(command) {
-  const result = spawnSync(command, ['--version'], {
+  const executable = command === 'gcloud' ? getGcloudPath() : findExecutable(command);
+  if (!executable) {
+    return false;
+  }
+
+  if (command === 'gcloud') {
+    return true;
+  }
+
+  const result = spawnSync(executable, ['--version'], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: process.platform === 'win32' && /\.cmd$/i.test(executable),
   });
   return !result.error && result.status === 0;
 }
@@ -411,13 +539,10 @@ async function ensureSecret(projectId, secretName, value, dryRun, gcloudAvailabl
     return;
   }
 
-  const describe = spawnSync('gcloud', ['secrets', 'describe', secretName, '--project', projectId], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const describe = spawnGcloud(['secrets', 'describe', secretName, '--project', projectId]);
 
   if (describe.error) {
-    throw new Error(`Unable to run gcloud. Is Google Cloud CLI installed and in PATH? ${describe.error.message}`);
+    throw new Error(`Unable to run gcloud at ${getGcloudDisplayPath() || 'gcloud'}: ${describe.error.message}`);
   }
 
   if (describe.status === 0) {
@@ -478,7 +603,7 @@ async function main() {
   }
 
   const fileEnv = parseEnv(readFileSync(envFilePath, 'utf8'));
-  const envValues = { ...process.env, ...fileEnv };
+  const envValues = { ...fileEnv, ...process.env };
   const projectId = args.projectId || envValues.GCP_PROJECT_ID || envValues.FIREBASE_PROJECT_ID || readFirebaseProjectId();
   const region = args.region || envValues.GOOGLE_CLOUD_RUN_REGION || envValues.GCP_REGION || 'us-central1';
   const apiService = args.apiService || envValues.GOOGLE_CLOUD_RUN_API_SERVICE || 'newleaf-api';
@@ -500,6 +625,7 @@ async function main() {
 
   if (!args.dryRun) {
     if (gcloudAvailable) {
+      console.log(`Using gcloud: ${getGcloudDisplayPath()}`);
       runGcloud(['config', 'set', 'project', projectId]);
     } else {
       console.log('gcloud is not in PATH. Secret sync will use Google Auth / Secret Manager REST.');

@@ -35,6 +35,7 @@ export const config = Object.freeze({
   adminBaseUrl: process.env.ADMIN_BASE_URL ?? 'http://localhost:5173',
   auth: {
     requireAuth: readBoolean('REQUIRE_AUTH', false),
+    adminEmails: readStringList('AUTH_ADMIN_EMAILS', '').map((email) => email.toLowerCase()),
   },
   serviceApi: {
     keyHashes: readStringList('SERVICE_API_KEY_HASHES', ''),
