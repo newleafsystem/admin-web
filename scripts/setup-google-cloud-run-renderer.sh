@@ -18,11 +18,11 @@
 #   TIMEOUT=3600
 #   SKIP_ENABLE_APIS=true
 #   SKIP_PROVISIONING=true
+#   CLOUD_BUILD_SUPPRESS_LOGS=true
 
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-SERVICE_DIR="${ROOT_DIR}/services/media-renderer"
 
 # shellcheck source=/dev/null
 source "${ROOT_DIR}/scripts/load-env-file.sh"
@@ -39,6 +39,7 @@ CPU="${CPU:-2}"
 TIMEOUT="${TIMEOUT:-3600}"
 SKIP_ENABLE_APIS="${SKIP_ENABLE_APIS:-true}"
 SKIP_PROVISIONING="${SKIP_PROVISIONING:-true}"
+CLOUD_BUILD_SUPPRESS_LOGS="${CLOUD_BUILD_SUPPRESS_LOGS:-true}"
 
 required=(GCP_PROJECT_ID MEDIA_RENDER_HMAC_SECRET)
 for name in "${required[@]}"; do
@@ -116,9 +117,24 @@ else
   echo "Using existing Secret Manager secret and IAM grants for renderer deploy."
 fi
 
+IMAGE_URI="gcr.io/${GCP_PROJECT_ID}/${SERVICE_NAME}:latest"
+
+echo "Building renderer container: ${IMAGE_URI}"
+build_args=(
+  builds submit "${ROOT_DIR}"
+  --config "${ROOT_DIR}/services/media-renderer/cloudbuild.yaml"
+  --substitutions "_IMAGE_URI=${IMAGE_URI}"
+)
+
+if [[ "${CLOUD_BUILD_SUPPRESS_LOGS}" == "true" ]]; then
+  build_args+=(--suppress-logs)
+fi
+
+gcloud "${build_args[@]}"
+
 echo "Deploying Cloud Run service: ${SERVICE_NAME}"
 gcloud run deploy "${SERVICE_NAME}" \
-  --source "${SERVICE_DIR}" \
+  --image "${IMAGE_URI}" \
   --region "${GCP_REGION}" \
   --service-account "${SERVICE_ACCOUNT_EMAIL}" \
   --memory "${MEMORY}" \

@@ -12,6 +12,7 @@ ENV LOCAL_DATA_DIR=/tmp/newleaf-api
 ENV FFMPEG_FONT_FILE=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
 
 COPY package.json package-lock.json ./
+COPY apps/admin/package.json apps/admin/package.json
 COPY apps/api/package.json apps/api/package.json
 COPY packages/video-assembler/package.json packages/video-assembler/package.json
 COPY packages/publishers/package.json packages/publishers/package.json
