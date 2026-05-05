@@ -21,6 +21,7 @@ COPY services/media-renderer/package.json services/media-renderer/package.json
 RUN npm ci --omit=dev --workspace @newleaf/api --include-workspace-root
 
 COPY apps/api apps/api
+COPY docs/service-api-openapi.yaml docs/service-api-openapi.yaml
 COPY packages/video-assembler packages/video-assembler
 COPY packages/publishers packages/publishers
 

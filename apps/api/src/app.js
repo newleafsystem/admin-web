@@ -80,6 +80,14 @@ export function createApp(options = {}) {
     });
   });
 
+  app.get('/api/v1/health', (req, res) => {
+    res.json({
+      ok: true,
+      service: 'newleaf-api',
+      requestId: req.requestId,
+    });
+  });
+
   app.use(
     '/api/v1/webhooks/heygen',
     express.raw({ type: '*/*', limit: '1mb' }),
