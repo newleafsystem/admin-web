@@ -95,6 +95,11 @@ jobs:
           api=false
           renderer=false
 
+          if echo "$changed_files" | grep -Eq '^\.github/workflows/google-cloud-run\.yml$'; then
+            api=true
+            renderer=true
+          fi
+
           if echo "$changed_files" | grep -Eq '^(apps/api/|packages/|services/api/|scripts/setup-google-cloud-run-api\.sh$|package\.json$|package-lock\.json$)'; then
             api=true
           fi
