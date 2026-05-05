@@ -53,6 +53,22 @@ jobs:
       YOUTUBE_SCOPES: ${{ vars.YOUTUBE_SCOPES || 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl' }}
       YOUTUBE_DEFAULT_PRIVACY_STATUS: ${{ vars.YOUTUBE_DEFAULT_PRIVACY_STATUS || 'private' }}
       YOUTUBE_DEFAULT_CATEGORY_ID: ${{ vars.YOUTUBE_DEFAULT_CATEGORY_ID || '22' }}
+      X_CLIENT_ID: ${{ vars.X_CLIENT_ID }}
+      X_CLIENT_SECRET: ${{ secrets.X_CLIENT_SECRET }}
+      X_REDIRECT_URI: ${{ vars.X_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/x/oauth/callback' }}
+      X_SCOPES: ${{ vars.X_SCOPES || 'tweet.read users.read tweet.write media.write offline.access' }}
+      X_UPLOAD_CHUNK_BYTES: ${{ vars.X_UPLOAD_CHUNK_BYTES || '4194304' }}
+      LINKEDIN_CLIENT_ID: ${{ vars.LINKEDIN_CLIENT_ID }}
+      LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+      LINKEDIN_REDIRECT_URI: ${{ vars.LINKEDIN_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/linkedin/oauth/callback' }}
+      LINKEDIN_SCOPES: ${{ vars.LINKEDIN_SCOPES || 'openid profile email w_member_social r_organization_social' }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202604' }}
+      META_APP_ID: ${{ vars.META_APP_ID }}
+      META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+      META_REDIRECT_URI: ${{ vars.META_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/meta/oauth/callback' }}
+      META_GRAPH_VERSION: ${{ vars.META_GRAPH_VERSION || 'v21.0' }}
+      META_FACEBOOK_SCOPES: ${{ vars.META_FACEBOOK_SCOPES || 'pages_show_list pages_manage_posts pages_read_engagement' }}
+      META_INSTAGRAM_SCOPES: ${{ vars.META_INSTAGRAM_SCOPES || 'pages_show_list pages_read_engagement instagram_basic instagram_content_publish' }}
     steps:
       - name: Check out code
         uses: actions/checkout@v4

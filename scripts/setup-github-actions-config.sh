@@ -219,6 +219,22 @@ derive_defaults() {
   if [[ -z "${GCS_BUCKET:-}" && -n "${project_id}" ]]; then
     GCS_BUCKET="${project_id}.firebasestorage.app"
   fi
+  local callback_base="${SOCIAL_CALLBACK_BASE_URL:-${PUBLIC_BASE_URL:-${ADMIN_BASE_URL:-https://admin.newleafsystem.com}}}"
+  if [[ -z "${YOUTUBE_REDIRECT_URI:-}" ]]; then
+    YOUTUBE_REDIRECT_URI="${callback_base}/api/v1/social/youtube/oauth/callback"
+  fi
+  if [[ -z "${X_REDIRECT_URI:-}" ]]; then
+    X_REDIRECT_URI="${callback_base}/api/v1/social/x/oauth/callback"
+  fi
+  if [[ -z "${LINKEDIN_REDIRECT_URI:-}" ]]; then
+    LINKEDIN_REDIRECT_URI="${callback_base}/api/v1/social/linkedin/oauth/callback"
+  fi
+  if [[ -z "${META_REDIRECT_URI:-}" ]]; then
+    META_REDIRECT_URI="${callback_base}/api/v1/social/meta/oauth/callback"
+  fi
+  if [[ -z "${TIKTOK_REDIRECT_URI:-}" ]]; then
+    TIKTOK_REDIRECT_URI="${callback_base}/api/v1/social/tiktok/oauth/callback"
+  fi
 }
 
 derive_defaults
@@ -285,6 +301,39 @@ fi
 if has_value "${YOUTUBE_DEFAULT_CATEGORY_ID:-}"; then
   set_variable YOUTUBE_DEFAULT_CATEGORY_ID "${YOUTUBE_DEFAULT_CATEGORY_ID}"
 fi
+set_variable X_CLIENT_ID "${X_CLIENT_ID:-}"
+if has_value "${X_REDIRECT_URI:-}"; then
+  set_variable X_REDIRECT_URI "${X_REDIRECT_URI}"
+fi
+if has_value "${X_SCOPES:-}"; then
+  set_variable X_SCOPES "${X_SCOPES}"
+fi
+if has_value "${X_UPLOAD_CHUNK_BYTES:-}"; then
+  set_variable X_UPLOAD_CHUNK_BYTES "${X_UPLOAD_CHUNK_BYTES}"
+fi
+set_variable LINKEDIN_CLIENT_ID "${LINKEDIN_CLIENT_ID:-}"
+if has_value "${LINKEDIN_REDIRECT_URI:-}"; then
+  set_variable LINKEDIN_REDIRECT_URI "${LINKEDIN_REDIRECT_URI}"
+fi
+if has_value "${LINKEDIN_SCOPES:-}"; then
+  set_variable LINKEDIN_SCOPES "${LINKEDIN_SCOPES}"
+fi
+if has_value "${LINKEDIN_API_VERSION:-}"; then
+  set_variable LINKEDIN_API_VERSION "${LINKEDIN_API_VERSION}"
+fi
+set_variable META_APP_ID "${META_APP_ID:-}"
+if has_value "${META_REDIRECT_URI:-}"; then
+  set_variable META_REDIRECT_URI "${META_REDIRECT_URI}"
+fi
+if has_value "${META_GRAPH_VERSION:-}"; then
+  set_variable META_GRAPH_VERSION "${META_GRAPH_VERSION}"
+fi
+if has_value "${META_FACEBOOK_SCOPES:-}"; then
+  set_variable META_FACEBOOK_SCOPES "${META_FACEBOOK_SCOPES}"
+fi
+if has_value "${META_INSTAGRAM_SCOPES:-}"; then
+  set_variable META_INSTAGRAM_SCOPES "${META_INSTAGRAM_SCOPES}"
+fi
 
 if has_value "${MEDIA_RENDERER_URL:-}"; then
   set_variable MEDIA_RENDERER_URL "${MEDIA_RENDERER_URL}"
@@ -295,5 +344,8 @@ set_secret_value GCP_SERVICE_ACCOUNT "${GCP_SERVICE_ACCOUNT}"
 set_firebase_hosting_secret
 set_secret_value MEDIA_RENDER_HMAC_SECRET "${MEDIA_RENDER_HMAC_SECRET}"
 set_secret_value YOUTUBE_CLIENT_SECRET "${YOUTUBE_CLIENT_SECRET:-}"
+set_secret_value X_CLIENT_SECRET "${X_CLIENT_SECRET:-}"
+set_secret_value LINKEDIN_CLIENT_SECRET "${LINKEDIN_CLIENT_SECRET:-}"
+set_secret_value META_APP_SECRET "${META_APP_SECRET:-}"
 
 echo "GitHub Actions configuration complete."

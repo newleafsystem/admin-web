@@ -254,6 +254,19 @@ add_env_if_present YOUTUBE_DEFAULT_PRIVACY_STATUS
 add_env_if_present YOUTUBE_DEFAULT_CATEGORY_ID
 add_env_if_present YOUTUBE_UPLOAD_CHUNK_BYTES
 add_env_if_present YOUTUBE_AUTO_RESUME_QUEUED_UPLOADS
+add_env_if_present X_CLIENT_ID
+add_env_if_present X_REDIRECT_URI
+add_env_if_present X_SCOPES
+add_env_if_present X_UPLOAD_CHUNK_BYTES
+add_env_if_present LINKEDIN_CLIENT_ID
+add_env_if_present LINKEDIN_REDIRECT_URI
+add_env_if_present LINKEDIN_SCOPES
+add_env_if_present LINKEDIN_API_VERSION
+add_env_if_present META_APP_ID
+add_env_if_present META_REDIRECT_URI
+add_env_if_present META_GRAPH_VERSION
+add_env_if_present META_FACEBOOK_SCOPES
+add_env_if_present META_INSTAGRAM_SCOPES
 
 deploy_args=(
   run deploy "${SERVICE_NAME}"

@@ -288,7 +288,12 @@ Required GitHub repository variables:
 - `VITE_FIREBASE_APP_ID=<firebase-web-app-id>`
 - `VITE_FIREBASE_MEASUREMENT_ID=<firebase-measurement-id>`
 - `YOUTUBE_CLIENT_ID=<google-oauth-web-client-id>`
+- `YOUTUBE_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/youtube/oauth/callback`
 - `YOUTUBE_SCOPES=https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl`
+- `X_CLIENT_ID=<x-oauth-client-id>`
+- `X_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/x/oauth/callback`
+- `X_SCOPES=tweet.read users.read tweet.write media.write offline.access`
+- `X_UPLOAD_CHUNK_BYTES=4194304`
 
 Required GitHub repository secrets:
 
@@ -297,6 +302,7 @@ Required GitHub repository secrets:
 - `GCP_SERVICE_ACCOUNT` as a service-account email, currently `github-action-1228863292@newleaf-trading.iam.gserviceaccount.com`
 - `MEDIA_RENDER_HMAC_SECRET` for API-to-renderer signing
 - `YOUTUBE_CLIENT_SECRET`
+- `X_CLIENT_SECRET`
 
 Google OIDC setup for GitHub Actions is automated by:
 
@@ -370,7 +376,7 @@ Deploy lifecycle:
 
 - Pull requests create Firebase Hosting preview channels through `.github/workflows/firebase-hosting-pull-request.yml`.
 - `main` deploys Firebase Hosting production through `.github/workflows/firebase-production.yml`.
-- `main` deploys Cloud Run API only when API-related files change through `.github/workflows/google-cloud-run.yml`.
+- `main` deploys the Cloud Run API through `.github/workflows/google-cloud-run.yml`.
 - `main` deploys the FFmpeg renderer only when `services/media-renderer/` or its deploy script changes.
 - Cloud Run deployments can still be run manually from `.github/workflows/google-cloud-run.yml` or local scripts when you need a selective API or renderer rollout.
 - CodeQL scans JavaScript/TypeScript through `.github/workflows/codeql.yml`.
