@@ -580,12 +580,6 @@ export function createYouTubePublisherService(options = {}) {
     if (!account.tokenSecretRef) {
       throw conflict('YouTube account does not have an OAuth token secret', { accountId: account.id });
     }
-    if (!account.tokenSecretRef.startsWith('dev-memory:')) {
-      throw conflict('Only local dev-memory OAuth secrets can be used by the local YouTube uploader', {
-        accountId: account.id,
-        tokenSecretRef: account.tokenSecretRef,
-      });
-    }
 
     const secret = await repository.getSecret(account.tokenSecretRef);
     if (!secret?.value) {
