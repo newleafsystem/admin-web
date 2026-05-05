@@ -262,6 +262,7 @@ Required GitHub secrets and variables:
 - `GCS_BUCKET=<firebase-storage-bucket>`
 - `SKIP_ENABLE_APIS=true`
 - `SKIP_PROVISIONING=true`
+- `CLOUD_BUILD_SUPPRESS_LOGS=true`
 - `REQUIRE_AUTH=true`
 - `FIRESTORE_DATABASE_ID=newleafdb`
 - `PUBLIC_BASE_URL=https://admin.newleafsystem.com`
@@ -344,7 +345,7 @@ PowerShell equivalent:
 $env:ENV_FILE=".env.production"; npm run gcp:setup-renderer
 ```
 
-Routine CI deploys default to `SKIP_ENABLE_APIS=true` and `SKIP_PROVISIONING=true`. That means GitHub Actions deploys existing Cloud Run services and does not try to enable APIs, create service accounts, update IAM bindings, or create Secret Manager secrets on every push. Do one-time provisioning from an owner/admin account only:
+Routine CI deploys default to `SKIP_ENABLE_APIS=true`, `SKIP_PROVISIONING=true`, and `CLOUD_BUILD_SUPPRESS_LOGS=true`. That means GitHub Actions deploys existing Cloud Run services and does not try to enable APIs, create service accounts, update IAM bindings, create Secret Manager secrets, or stream Cloud Build logs requiring broad project Viewer access on every push. Do one-time provisioning from an owner/admin account only:
 
 ```bash
 ENV_FILE=.env.production SKIP_ENABLE_APIS=false SKIP_PROVISIONING=false npm run gcp:setup-renderer

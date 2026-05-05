@@ -175,6 +175,7 @@ set_variable GOOGLE_CLOUD_RUN_RENDERER_SERVICE "${GOOGLE_CLOUD_RUN_RENDERER_SERV
 set_variable GCS_BUCKET "${GCS_BUCKET}"
 set_variable SKIP_ENABLE_APIS "${SKIP_ENABLE_APIS:-true}"
 set_variable SKIP_PROVISIONING "${SKIP_PROVISIONING:-true}"
+set_variable CLOUD_BUILD_SUPPRESS_LOGS "${CLOUD_BUILD_SUPPRESS_LOGS:-true}"
 set_variable REQUIRE_AUTH "${REQUIRE_AUTH:-true}"
 set_variable FIRESTORE_DATABASE_ID "${FIRESTORE_DATABASE_ID:-newleafdb}"
 set_variable PUBLIC_BASE_URL "${PUBLIC_BASE_URL:-https://admin.newleafsystem.com}"

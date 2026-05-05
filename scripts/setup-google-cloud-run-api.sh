@@ -21,6 +21,7 @@
 #   TIMEOUT=900
 #   SKIP_ENABLE_APIS=true
 #   SKIP_PROVISIONING=true
+#   CLOUD_BUILD_SUPPRESS_LOGS=true
 #
 # Optional secret env values, if present locally, are copied into Secret Manager
 # and mounted into Cloud Run:
@@ -51,6 +52,7 @@ CPU="${CPU:-1}"
 TIMEOUT="${TIMEOUT:-900}"
 SKIP_ENABLE_APIS="${SKIP_ENABLE_APIS:-true}"
 SKIP_PROVISIONING="${SKIP_PROVISIONING:-true}"
+CLOUD_BUILD_SUPPRESS_LOGS="${CLOUD_BUILD_SUPPRESS_LOGS:-true}"
 
 if [[ "${ALLOW_LOCAL_DEPLOY_VALUES:-false}" != "true" ]]; then
   for pair in \
@@ -163,9 +165,17 @@ add_secret_if_present TOKEN_ENCRYPTION_KEY NEWLEAF_TOKEN_ENCRYPTION_KEY
 IMAGE_URI="gcr.io/${GCP_PROJECT_ID}/${SERVICE_NAME}:latest"
 
 echo "Building API container: ${IMAGE_URI}"
-gcloud builds submit "${ROOT_DIR}" \
-  --config "${ROOT_DIR}/services/api/cloudbuild.yaml" \
+build_args=(
+  builds submit "${ROOT_DIR}"
+  --config "${ROOT_DIR}/services/api/cloudbuild.yaml"
   --substitutions "_IMAGE_URI=${IMAGE_URI}"
+)
+
+if [[ "${CLOUD_BUILD_SUPPRESS_LOGS}" == "true" ]]; then
+  build_args+=(--suppress-logs)
+fi
+
+gcloud "${build_args[@]}"
 
 env_vars=(
   "NODE_ENV=production"

@@ -35,6 +35,7 @@ jobs:
       GOOGLE_CLOUD_RUN_RENDERER_SERVICE: ${{ vars.GOOGLE_CLOUD_RUN_RENDERER_SERVICE || 'newleaf-ffmpeg-renderer' }}
       SKIP_ENABLE_APIS: ${{ vars.SKIP_ENABLE_APIS || 'true' }}
       SKIP_PROVISIONING: ${{ vars.SKIP_PROVISIONING || 'true' }}
+      CLOUD_BUILD_SUPPRESS_LOGS: ${{ vars.CLOUD_BUILD_SUPPRESS_LOGS || 'true' }}
       REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
       FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID || 'newleafdb' }}
       PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://admin.newleafsystem.com' }}
