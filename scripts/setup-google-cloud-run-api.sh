@@ -178,10 +178,40 @@ build_args=(
 )
 
 if [[ "${CLOUD_BUILD_SUPPRESS_LOGS}" == "true" ]]; then
-  build_args+=(--suppress-logs)
-fi
+  echo "Submitting Cloud Build without log streaming."
+  build_output="$(gcloud "${build_args[@]}" --async --format='value(id)' 2>&1)"
+  echo "${build_output}"
+  build_id="$(printf '%s\n' "${build_output}" | grep -Eo '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}' | tail -n 1 || true)"
+  if [[ -z "${build_id}" ]]; then
+    echo "ERROR: Cloud Build was submitted, but the build id could not be resolved." >&2
+    exit 1
+  fi
 
-gcloud "${build_args[@]}"
+  echo "Waiting for Cloud Build ${build_id} to complete..."
+  while true; do
+    build_status="$(gcloud builds describe "${build_id}" \
+      --project "${GCP_PROJECT_ID}" \
+      --format='value(status)')"
+
+    case "${build_status}" in
+      SUCCESS)
+        echo "Cloud Build ${build_id} completed successfully."
+        break
+        ;;
+      FAILURE|INTERNAL_ERROR|TIMEOUT|CANCELLED|EXPIRED)
+        echo "ERROR: Cloud Build ${build_id} ended with status ${build_status}." >&2
+        echo "Open Cloud Build logs: https://console.cloud.google.com/cloud-build/builds/${build_id}?project=${GCP_PROJECT_ID}" >&2
+        exit 1
+        ;;
+      *)
+        echo "Cloud Build ${build_id} status: ${build_status}"
+        sleep 5
+        ;;
+    esac
+  done
+else
+  gcloud "${build_args[@]}"
+fi
 
 env_vars=(
   "NODE_ENV=production"
