@@ -218,14 +218,20 @@ Use `.env.example` as the source of truth for local values and `.env.production.
 Important groups:
 
 - Runtime: `PORT`, `PUBLIC_BASE_URL`, `ADMIN_BASE_URL`, `CORS_ALLOWED_ORIGINS`
-- AI review: `AI_PROVIDER`, `OPENAI_API_KEY`, `AI_MODEL`, `AI_TRANSCRIPTION_MODEL`
-- YouTube: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_REDIRECT_URI`, `YOUTUBE_SCOPES`
-- X: `X_CLIENT_ID`, `X_CLIENT_SECRET`, `X_REDIRECT_URI`, `X_SCOPES`
-- LinkedIn: `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_REDIRECT_URI`
-- Meta: `META_APP_ID`, `META_APP_SECRET`, `META_REDIRECT_URI`
+- AI review: `OPENAI_API_KEY`, `AI_MODEL`, `AI_TRANSCRIPTION_MODEL`
+- YouTube: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_SCOPES`
+- X: `X_CLIENT_ID`, `X_CLIENT_SECRET`, `X_SCOPES`
+- Optional LinkedIn: `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`
+- Optional Meta: `META_APP_ID`, `META_APP_SECRET`
 - HeyGen: `HEYGEN_API_KEY`, `HEYGEN_WEBHOOK_SECRET`
-- FFmpeg render: `FFMPEG_PATH`, `FFPROBE_PATH`, `FFMPEG_FONT_FILE`
+- Backend media storage: `GCS_BUCKET`
 - Local persistence: `LOCAL_DATA_DIR`
+
+Storage decision:
+
+- Local development defaults to `.local-data`; local video files are not uploaded to Firebase Storage / Google Cloud Storage unless `GCS_BUCKET` is set.
+- Production and prod-like Cloud Run testing must set `GCS_BUCKET=newleaf-trading.firebasestorage.app`; uploads then go to the bucket and artifacts use `storageProvider: "gcs"`.
+- `VITE_FIREBASE_STORAGE_BUCKET` is only for the frontend Firebase SDK. Backend media storage uses `GCS_BUCKET`.
 
 Recommended files:
 
@@ -265,7 +271,7 @@ Required GitHub secrets and variables:
 - `GCP_REGION=us-central1`
 - `GOOGLE_CLOUD_RUN_API_SERVICE=newleaf-api`
 - `GOOGLE_CLOUD_RUN_RENDERER_SERVICE=newleaf-ffmpeg-renderer`
-- `GCS_BUCKET=<firebase-storage-bucket>`
+- `GCS_BUCKET=<firebase-storage-bucket>` is the only backend/media bucket variable used by the API and renderer
 - `SKIP_ENABLE_APIS=true`
 - `SKIP_PROVISIONING=true`
 - `CLOUD_BUILD_SUPPRESS_LOGS=true`
@@ -279,13 +285,12 @@ Required GitHub secrets and variables:
 - `VITE_FIREBASE_API_KEY=<firebase-web-api-key>`
 - `VITE_FIREBASE_AUTH_DOMAIN=newleaf-trading.firebaseapp.com`
 - `VITE_FIREBASE_PROJECT_ID=newleaf-trading`
-- `VITE_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>`
+- `VITE_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>` used only by the frontend Firebase SDK; it is intentionally separate from backend `GCS_BUCKET`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID=<firebase-sender-id>`
 - `VITE_FIREBASE_APP_ID=<firebase-web-app-id>`
 - `VITE_FIREBASE_MEASUREMENT_ID=<firebase-measurement-id>`
 - `YOUTUBE_CLIENT_ID=<google-oauth-web-client-id>`
 - `YOUTUBE_CLIENT_SECRET` as a GitHub secret
-- `YOUTUBE_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/youtube/oauth/callback`
 - `YOUTUBE_SCOPES=https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl`
 
 You can push the repository variables and deployment secrets with GitHub CLI:
@@ -301,6 +306,15 @@ ENV_FILE=.env.production npm run github:setup-actions -- --repo <github-owner>/<
 ```
 
 The script sets repository variables and these secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`, `MEDIA_RENDER_HMAC_SECRET`, and optional provider secrets that are present in the env file. It does not print secret values. Firebase Hosting uses GitHub OIDC / Google Workload Identity, so a separate Firebase service-account JSON secret is not required.
+
+After env-template cleanup, remove obsolete GitHub repository variables and secrets with:
+
+```bash
+npm run github:cleanup-actions -- --repo <github-owner>/<repo-name>
+npm run github:cleanup-actions -- --repo <github-owner>/<repo-name> --apply
+```
+
+The cleanup command is dry-run by default and only targets names no longer consumed by the current Firebase Hosting and Cloud Run workflows.
 
 To automate both GitHub Actions configuration and Google Secret Manager / Cloud Run runtime sync from one env file:
 

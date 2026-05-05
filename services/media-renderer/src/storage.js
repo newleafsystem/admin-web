@@ -5,9 +5,9 @@ import { pipeline } from 'node:stream/promises';
 import { Storage } from '@google-cloud/storage';
 
 export function createStorageClientFromEnv(env = process.env) {
-  const bucketName = env.GCS_BUCKET || env.FIREBASE_STORAGE_BUCKET || env.MEDIA_STORAGE_BUCKET;
+  const bucketName = env.GCS_BUCKET;
   if (!bucketName) {
-    throw new Error('Missing media storage bucket: set GCS_BUCKET or FIREBASE_STORAGE_BUCKET');
+    throw new Error('Missing media storage bucket: set GCS_BUCKET');
   }
 
   return {

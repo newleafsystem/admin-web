@@ -32,9 +32,11 @@
     "gcp:sync-env:prod:update": "node scripts/sync-google-cloud-env.js --env-file .env.production --update-cloud-run",
     "gcp:setup-api": "bash scripts/setup-google-cloud-run-api.sh",
     "gcp:setup-renderer": "bash scripts/setup-google-cloud-run-renderer.sh",
+    "gcp:check-storage": "bash scripts/check-cloud-run-storage-config.sh",
     "github:setup-actions": "bash scripts/setup-github-actions-config.sh",
+    "github:cleanup-actions": "bash scripts/cleanup-github-actions-config.sh",
     "deploy:configure": "node scripts/bootstrap-deployment-config.js",
-    "check": "node --check scripts/assemble-video.js && node --check scripts/render-timeline.js && node --check scripts/check-project-ready.js && node --check scripts/create-smart-collection.js && node --check scripts/normalize-env-file.js && node --check scripts/build-firebase-hosting.js && node --check scripts/bootstrap-deployment-config.js && npm run check --workspaces --if-present",
+    "check": "node --check scripts/assemble-video.js && node --check scripts/render-timeline.js && node --check scripts/check-project-ready.js && node --check scripts/create-smart-collection.js && node --check scripts/normalize-env-file.js && node --check scripts/build-firebase-hosting.js && node --check scripts/bootstrap-deployment-config.js && node --check scripts/sync-google-cloud-env.js && npm run check --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"
   },

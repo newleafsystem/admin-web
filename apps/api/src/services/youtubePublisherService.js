@@ -3,6 +3,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
 import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import { isObjectStorageProvider, materializeObjectStorageArtifact } from '../lib/assetStorage.js';
 import { canTransition } from './jobStateService.js';
 
 const YOUTUBE_UPLOAD_URL = 'https://www.googleapis.com/upload/youtube/v3/videos';
@@ -478,8 +479,19 @@ export function createYouTubePublisherService(options = {}) {
     if (!artifact) {
       throw conflict('No video artifact is available for this job', { jobId: job.id });
     }
+    if (isObjectStorageProvider(artifact.storageProvider)) {
+      const materialized = await materializeObjectStorageArtifact(artifact, {
+        localDataDir,
+        purpose: 'youtube-video',
+      });
+      return {
+        ...materialized,
+        mimeType: artifact.mimeType || 'video/mp4',
+      };
+    }
+
     if (artifact.storageProvider !== 'local-disk') {
-      throw conflict('Only local-disk video artifacts can be uploaded to YouTube in local mode', {
+      throw conflict('Only local-disk or object-storage video artifacts can be uploaded to YouTube', {
         artifactId: artifact.id,
         storageProvider: artifact.storageProvider,
       });
@@ -493,7 +505,10 @@ export function createYouTubePublisherService(options = {}) {
       throw conflict('Video artifact path is outside local storage', { artifactId: artifact.id });
     }
 
-    const stat = await fsp.stat(candidatePath);
+    const stat = await statLocalArtifact(candidatePath, {
+      artifactId: artifact.id,
+      kind: 'video',
+    });
     return {
       artifact,
       filePath: candidatePath,
@@ -521,7 +536,22 @@ export function createYouTubePublisherService(options = {}) {
     const artifact =
       artifacts.find((candidate) => candidate.id === metadata.thumbnailArtifactId && candidate.kind === 'thumbnail') ??
       latestByDate(artifacts.filter((candidate) => candidate.kind === 'thumbnail'));
-    if (!artifact || artifact.storageProvider !== 'local-disk') {
+    if (!artifact) {
+      return null;
+    }
+
+    if (isObjectStorageProvider(artifact.storageProvider)) {
+      const materialized = await materializeObjectStorageArtifact(artifact, {
+        localDataDir,
+        purpose: 'youtube-thumbnail',
+      });
+      return {
+        ...materialized,
+        mimeType: artifact.mimeType || 'image/jpeg',
+      };
+    }
+
+    if (artifact.storageProvider !== 'local-disk') {
       return null;
     }
 
@@ -533,7 +563,10 @@ export function createYouTubePublisherService(options = {}) {
       throw conflict('Thumbnail artifact path is outside local storage', { artifactId: artifact.id });
     }
 
-    const stat = await fsp.stat(candidatePath);
+    const stat = await statLocalArtifact(candidatePath, {
+      artifactId: artifact.id,
+      kind: 'thumbnail',
+    });
     return {
       artifact,
       filePath: candidatePath,
@@ -1454,4 +1487,21 @@ function sanitizeError(error) {
 function clearFailureMetadata(metadata = {}) {
   const { failureDetails, ...rest } = metadata ?? {};
   return rest;
+}
+
+async function statLocalArtifact(filePath, { artifactId, kind }) {
+  try {
+    return await fsp.stat(filePath);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      throw conflict(
+        `${kind === 'thumbnail' ? 'Thumbnail' : 'Video'} artifact file is missing from local Cloud Run storage. Re-upload or regenerate the ${kind} so it is stored in Firebase Storage / GCS.`,
+        {
+          artifactId,
+          filePath,
+        },
+      );
+    }
+    throw error;
+  }
 }

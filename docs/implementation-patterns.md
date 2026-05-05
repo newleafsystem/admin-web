@@ -2,6 +2,20 @@
 
 This document captures the patterns that should guide future implementation work in this repo.
 
+## Change Impact Pattern
+
+Do not modify a file in isolation. Before editing, identify the surrounding feature path and update the related code, tests, docs, and deployment config that are affected by the same behavior.
+
+Rules:
+
+- Start from the file being changed, then inspect its imports, callers, route mounting, service factory wiring, repository methods, UI API client calls, and deployment/env references.
+- For API changes, check the matching route, service, repository adapter, local repository behavior, Firestore repository behavior, API client, UI section, tests, and docs.
+- For UI changes, check the matching API client function, backend route contract, state normalization, CSS, empty/loading/error states, and any tests or manual verification docs.
+- For storage, OAuth, publishing, rendering, or provider changes, check local mode, Cloud Run mode, GitHub Actions, env examples, README/docs, and retry/idempotency behavior.
+- For every behavior change, either update existing tests or add focused tests near the changed module. If no automated test is practical, document the exact manual verification command or workflow.
+- Do not leave templates behind the real implementation. When `.env`, deployment scripts, or runtime config changes, update `.env.example`, `.env.production.example`, README, and relevant setup scripts in the same change.
+- Do not leave follow-up cleanup for the user when it can be completed safely in the repo. Finish the related files in the same pass, then report what changed and what was verified.
+
 ## API Service Wiring
 
 `apps/api/src/app.js` is the composition root. New services should be created there and injected into routes.
@@ -338,6 +352,22 @@ Current endpoints:
 POST /api/v1/jobs/:jobId/thumbnail/upload
 POST /api/v1/jobs/:jobId/thumbnail/generate
 ```
+
+## Asset Storage Pattern
+
+Local development uses `.local-data` by default for cost control, speed, and offline development. Production Cloud Run must use object storage for media artifacts because `/tmp` is ephemeral and not shared across instances. Local development may opt into the production-like object storage path by setting `GCS_BUCKET`.
+
+Rules:
+
+- `GCS_BUCKET` is the canonical backend media bucket setting; do not add provider-switch env vars for production;
+- when `GCS_BUCKET` is unset, local admin uploads remain in `.local-data` and artifacts use `storageProvider: "local-disk"`;
+- when `GCS_BUCKET` is configured, admin uploads must write bytes to Firebase Storage / Google Cloud Storage and store artifacts with `storageProvider: "gcs"`;
+- do not force all local video files into the bucket by default; use `GCS_BUCKET` locally only when testing Cloud Run/publisher/storage behavior end to end;
+- artifact `storageKey` values are object keys, never raw user paths;
+- API preview/download endpoints may stream `gcs` artifacts back through authenticated routes;
+- publisher services must materialize `gcs` artifacts into a short-lived `/tmp` cache before provider upload;
+- publisher services must not assume `metadata.localPath` exists in Cloud Run;
+- old `local-disk` artifacts whose files are missing must fail with an actionable re-upload/regenerate message.
 
 ## Admin Section Pattern
 

@@ -49,7 +49,7 @@ Optional:
 export GCP_REGION="us-central1"
 export SERVICE_NAME="newleaf-ffmpeg-renderer"
 export SERVICE_ACCOUNT_NAME="newleaf-renderer"
-export GCS_BUCKET="newleaf-trading.appspot.com"
+export GCS_BUCKET="newleaf-trading.firebasestorage.app"
 export MAX_INSTANCES="2"
 export MEMORY="2Gi"
 export CPU="2"

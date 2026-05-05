@@ -68,8 +68,7 @@ export const config = Object.freeze({
     fontFile: readOptionalString('FFMPEG_FONT_FILE'),
   },
   storage: {
-    provider: process.env.ASSET_STORAGE_PROVIDER ?? 'dev-memory',
-    bucket: process.env.ASSET_STORAGE_BUCKET ?? null,
+    bucket: readOptionalString('GCS_BUCKET'),
   },
   ai: {
     provider: readOptionalString('AI_PROVIDER') ?? (readOptionalString('OPENAI_API_KEY') ? 'openai' : null),

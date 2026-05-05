@@ -29,10 +29,6 @@ Required env values:
   MEDIA_RENDER_HMAC_SECRET
   GCP_WORKLOAD_IDENTITY_PROVIDER
   GCP_SERVICE_ACCOUNT
-
-Firebase Hosting secret:
-  FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE=/path/to/firebase-service-account.json
-  or FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING='{"type":"service_account",...}'
 EOF
 }
 
@@ -189,9 +185,6 @@ set_secret_file() {
 
 derive_defaults() {
   local project_id="${GCP_PROJECT_ID:-${FIREBASE_PROJECT_ID:-newleaf-trading}}"
-  if [[ -z "${GCS_BUCKET:-}" && -n "${FIREBASE_STORAGE_BUCKET:-}" ]]; then
-    GCS_BUCKET="${FIREBASE_STORAGE_BUCKET}"
-  fi
   if [[ -z "${GCS_BUCKET:-}" && -n "${project_id}" ]]; then
     GCS_BUCKET="${project_id}.firebasestorage.app"
   fi
@@ -244,15 +237,23 @@ set_variable CORS_ALLOWED_ORIGINS "${CORS_ALLOWED_ORIGINS:-${ADMIN_BASE_URL:-htt
 set_variable VITE_FIREBASE_API_KEY "${VITE_FIREBASE_API_KEY:-}"
 set_variable VITE_FIREBASE_AUTH_DOMAIN "${VITE_FIREBASE_AUTH_DOMAIN:-}"
 set_variable VITE_FIREBASE_PROJECT_ID "${VITE_FIREBASE_PROJECT_ID:-${FIREBASE_PROJECT_ID:-}}"
-set_variable VITE_FIREBASE_STORAGE_BUCKET "${VITE_FIREBASE_STORAGE_BUCKET:-${FIREBASE_STORAGE_BUCKET:-${GCS_BUCKET:-}}}"
+set_variable VITE_FIREBASE_STORAGE_BUCKET "${VITE_FIREBASE_STORAGE_BUCKET:-${GCS_BUCKET:-}}"
 set_variable VITE_FIREBASE_MESSAGING_SENDER_ID "${VITE_FIREBASE_MESSAGING_SENDER_ID:-}"
 set_variable VITE_FIREBASE_APP_ID "${VITE_FIREBASE_APP_ID:-}"
 set_variable VITE_FIREBASE_MEASUREMENT_ID "${VITE_FIREBASE_MEASUREMENT_ID:-}"
 set_variable YOUTUBE_CLIENT_ID "${YOUTUBE_CLIENT_ID:-}"
-set_variable YOUTUBE_REDIRECT_URI "${YOUTUBE_REDIRECT_URI:-${SOCIAL_CALLBACK_BASE_URL:-https://admin.newleafsystem.com}/api/v1/social/youtube/oauth/callback}"
-set_variable YOUTUBE_SCOPES "${YOUTUBE_SCOPES:-https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl}"
-set_variable YOUTUBE_DEFAULT_PRIVACY_STATUS "${YOUTUBE_DEFAULT_PRIVACY_STATUS:-private}"
-set_variable YOUTUBE_DEFAULT_CATEGORY_ID "${YOUTUBE_DEFAULT_CATEGORY_ID:-22}"
+if has_value "${YOUTUBE_REDIRECT_URI:-}"; then
+  set_variable YOUTUBE_REDIRECT_URI "${YOUTUBE_REDIRECT_URI}"
+fi
+if has_value "${YOUTUBE_SCOPES:-}"; then
+  set_variable YOUTUBE_SCOPES "${YOUTUBE_SCOPES}"
+fi
+if has_value "${YOUTUBE_DEFAULT_PRIVACY_STATUS:-}"; then
+  set_variable YOUTUBE_DEFAULT_PRIVACY_STATUS "${YOUTUBE_DEFAULT_PRIVACY_STATUS}"
+fi
+if has_value "${YOUTUBE_DEFAULT_CATEGORY_ID:-}"; then
+  set_variable YOUTUBE_DEFAULT_CATEGORY_ID "${YOUTUBE_DEFAULT_CATEGORY_ID}"
+fi
 
 if has_value "${MEDIA_RENDERER_URL:-}"; then
   set_variable MEDIA_RENDERER_URL "${MEDIA_RENDERER_URL}"
@@ -262,20 +263,5 @@ set_secret_value GCP_WORKLOAD_IDENTITY_PROVIDER "${GCP_WORKLOAD_IDENTITY_PROVIDE
 set_secret_value GCP_SERVICE_ACCOUNT "${GCP_SERVICE_ACCOUNT}"
 set_secret_value MEDIA_RENDER_HMAC_SECRET "${MEDIA_RENDER_HMAC_SECRET}"
 set_secret_value YOUTUBE_CLIENT_SECRET "${YOUTUBE_CLIENT_SECRET:-}"
-
-firebase_secret_name="FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING"
-if has_value "${FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE:-}"; then
-  set_secret_file "${firebase_secret_name}" "${FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE}"
-elif has_value "${FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING:-}"; then
-  set_secret_value "${firebase_secret_name}" "${FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING}"
-elif [[ "${DRY_RUN}" == "true" ]]; then
-  echo "DRY RUN: would keep or require secret ${firebase_secret_name}"
-elif secret_exists "${firebase_secret_name}"; then
-  echo "Secret ${firebase_secret_name} already exists; keeping existing value."
-else
-  echo "ERROR: ${firebase_secret_name} is required." >&2
-  echo "Set FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE or run Firebase CLI hosting:github setup." >&2
-  exit 1
-fi
 
 echo "GitHub Actions configuration complete."

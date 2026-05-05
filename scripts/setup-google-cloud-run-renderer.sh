@@ -11,7 +11,7 @@
 #   GCP_REGION=us-central1
 #   SERVICE_NAME=newleaf-ffmpeg-renderer
 #   SERVICE_ACCOUNT_NAME=newleaf-renderer
-#   GCS_BUCKET=<project-id>.appspot.com
+#   GCS_BUCKET=<project-id>.firebasestorage.app
 #   MAX_INSTANCES=2
 #   MEMORY=2Gi
 #   CPU=2
@@ -32,7 +32,7 @@ GCP_PROJECT_ID="${GCP_PROJECT_ID:-${FIREBASE_PROJECT_ID:-}}"
 GCP_REGION="${GCP_REGION:-${GOOGLE_CLOUD_RUN_REGION:-us-central1}}"
 SERVICE_NAME="${SERVICE_NAME:-${GOOGLE_CLOUD_RUN_RENDERER_SERVICE:-newleaf-ffmpeg-renderer}}"
 SERVICE_ACCOUNT_NAME="${SERVICE_ACCOUNT_NAME:-newleaf-renderer}"
-GCS_BUCKET="${GCS_BUCKET:-${GCP_PROJECT_ID:-}.appspot.com}"
+GCS_BUCKET="${GCS_BUCKET:-${GCP_PROJECT_ID:-}.firebasestorage.app}"
 MAX_INSTANCES="${MAX_INSTANCES:-2}"
 MEMORY="${MEMORY:-2Gi}"
 CPU="${CPU:-2}"
@@ -49,7 +49,7 @@ for name in "${required[@]}"; do
   fi
 done
 
-if [[ -z "${GCS_BUCKET}" || "${GCS_BUCKET}" == ".appspot.com" ]]; then
+if [[ -z "${GCS_BUCKET}" || "${GCS_BUCKET}" == ".appspot.com" || "${GCS_BUCKET}" == ".firebasestorage.app" ]]; then
   echo "ERROR: GCS_BUCKET is required or GCP_PROJECT_ID must be set first." >&2
   exit 1
 fi

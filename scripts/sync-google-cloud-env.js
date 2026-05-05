@@ -46,13 +46,10 @@ const API_ENV_NAMES = [
   'SERVICE_API_RATE_LIMIT_PER_MINUTE',
   'SERVICE_API_SIGNATURE_TOLERANCE_SEC',
   'FIREBASE_PROJECT_ID',
-  'FIREBASE_STORAGE_BUCKET',
   'FIRESTORE_DATABASE_ID',
   'CLOUD_TASKS_LOCATION',
   'CLOUD_TASKS_QUEUE',
   'GCS_BUCKET',
-  'ASSET_STORAGE_PROVIDER',
-  'ASSET_STORAGE_BUCKET',
   'MEDIA_RENDERER_URL',
   'FIRESTORE_COLLECTION_PREFIX',
   'AI_PROVIDER',
@@ -444,18 +441,12 @@ function createApiEnvMap(envValues, projectId) {
     envMap.FIRESTORE_DATABASE_ID = 'newleafdb';
   }
 
-  if (hasValue(envValues.GCS_BUCKET)) {
-    envMap.GCS_BUCKET = envValues.GCS_BUCKET;
-    if (!hasValue(envMap.ASSET_STORAGE_BUCKET)) {
-      envMap.ASSET_STORAGE_BUCKET = envValues.GCS_BUCKET;
-    }
-    if (!hasValue(envMap.FIREBASE_STORAGE_BUCKET)) {
-      envMap.FIREBASE_STORAGE_BUCKET = envValues.GCS_BUCKET;
-    }
-  }
+  const storageBucket = hasValue(envValues.GCS_BUCKET)
+    ? envValues.GCS_BUCKET
+    : `${projectId}.firebasestorage.app`;
 
-  if (!hasValue(envMap.ASSET_STORAGE_PROVIDER)) {
-    envMap.ASSET_STORAGE_PROVIDER = 'gcs';
+  if (hasValue(storageBucket)) {
+    envMap.GCS_BUCKET = storageBucket;
   }
 
   return envMap;
@@ -465,8 +456,6 @@ function createRendererEnvMap(envValues) {
   const envMap = {};
   if (hasValue(envValues.GCS_BUCKET)) {
     envMap.GCS_BUCKET = envValues.GCS_BUCKET;
-  } else if (hasValue(envValues.FIREBASE_STORAGE_BUCKET)) {
-    envMap.GCS_BUCKET = envValues.FIREBASE_STORAGE_BUCKET;
   }
   return envMap;
 }

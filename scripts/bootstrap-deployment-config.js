@@ -224,8 +224,6 @@ function readJsonFileIfPresent(filePath) {
 function readCredentialJson(env) {
   return (
     parseJsonText(env.FIREBASE_CREDENTIALS_JSON) ||
-    parseJsonText(env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING) ||
-    readJsonFileIfPresent(env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE) ||
     readJsonFileIfPresent(env.GOOGLE_APPLICATION_CREDENTIALS)
   );
 }
@@ -239,15 +237,13 @@ function buildEnvValues(fileEnv) {
   env.GCP_REGION ||= env.GOOGLE_CLOUD_RUN_REGION || 'us-central1';
   env.GOOGLE_CLOUD_RUN_API_SERVICE ||= 'newleaf-api';
   env.GOOGLE_CLOUD_RUN_RENDERER_SERVICE ||= 'newleaf-ffmpeg-renderer';
-  env.GCS_BUCKET ||= env.FIREBASE_STORAGE_BUCKET || `${env.GCP_PROJECT_ID}.firebasestorage.app`;
+  env.GCS_BUCKET ||= `${env.GCP_PROJECT_ID}.firebasestorage.app`;
   env.SKIP_ENABLE_APIS ||= 'true';
   env.SKIP_PROVISIONING ||= 'true';
   env.CLOUD_BUILD_SUPPRESS_LOGS ||= 'true';
   env.REQUIRE_AUTH ||= 'true';
   env.FIRESTORE_DATABASE_ID ||= 'newleafdb';
   env.GCP_SERVICE_ACCOUNT ||= credentials?.client_email || '';
-  env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING ||= env.FIREBASE_CREDENTIALS_JSON || '';
-  env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE ||= env.GOOGLE_APPLICATION_CREDENTIALS || '';
 
   for (const name of ['PUBLIC_BASE_URL', 'ADMIN_BASE_URL', 'SOCIAL_CALLBACK_BASE_URL']) {
     if (!hasValue(env[name]) || isLocalValue(env[name])) {
@@ -260,15 +256,13 @@ function buildEnvValues(fileEnv) {
 
   env.VITE_FIREBASE_PROJECT_ID ||= env.FIREBASE_PROJECT_ID || env.GCP_PROJECT_ID;
   env.VITE_FIREBASE_AUTH_DOMAIN ||= `${env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`;
-  env.VITE_FIREBASE_STORAGE_BUCKET ||= env.FIREBASE_STORAGE_BUCKET || env.GCS_BUCKET;
+  env.VITE_FIREBASE_STORAGE_BUCKET ||= env.GCS_BUCKET;
   env.YOUTUBE_REDIRECT_URI =
     !hasValue(env.YOUTUBE_REDIRECT_URI) || isLocalValue(env.YOUTUBE_REDIRECT_URI)
       ? `${env.SOCIAL_CALLBACK_BASE_URL}/api/v1/social/youtube/oauth/callback`
       : env.YOUTUBE_REDIRECT_URI;
   env.YOUTUBE_SCOPES ||=
     'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl';
-  env.YOUTUBE_DEFAULT_PRIVACY_STATUS ||= 'private';
-  env.YOUTUBE_DEFAULT_CATEGORY_ID ||= '22';
 
   const socialRedirects = {
     X_REDIRECT_URI: '/api/v1/social/x/oauth/callback',
@@ -662,14 +656,6 @@ function assertNoLocalValues(env, allowLocalValues) {
 }
 
 function secretHasValue(env, name) {
-  if (name === 'FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING') {
-    return (
-      hasValue(env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING) ||
-      hasValue(env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE) ||
-      hasValue(env.FIREBASE_CREDENTIALS_JSON) ||
-      hasValue(env.GOOGLE_APPLICATION_CREDENTIALS)
-    );
-  }
   return hasValue(env[name]);
 }
 
@@ -689,7 +675,7 @@ function validateGithubDeploymentConfig(env) {
       [
         'Missing required deployment configuration for GitHub Actions.',
         details.join(' | '),
-        'The bootstrap can derive some values from Firebase CLI, gcloud, and local service-account JSON, but these remaining values are not available.',
+        'The bootstrap can derive some values from Firebase CLI and gcloud, but these remaining values are not available.',
       ].join(' '),
     );
   }
@@ -740,31 +726,6 @@ function configureGithub({ args, env }) {
     }
     run(ghBin, ['secret', 'set', name, '--repo', repo, '--body', env[name]], { stdio: 'ignore' });
     console.log(`Set secret ${name}`);
-  }
-
-  const firebaseSecretFile = env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE;
-  const firebaseSecretValue = env.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING;
-  if (hasValue(firebaseSecretFile)) {
-    if (!existsSync(firebaseSecretFile)) throw new Error(`Firebase service account file not found: ${firebaseSecretFile}`);
-    if (args.dryRun) {
-      console.log('DRY RUN: would set secret FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING from file');
-    } else {
-      run(ghBin, ['secret', 'set', 'FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING', '--repo', repo, '--body-file', firebaseSecretFile], {
-        stdio: 'ignore',
-      });
-      console.log('Set secret FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING from file');
-    }
-  } else if (hasValue(firebaseSecretValue)) {
-    if (args.dryRun) {
-      console.log('DRY RUN: would set secret FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING');
-    } else {
-      run(ghBin, ['secret', 'set', 'FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING', '--repo', repo, '--body', firebaseSecretValue], {
-        stdio: 'ignore',
-      });
-      console.log('Set secret FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING');
-    }
-  } else {
-    console.log('Skipping FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING because no local value/file was provided.');
   }
 }
 

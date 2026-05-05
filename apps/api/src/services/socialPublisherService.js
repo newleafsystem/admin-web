@@ -2,6 +2,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
 import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import { isObjectStorageProvider, materializeObjectStorageArtifact } from '../lib/assetStorage.js';
 import { canTransition } from './jobStateService.js';
 import { createSocialPublicationImportService } from './socialPublicationImportService.js';
 
@@ -262,9 +263,22 @@ export function createSocialPublisherService(options = {}) {
       };
     }
 
+    if (isObjectStorageProvider(artifact.storageProvider)) {
+      const materialized = await materializeObjectStorageArtifact(artifact, {
+        localDataDir,
+        purpose: 'social-video',
+      });
+      return {
+        ...materialized,
+        filename: artifact.metadata?.filename ?? materialized.filename,
+        mimeType: artifact.mimeType || 'video/mp4',
+        publicUrl: getArtifactPublicUrl(artifact),
+      };
+    }
+
     if (artifact.storageProvider !== 'local-disk') {
       if (optional) return null;
-      throw conflict('Only local-disk video artifacts can be uploaded by the local publisher worker', {
+      throw conflict('Only local-disk or object-storage video artifacts can be uploaded by the publisher worker', {
         artifactId: artifact.id,
         storageProvider: artifact.storageProvider,
       });
@@ -278,7 +292,9 @@ export function createSocialPublisherService(options = {}) {
       throw conflict('Video artifact path is outside local storage', { artifactId: artifact.id });
     }
 
-    const stat = await fsp.stat(candidatePath);
+    const stat = await statLocalArtifact(candidatePath, {
+      artifactId: artifact.id,
+    });
     return {
       artifact,
       filePath: candidatePath,
@@ -1601,6 +1617,23 @@ function sanitizeError(error) {
 function clearFailureMetadata(metadata = {}) {
   const { failureDetails, ...rest } = metadata ?? {};
   return rest;
+}
+
+async function statLocalArtifact(filePath, { artifactId }) {
+  try {
+    return await fsp.stat(filePath);
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      throw conflict(
+        'Video artifact file is missing from local Cloud Run storage. Re-upload or regenerate the video so it is stored in Firebase Storage / GCS.',
+        {
+          artifactId,
+          filePath,
+        },
+      );
+    }
+    throw error;
+  }
 }
 
 function providerFailureMessage(error) {

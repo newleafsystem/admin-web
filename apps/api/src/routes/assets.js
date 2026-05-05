@@ -7,6 +7,14 @@ import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { badRequest, notFound } from '../lib/httpErrors.js';
 import {
+  buildObjectStorageKey,
+  isObjectStorageProvider,
+  sanitizeFilename,
+  shouldUseObjectStorage,
+  streamObjectStorageArtifact,
+  uploadBufferToObjectStorage,
+} from '../lib/assetStorage.js';
+import {
   optionalNumber,
   optionalObject,
   optionalString,
@@ -52,6 +60,35 @@ export function createAssetsRouter({ repository }) {
         maxLength: 200,
         defaultValue: req.get('content-type') ?? 'application/octet-stream',
       });
+
+      if (shouldUseObjectStorage()) {
+        const storageKey = buildObjectStorageKey({ jobId, kind, filename });
+        const stored = await uploadBufferToObjectStorage({
+          storageKey,
+          buffer: req.body,
+          mimeType,
+        });
+        const artifact = await repository.createArtifact({
+          jobId,
+          kind,
+          storageProvider: stored.storageProvider,
+          storageKey: stored.storageKey,
+          mimeType,
+          sizeBytes: stored.sizeBytes,
+          metadata: {
+            filename,
+            uploadedVia: 'admin-console',
+            ...stored.metadata,
+          },
+        });
+
+        if (kind === 'video') {
+          await repository.updateJob(jobId, { currentVideoArtifactId: artifact.id });
+        }
+
+        return res.status(201).json({ artifact });
+      }
+
       const rootDir = path.resolve(process.cwd(), config.localDataDir);
       const storageKey = path.join('uploads', safePathSegment(jobId), safePathSegment(kind), `${Date.now()}-${filename}`);
       const filePath = path.resolve(rootDir, storageKey);
@@ -75,6 +112,10 @@ export function createAssetsRouter({ repository }) {
           uploadedVia: 'admin-console',
         },
       });
+
+      if (kind === 'video') {
+        await repository.updateJob(jobId, { currentVideoArtifactId: artifact.id });
+      }
 
       res.status(201).json({ artifact });
     }),
@@ -129,6 +170,14 @@ export function createAssetsRouter({ repository }) {
 
       if (artifact.storageProvider === 'provider-url' && /^https?:\/\//i.test(artifact.storageKey)) {
         return res.redirect(302, artifact.storageKey);
+      }
+
+      if (isObjectStorageProvider(artifact.storageProvider)) {
+        return streamObjectStorageArtifact({
+          artifact,
+          range: req.headers.range ?? null,
+          response: res,
+        });
       }
 
       if (artifact.storageProvider !== 'local-disk') {
@@ -207,11 +256,6 @@ export function createAssetsRouter({ repository }) {
   );
 
   return router;
-}
-
-function sanitizeFilename(value) {
-  const filename = path.basename(value).replace(/[^\w.\- ]+/g, '_').trim();
-  return filename || 'upload.bin';
 }
 
 function safePathSegment(value) {

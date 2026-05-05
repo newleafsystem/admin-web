@@ -9,7 +9,7 @@
 #   GCP_REGION=us-central1
 #   SERVICE_NAME=newleaf-api
 #   SERVICE_ACCOUNT_NAME=newleaf-api
-#   GCS_BUCKET=<project-id>.appspot.com
+#   GCS_BUCKET=<project-id>.firebasestorage.app
 #   PUBLIC_BASE_URL=https://admin.newleafsystem.com
 #   ADMIN_BASE_URL=https://admin.newleafsystem.com
 #   SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com
@@ -41,7 +41,7 @@ GCP_PROJECT_ID="${GCP_PROJECT_ID:-${FIREBASE_PROJECT_ID:-}}"
 GCP_REGION="${GCP_REGION:-${GOOGLE_CLOUD_RUN_REGION:-us-central1}}"
 SERVICE_NAME="${SERVICE_NAME:-${GOOGLE_CLOUD_RUN_API_SERVICE:-newleaf-api}}"
 SERVICE_ACCOUNT_NAME="${SERVICE_ACCOUNT_NAME:-newleaf-api}"
-GCS_BUCKET="${GCS_BUCKET:-${GCP_PROJECT_ID:-}.appspot.com}"
+GCS_BUCKET="${GCS_BUCKET:-${GCP_PROJECT_ID:-}.firebasestorage.app}"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-https://admin.newleafsystem.com}"
 ADMIN_BASE_URL="${ADMIN_BASE_URL:-https://admin.newleafsystem.com}"
 SOCIAL_CALLBACK_BASE_URL="${SOCIAL_CALLBACK_BASE_URL:-${PUBLIC_BASE_URL}}"
@@ -73,7 +73,7 @@ if [[ -z "${GCP_PROJECT_ID:-}" ]]; then
   exit 1
 fi
 
-if [[ -z "${GCS_BUCKET}" || "${GCS_BUCKET}" == ".appspot.com" ]]; then
+if [[ -z "${GCS_BUCKET}" || "${GCS_BUCKET}" == ".appspot.com" || "${GCS_BUCKET}" == ".firebasestorage.app" ]]; then
   echo "ERROR: GCS_BUCKET is required or GCP_PROJECT_ID must be set first." >&2
   exit 1
 fi
@@ -191,9 +191,7 @@ env_vars=(
   "SOCIAL_CALLBACK_BASE_URL=${SOCIAL_CALLBACK_BASE_URL}"
   "CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}"
   "LOCAL_DATA_DIR=/tmp/newleaf-api"
-  "ASSET_STORAGE_PROVIDER=gcs"
-  "ASSET_STORAGE_BUCKET=${GCS_BUCKET}"
-  "FIREBASE_STORAGE_BUCKET=${GCS_BUCKET}"
+  "GCS_BUCKET=${GCS_BUCKET}"
   "VIDEO_STORAGE_DIR=/tmp/newleaf-video-assembler"
 )
 
