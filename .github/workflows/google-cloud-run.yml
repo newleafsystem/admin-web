@@ -33,7 +33,10 @@ jobs:
       GCS_BUCKET: ${{ vars.GCS_BUCKET }}
       GOOGLE_CLOUD_RUN_API_SERVICE: ${{ vars.GOOGLE_CLOUD_RUN_API_SERVICE || 'newleaf-api' }}
       GOOGLE_CLOUD_RUN_RENDERER_SERVICE: ${{ vars.GOOGLE_CLOUD_RUN_RENDERER_SERVICE || 'newleaf-ffmpeg-renderer' }}
+      SKIP_ENABLE_APIS: ${{ vars.SKIP_ENABLE_APIS || 'true' }}
+      SKIP_PROVISIONING: ${{ vars.SKIP_PROVISIONING || 'true' }}
       REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
+      FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID || 'newleafdb' }}
       PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://admin.newleafsystem.com' }}
       ADMIN_BASE_URL: ${{ vars.ADMIN_BASE_URL || 'https://admin.newleafsystem.com' }}
       SOCIAL_CALLBACK_BASE_URL: ${{ vars.SOCIAL_CALLBACK_BASE_URL || 'https://admin.newleafsystem.com' }}
@@ -61,23 +64,67 @@ jobs:
         env:
           REQUIRE_AUTH: 'false'
 
+      - name: Detect Cloud Run changes
+        id: changes
+        shell: bash
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "api=${{ inputs.deploy_api }}" >> "$GITHUB_OUTPUT"
+            echo "renderer=${{ inputs.deploy_renderer }}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          before="${{ github.event.before }}"
+          if [[ -z "$before" || "$before" =~ ^0+$ ]]; then
+            before="$(git rev-list --max-parents=0 HEAD)"
+          fi
+
+          changed_files="$(git diff --name-only "$before" "${{ github.sha }}")"
+          api=false
+          renderer=false
+
+          if echo "$changed_files" | grep -Eq '^(apps/api/|packages/|services/api/|scripts/setup-google-cloud-run-api\.sh$|package\.json$|package-lock\.json$)'; then
+            api=true
+          fi
+
+          if echo "$changed_files" | grep -Eq '^(services/media-renderer/|scripts/setup-google-cloud-run-renderer\.sh)'; then
+            renderer=true
+          fi
+
+          echo "api=$api" >> "$GITHUB_OUTPUT"
+          echo "renderer=$renderer" >> "$GITHUB_OUTPUT"
+          {
+            echo "Changed files:"
+            echo "$changed_files"
+            echo "API deploy: $api"
+            echo "Renderer deploy: $renderer"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Authenticate to Google Cloud
+        if: ${{ steps.changes.outputs.api == 'true' || steps.changes.outputs.renderer == 'true' }}
         uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Set up gcloud
+        if: ${{ steps.changes.outputs.api == 'true' || steps.changes.outputs.renderer == 'true' }}
         uses: google-github-actions/setup-gcloud@v2
 
       - name: Deploy renderer
-        if: ${{ github.event_name == 'push' || inputs.deploy_renderer }}
+        id: deploy_renderer
+        if: ${{ steps.changes.outputs.renderer == 'true' }}
         run: bash scripts/setup-google-cloud-run-renderer.sh
 
       - name: Resolve renderer URL
-        if: ${{ github.event_name == 'push' || inputs.deploy_api }}
+        if: ${{ steps.changes.outputs.api == 'true' }}
         shell: bash
         run: |
+          if [[ -n "${{ steps.deploy_renderer.outputs.service_url }}" ]]; then
+            echo "MEDIA_RENDERER_URL=${{ steps.deploy_renderer.outputs.service_url }}" >> "${GITHUB_ENV}"
+            exit 0
+          fi
+
           if [[ -n "${MEDIA_RENDERER_URL:-}" ]]; then
             exit 0
           fi
@@ -89,5 +136,5 @@ jobs:
           fi
 
       - name: Deploy API
-        if: ${{ github.event_name == 'push' || inputs.deploy_api }}
+        if: ${{ steps.changes.outputs.api == 'true' }}
         run: bash scripts/setup-google-cloud-run-api.sh

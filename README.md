@@ -257,11 +257,31 @@ Required GitHub secrets and variables:
 - `MEDIA_RENDER_HMAC_SECRET` for API-to-renderer signing.
 - `GCP_PROJECT_ID=newleaf-trading`
 - `GCP_REGION=us-central1`
+- `GOOGLE_CLOUD_RUN_API_SERVICE=newleaf-api`
+- `GOOGLE_CLOUD_RUN_RENDERER_SERVICE=newleaf-ffmpeg-renderer`
 - `GCS_BUCKET=<firebase-storage-bucket>`
+- `SKIP_ENABLE_APIS=true`
+- `SKIP_PROVISIONING=true`
+- `REQUIRE_AUTH=true`
+- `FIRESTORE_DATABASE_ID=newleafdb`
 - `PUBLIC_BASE_URL=https://admin.newleafsystem.com`
 - `ADMIN_BASE_URL=https://admin.newleafsystem.com`
 - `SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com`
 - `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com`
+
+You can push the repository variables and deployment secrets with GitHub CLI:
+
+```bash
+ENV_FILE=.env.production npm run github:setup-actions -- --repo <github-owner>/<repo-name>
+```
+
+Run a dry run first:
+
+```bash
+ENV_FILE=.env.production npm run github:setup-actions -- --repo <github-owner>/<repo-name> --dry-run
+```
+
+The script sets repository variables and these secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`, `MEDIA_RENDER_HMAC_SECRET`, and `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING` when `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING_FILE` or `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING` is provided. It does not print secret values.
 
 Sync production secrets and runtime values from `.env.production` to Google Secret Manager:
 
@@ -289,7 +309,8 @@ Deploy lifecycle:
 
 - Pull requests create Firebase Hosting preview channels through `.github/workflows/firebase-hosting-pull-request.yml`.
 - `main` deploys Firebase Hosting production through `.github/workflows/firebase-production.yml`.
-- `main` deploys the Cloud Run API and renderer through `.github/workflows/google-cloud-run.yml`.
+- `main` deploys Cloud Run API only when API-related files change through `.github/workflows/google-cloud-run.yml`.
+- `main` deploys the FFmpeg renderer only when `services/media-renderer/` or its deploy script changes.
 - Cloud Run deployments can still be run manually from `.github/workflows/google-cloud-run.yml` or local scripts when you need a selective API or renderer rollout.
 - CodeQL scans JavaScript/TypeScript through `.github/workflows/codeql.yml`.
 
@@ -299,7 +320,7 @@ Deploy Firebase Hosting locally:
 npm run firebase:deploy:hosting
 ```
 
-Provision or update the Cloud Run API from production values:
+Deploy the Cloud Run API from production values:
 
 ```bash
 ENV_FILE=.env.production npm run gcp:setup-api
@@ -311,7 +332,7 @@ PowerShell equivalent:
 $env:ENV_FILE=".env.production"; npm run gcp:setup-api
 ```
 
-Provision or update the Cloud Run FFmpeg renderer from production values:
+Deploy the Cloud Run FFmpeg renderer from production values:
 
 ```bash
 ENV_FILE=.env.production npm run gcp:setup-renderer
@@ -321,6 +342,13 @@ PowerShell equivalent:
 
 ```powershell
 $env:ENV_FILE=".env.production"; npm run gcp:setup-renderer
+```
+
+Routine CI deploys default to `SKIP_ENABLE_APIS=true` and `SKIP_PROVISIONING=true`. That means GitHub Actions deploys existing Cloud Run services and does not try to enable APIs, create service accounts, update IAM bindings, or create Secret Manager secrets on every push. Do one-time provisioning from an owner/admin account only:
+
+```bash
+ENV_FILE=.env.production SKIP_ENABLE_APIS=false SKIP_PROVISIONING=false npm run gcp:setup-renderer
+ENV_FILE=.env.production SKIP_ENABLE_APIS=false SKIP_PROVISIONING=false npm run gcp:setup-api
 ```
 
 Both setup scripts load `.env` automatically. Existing shell variables override `.env` values when you need to temporarily change a deploy value.

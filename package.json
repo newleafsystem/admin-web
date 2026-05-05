@@ -32,6 +32,7 @@
     "gcp:sync-env:prod:update": "node scripts/sync-google-cloud-env.js --env-file .env.production --update-cloud-run",
     "gcp:setup-api": "bash scripts/setup-google-cloud-run-api.sh",
     "gcp:setup-renderer": "bash scripts/setup-google-cloud-run-renderer.sh",
+    "github:setup-actions": "bash scripts/setup-github-actions-config.sh",
     "check": "node --check scripts/assemble-video.js && node --check scripts/render-timeline.js && node --check scripts/check-project-ready.js && node --check scripts/create-smart-collection.js && node --check scripts/normalize-env-file.js && node --check scripts/build-firebase-hosting.js && npm run check --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present"

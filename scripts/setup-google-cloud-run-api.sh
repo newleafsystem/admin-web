@@ -19,6 +19,8 @@
 #   MEMORY=1Gi
 #   CPU=1
 #   TIMEOUT=900
+#   SKIP_ENABLE_APIS=true
+#   SKIP_PROVISIONING=true
 #
 # Optional secret env values, if present locally, are copied into Secret Manager
 # and mounted into Cloud Run:
@@ -47,6 +49,8 @@ MAX_INSTANCES="${MAX_INSTANCES:-3}"
 MEMORY="${MEMORY:-1Gi}"
 CPU="${CPU:-1}"
 TIMEOUT="${TIMEOUT:-900}"
+SKIP_ENABLE_APIS="${SKIP_ENABLE_APIS:-true}"
+SKIP_PROVISIONING="${SKIP_PROVISIONING:-true}"
 
 if [[ "${ALLOW_LOCAL_DEPLOY_VALUES:-false}" != "true" ]]; then
   for pair in \
@@ -80,36 +84,44 @@ fi
 echo "Using project: ${GCP_PROJECT_ID}"
 gcloud config set project "${GCP_PROJECT_ID}" >/dev/null
 
-echo "Enabling Google Cloud APIs..."
-gcloud services enable \
-  run.googleapis.com \
-  cloudbuild.googleapis.com \
-  containerregistry.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com \
-  storage.googleapis.com \
-  firestore.googleapis.com >/dev/null
+if [[ "${SKIP_ENABLE_APIS}" == "true" ]]; then
+  echo "Skipping Google Cloud API enablement because SKIP_ENABLE_APIS=true."
+else
+  echo "Enabling Google Cloud APIs..."
+  gcloud services enable \
+    run.googleapis.com \
+    cloudbuild.googleapis.com \
+    containerregistry.googleapis.com \
+    artifactregistry.googleapis.com \
+    secretmanager.googleapis.com \
+    storage.googleapis.com \
+    firestore.googleapis.com >/dev/null
+fi
 
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
 
-if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
-  echo "Creating service account: ${SERVICE_ACCOUNT_EMAIL}"
-  gcloud iam service-accounts create "${SERVICE_ACCOUNT_NAME}" \
-    --display-name="NewLeaf API" >/dev/null
+if [[ "${SKIP_PROVISIONING}" == "true" ]]; then
+  echo "Skipping API prerequisite provisioning because SKIP_PROVISIONING=true."
 else
-  echo "Service account already exists: ${SERVICE_ACCOUNT_EMAIL}"
-fi
+  if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
+    echo "Creating service account: ${SERVICE_ACCOUNT_EMAIL}"
+    gcloud iam service-accounts create "${SERVICE_ACCOUNT_NAME}" \
+      --display-name="NewLeaf API" >/dev/null
+  else
+    echo "Service account already exists: ${SERVICE_ACCOUNT_EMAIL}"
+  fi
 
-for role in roles/datastore.user roles/secretmanager.secretAccessor; do
-  gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
+  for role in roles/datastore.user roles/secretmanager.secretAccessor; do
+    gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
+      --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+      --role="${role}" >/dev/null
+  done
+
+  echo "Granting API access to gs://${GCS_BUCKET}..."
+  gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-    --role="${role}" >/dev/null
-done
-
-echo "Granting API access to gs://${GCS_BUCKET}..."
-gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
-  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectAdmin" >/dev/null
+    --role="roles/storage.objectAdmin" >/dev/null
+fi
 
 ensure_secret() {
   local name="$1"
@@ -130,7 +142,9 @@ add_secret_if_present() {
   local secret_name="$2"
   local value="${!env_name:-}"
   if [[ -n "${value}" ]]; then
-    ensure_secret "${secret_name}" "${value}"
+    if [[ "${SKIP_PROVISIONING}" != "true" ]]; then
+      ensure_secret "${secret_name}" "${value}"
+    fi
     secret_specs+=("${env_name}=${secret_name}:latest")
   fi
 }

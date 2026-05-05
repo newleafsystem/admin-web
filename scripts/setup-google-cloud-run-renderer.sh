@@ -16,6 +16,8 @@
 #   MEMORY=2Gi
 #   CPU=2
 #   TIMEOUT=3600
+#   SKIP_ENABLE_APIS=true
+#   SKIP_PROVISIONING=true
 
 set -euo pipefail
 
@@ -35,6 +37,8 @@ MAX_INSTANCES="${MAX_INSTANCES:-2}"
 MEMORY="${MEMORY:-2Gi}"
 CPU="${CPU:-2}"
 TIMEOUT="${TIMEOUT:-3600}"
+SKIP_ENABLE_APIS="${SKIP_ENABLE_APIS:-true}"
+SKIP_PROVISIONING="${SKIP_PROVISIONING:-true}"
 
 required=(GCP_PROJECT_ID MEDIA_RENDER_HMAC_SECRET)
 for name in "${required[@]}"; do
@@ -57,22 +61,30 @@ fi
 echo "Using project: ${GCP_PROJECT_ID}"
 gcloud config set project "${GCP_PROJECT_ID}" >/dev/null
 
-echo "Enabling Google Cloud APIs..."
-gcloud services enable \
-  run.googleapis.com \
-  cloudbuild.googleapis.com \
-  artifactregistry.googleapis.com \
-  secretmanager.googleapis.com \
-  storage.googleapis.com >/dev/null
+if [[ "${SKIP_ENABLE_APIS}" == "true" ]]; then
+  echo "Skipping Google Cloud API enablement because SKIP_ENABLE_APIS=true."
+else
+  echo "Enabling Google Cloud APIs..."
+  gcloud services enable \
+    run.googleapis.com \
+    cloudbuild.googleapis.com \
+    artifactregistry.googleapis.com \
+    secretmanager.googleapis.com \
+    storage.googleapis.com >/dev/null
+fi
 
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
 
-if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
-  echo "Creating service account: ${SERVICE_ACCOUNT_EMAIL}"
-  gcloud iam service-accounts create "${SERVICE_ACCOUNT_NAME}" \
-    --display-name="NewLeaf FFmpeg Renderer" >/dev/null
+if [[ "${SKIP_PROVISIONING}" == "true" ]]; then
+  echo "Skipping renderer prerequisite provisioning because SKIP_PROVISIONING=true."
 else
-  echo "Service account already exists: ${SERVICE_ACCOUNT_EMAIL}"
+  if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
+    echo "Creating service account: ${SERVICE_ACCOUNT_EMAIL}"
+    gcloud iam service-accounts create "${SERVICE_ACCOUNT_NAME}" \
+      --display-name="NewLeaf FFmpeg Renderer" >/dev/null
+  else
+    echo "Service account already exists: ${SERVICE_ACCOUNT_EMAIL}"
+  fi
 fi
 
 ensure_secret() {
@@ -88,17 +100,21 @@ ensure_secret() {
   fi
 }
 
-echo "Writing renderer HMAC secret to Secret Manager..."
-ensure_secret NEWLEAF_RENDER_HMAC_SECRET "${MEDIA_RENDER_HMAC_SECRET}"
+if [[ "${SKIP_PROVISIONING}" != "true" ]]; then
+  echo "Writing renderer HMAC secret to Secret Manager..."
+  ensure_secret NEWLEAF_RENDER_HMAC_SECRET "${MEDIA_RENDER_HMAC_SECRET}"
 
-gcloud secrets add-iam-policy-binding NEWLEAF_RENDER_HMAC_SECRET \
-  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/secretmanager.secretAccessor" >/dev/null
+  gcloud secrets add-iam-policy-binding NEWLEAF_RENDER_HMAC_SECRET \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/secretmanager.secretAccessor" >/dev/null
 
-echo "Granting renderer access to gs://${GCS_BUCKET}..."
-gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
-  --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-  --role="roles/storage.objectAdmin" >/dev/null
+  echo "Granting renderer access to gs://${GCS_BUCKET}..."
+  gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/storage.objectAdmin" >/dev/null
+else
+  echo "Using existing Secret Manager secret and IAM grants for renderer deploy."
+fi
 
 echo "Deploying Cloud Run service: ${SERVICE_NAME}"
 gcloud run deploy "${SERVICE_NAME}" \
@@ -117,6 +133,10 @@ gcloud run deploy "${SERVICE_NAME}" \
 SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
   --region "${GCP_REGION}" \
   --format='value(status.url)')"
+
+if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
+  echo "service_url=${SERVICE_URL}" >> "${GITHUB_OUTPUT}"
+fi
 
 cat <<EOF
 
