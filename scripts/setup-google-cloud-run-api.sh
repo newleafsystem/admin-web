@@ -84,7 +84,6 @@ if ! command -v gcloud >/dev/null 2>&1; then
 fi
 
 echo "Using project: ${GCP_PROJECT_ID}"
-gcloud config set project "${GCP_PROJECT_ID}" >/dev/null
 
 if [[ "${SKIP_ENABLE_APIS}" == "true" ]]; then
   echo "Skipping Google Cloud API enablement because SKIP_ENABLE_APIS=true."
@@ -97,7 +96,8 @@ else
     artifactregistry.googleapis.com \
     secretmanager.googleapis.com \
     storage.googleapis.com \
-    firestore.googleapis.com >/dev/null
+    firestore.googleapis.com \
+    --project "${GCP_PROJECT_ID}" >/dev/null
 fi
 
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
@@ -105,10 +105,12 @@ SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT_ID}.iam.gserviceacc
 if [[ "${SKIP_PROVISIONING}" == "true" ]]; then
   echo "Skipping API prerequisite provisioning because SKIP_PROVISIONING=true."
 else
-  if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
+  if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" \
+    --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
     echo "Creating service account: ${SERVICE_ACCOUNT_EMAIL}"
     gcloud iam service-accounts create "${SERVICE_ACCOUNT_NAME}" \
-      --display-name="NewLeaf API" >/dev/null
+      --display-name="NewLeaf API" \
+      --project "${GCP_PROJECT_ID}" >/dev/null
   else
     echo "Service account already exists: ${SERVICE_ACCOUNT_EMAIL}"
   fi
@@ -122,18 +124,21 @@ else
   echo "Granting API access to gs://${GCS_BUCKET}..."
   gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-    --role="roles/storage.objectAdmin" >/dev/null
+    --role="roles/storage.objectAdmin" \
+    --project "${GCP_PROJECT_ID}" >/dev/null
 fi
 
 ensure_secret() {
   local name="$1"
   local value="$2"
-  if ! gcloud secrets describe "${name}" >/dev/null 2>&1; then
+  if ! gcloud secrets describe "${name}" --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
     printf '%s' "${value}" | gcloud secrets create "${name}" \
       --replication-policy=automatic \
+      --project "${GCP_PROJECT_ID}" \
       --data-file=- >/dev/null
   else
     printf '%s' "${value}" | gcloud secrets versions add "${name}" \
+      --project "${GCP_PROJECT_ID}" \
       --data-file=- >/dev/null
   fi
 }
@@ -169,6 +174,7 @@ build_args=(
   builds submit "${ROOT_DIR}"
   --config "${ROOT_DIR}/services/api/cloudbuild.yaml"
   --substitutions "_IMAGE_URI=${IMAGE_URI}"
+  --project "${GCP_PROJECT_ID}"
 )
 
 if [[ "${CLOUD_BUILD_SUPPRESS_LOGS}" == "true" ]]; then
@@ -231,6 +237,7 @@ deploy_args=(
   --max-instances "${MAX_INSTANCES}"
   --allow-unauthenticated
   --set-env-vars "$(IFS=,; echo "${env_vars[*]}")"
+  --project "${GCP_PROJECT_ID}"
 )
 
 if (( ${#secret_specs[@]} > 0 )); then
@@ -242,6 +249,7 @@ gcloud "${deploy_args[@]}"
 
 SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
   --region "${GCP_REGION}" \
+  --project "${GCP_PROJECT_ID}" \
   --format='value(status.url)')"
 
 cat <<EOF

@@ -60,7 +60,6 @@ if ! command -v gcloud >/dev/null 2>&1; then
 fi
 
 echo "Using project: ${GCP_PROJECT_ID}"
-gcloud config set project "${GCP_PROJECT_ID}" >/dev/null
 
 if [[ "${SKIP_ENABLE_APIS}" == "true" ]]; then
   echo "Skipping Google Cloud API enablement because SKIP_ENABLE_APIS=true."
@@ -71,7 +70,8 @@ else
     cloudbuild.googleapis.com \
     artifactregistry.googleapis.com \
     secretmanager.googleapis.com \
-    storage.googleapis.com >/dev/null
+    storage.googleapis.com \
+    --project "${GCP_PROJECT_ID}" >/dev/null
 fi
 
 SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT_ID}.iam.gserviceaccount.com"
@@ -79,10 +79,12 @@ SERVICE_ACCOUNT_EMAIL="${SERVICE_ACCOUNT_NAME}@${GCP_PROJECT_ID}.iam.gserviceacc
 if [[ "${SKIP_PROVISIONING}" == "true" ]]; then
   echo "Skipping renderer prerequisite provisioning because SKIP_PROVISIONING=true."
 else
-  if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" >/dev/null 2>&1; then
+  if ! gcloud iam service-accounts describe "${SERVICE_ACCOUNT_EMAIL}" \
+    --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
     echo "Creating service account: ${SERVICE_ACCOUNT_EMAIL}"
     gcloud iam service-accounts create "${SERVICE_ACCOUNT_NAME}" \
-      --display-name="NewLeaf FFmpeg Renderer" >/dev/null
+      --display-name="NewLeaf FFmpeg Renderer" \
+      --project "${GCP_PROJECT_ID}" >/dev/null
   else
     echo "Service account already exists: ${SERVICE_ACCOUNT_EMAIL}"
   fi
@@ -91,12 +93,14 @@ fi
 ensure_secret() {
   local name="$1"
   local value="$2"
-  if ! gcloud secrets describe "${name}" >/dev/null 2>&1; then
+  if ! gcloud secrets describe "${name}" --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
     printf '%s' "${value}" | gcloud secrets create "${name}" \
       --replication-policy=automatic \
+      --project "${GCP_PROJECT_ID}" \
       --data-file=- >/dev/null
   else
     printf '%s' "${value}" | gcloud secrets versions add "${name}" \
+      --project "${GCP_PROJECT_ID}" \
       --data-file=- >/dev/null
   fi
 }
@@ -107,12 +111,14 @@ if [[ "${SKIP_PROVISIONING}" != "true" ]]; then
 
   gcloud secrets add-iam-policy-binding NEWLEAF_RENDER_HMAC_SECRET \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-    --role="roles/secretmanager.secretAccessor" >/dev/null
+    --role="roles/secretmanager.secretAccessor" \
+    --project "${GCP_PROJECT_ID}" >/dev/null
 
   echo "Granting renderer access to gs://${GCS_BUCKET}..."
   gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \
     --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-    --role="roles/storage.objectAdmin" >/dev/null
+    --role="roles/storage.objectAdmin" \
+    --project "${GCP_PROJECT_ID}" >/dev/null
 else
   echo "Using existing Secret Manager secret and IAM grants for renderer deploy."
 fi
@@ -124,6 +130,7 @@ build_args=(
   builds submit "${ROOT_DIR}"
   --config "${ROOT_DIR}/services/media-renderer/cloudbuild.yaml"
   --substitutions "_IMAGE_URI=${IMAGE_URI}"
+  --project "${GCP_PROJECT_ID}"
 )
 
 if [[ "${CLOUD_BUILD_SUPPRESS_LOGS}" == "true" ]]; then
@@ -144,10 +151,12 @@ gcloud run deploy "${SERVICE_NAME}" \
   --max-instances "${MAX_INSTANCES}" \
   --allow-unauthenticated \
   --set-env-vars "GCS_BUCKET=${GCS_BUCKET}" \
-  --set-secrets "MEDIA_RENDER_HMAC_SECRET=NEWLEAF_RENDER_HMAC_SECRET:latest"
+  --set-secrets "MEDIA_RENDER_HMAC_SECRET=NEWLEAF_RENDER_HMAC_SECRET:latest" \
+  --project "${GCP_PROJECT_ID}"
 
 SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
   --region "${GCP_REGION}" \
+  --project "${GCP_PROJECT_ID}" \
   --format='value(status.url)')"
 
 if [[ -n "${GITHUB_OUTPUT:-}" ]]; then

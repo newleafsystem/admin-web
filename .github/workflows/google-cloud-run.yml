@@ -144,6 +144,7 @@ jobs:
         if: ${{ steps.changes.outputs.api == 'true' || steps.changes.outputs.renderer == 'true' }}
         uses: google-github-actions/auth@v2
         with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
           create_credentials_file: true
@@ -153,11 +154,14 @@ jobs:
         if: ${{ steps.changes.outputs.api == 'true' || steps.changes.outputs.renderer == 'true' }}
         uses: google-github-actions/setup-gcloud@v2
 
-      - name: Verify Google auth
+      - name: Verify Google credentials file
         if: ${{ steps.changes.outputs.api == 'true' || steps.changes.outputs.renderer == 'true' }}
+        shell: bash
         run: |
-          gcloud config set project "${GCP_PROJECT_ID}"
-          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" || ! -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]]; then
+            echo "Google credentials file was not created by google-github-actions/auth." >&2
+            exit 1
+          fi
 
       - name: Deploy renderer
         id: deploy_renderer
@@ -177,7 +181,7 @@ jobs:
             exit 0
           fi
 
-          if renderer_url="$(gcloud run services describe "${GOOGLE_CLOUD_RUN_RENDERER_SERVICE}" --region "${GCP_REGION}" --format='value(status.url)' 2>/dev/null)" && [[ -n "${renderer_url}" ]]; then
+          if renderer_url="$(gcloud run services describe "${GOOGLE_CLOUD_RUN_RENDERER_SERVICE}" --region "${GCP_REGION}" --project "${GCP_PROJECT_ID}" --format='value(status.url)' 2>/dev/null)" && [[ -n "${renderer_url}" ]]; then
             echo "MEDIA_RENDERER_URL=${renderer_url}" >> "${GITHUB_ENV}"
           else
             echo "Renderer service URL could not be resolved; API deploy will continue without MEDIA_RENDERER_URL."

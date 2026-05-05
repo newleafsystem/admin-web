@@ -67,18 +67,19 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
           workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
           create_credentials_file: true
           export_environment_variables: true
 
-      - name: Set up gcloud
-        uses: google-github-actions/setup-gcloud@v2
-
-      - name: Verify Google auth
+      - name: Verify Google credentials file
+        shell: bash
         run: |
-          gcloud config set project "${GCP_PROJECT_ID}"
-          gcloud auth list --filter=status:ACTIVE --format='value(account)'
+          if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" || ! -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]]; then
+            echo "Google credentials file was not created by google-github-actions/auth." >&2
+            exit 1
+          fi
 
       - name: Deploy Firebase Hosting
         run: npx -y firebase-tools@latest deploy --only hosting --project "${GCP_PROJECT_ID}" --non-interactive
