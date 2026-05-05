@@ -591,7 +591,7 @@ function resolveDeployServiceAccount(env) {
   }
 
   if (hasValue(projectId)) {
-    env.GCP_SERVICE_ACCOUNT = `newleaf-github-deploy@${projectId}.iam.gserviceaccount.com`;
+    env.GCP_SERVICE_ACCOUNT = `github-action-1228863292@${projectId}.iam.gserviceaccount.com`;
     console.log('Using conventional Google deploy service account email.');
   }
 }

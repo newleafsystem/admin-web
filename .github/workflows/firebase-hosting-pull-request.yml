@@ -6,7 +6,6 @@ on: pull_request
 permissions:
   checks: write
   contents: read
-  id-token: write
   pull-requests: write
 jobs:
   build_and_preview:
@@ -14,8 +13,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'newleaf-trading' }}
-      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Node.js
@@ -46,34 +43,20 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
 
-      - name: Validate Google auth config
+      - name: Validate Firebase auth config
         shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING }}
         run: |
-          if [[ -z "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ]]; then
-            echo "GCP_WORKLOAD_IDENTITY_PROVIDER repository secret is required." >&2
-            exit 1
-          fi
-          if [[ ! "${GCP_SERVICE_ACCOUNT:-}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.iam\.gserviceaccount\.com$ ]]; then
-            echo "GCP_SERVICE_ACCOUNT must be a service-account email like name@project.iam.gserviceaccount.com." >&2
-            exit 1
-          fi
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          project_id: ${{ env.GCP_PROJECT_ID }}
-          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
-          create_credentials_file: true
-          export_environment_variables: true
-
-      - name: Verify Google credentials file
-        shell: bash
-        run: |
-          if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" || ! -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]]; then
-            echo "Google credentials file was not created by google-github-actions/auth." >&2
+          if [[ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING repository secret is required for Firebase Hosting deploy." >&2
             exit 1
           fi
 
       - name: Deploy Firebase Hosting preview
-        run: npx -y firebase-tools@latest hosting:channel:deploy "pr-${{ github.event.pull_request.number }}" --expires 7d --project "${GCP_PROJECT_ID}" --non-interactive
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING }}
+          projectId: ${{ env.GCP_PROJECT_ID }}
+          expires: 7d

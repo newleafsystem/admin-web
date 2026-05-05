@@ -26,6 +26,7 @@ Options:
 
 Required env values:
   GCS_BUCKET
+  FIREBASE_SERVICE_ACCOUNT_FILE or existing FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING secret
   MEDIA_RENDER_HMAC_SECRET
   GCP_WORKLOAD_IDENTITY_PROVIDER
   GCP_SERVICE_ACCOUNT
@@ -183,6 +184,36 @@ set_secret_file() {
   echo "Set secret ${name} from file"
 }
 
+set_firebase_hosting_secret() {
+  local secret_name="FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING"
+  local json_value="${FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING:-${FIREBASE_SERVICE_ACCOUNT_JSON:-}}"
+  local file_path="${FIREBASE_SERVICE_ACCOUNT_FILE:-${FIREBASE_SERVICE_ACCOUNT_JSON_FILE:-}}"
+
+  if has_value "${json_value}"; then
+    set_secret_value "${secret_name}" "${json_value}"
+    return 0
+  fi
+
+  if [[ -n "${file_path}" ]]; then
+    set_secret_file "${secret_name}" "${file_path}"
+    return 0
+  fi
+
+  if [[ "${DRY_RUN}" == "true" ]]; then
+    echo "DRY RUN: Firebase Hosting requires ${secret_name}; provide FIREBASE_SERVICE_ACCOUNT_FILE or keep the existing repository secret."
+    return 0
+  fi
+
+  if secret_exists "${secret_name}"; then
+    echo "Keeping existing secret ${secret_name}"
+    return 0
+  fi
+
+  echo "ERROR: ${secret_name} is required for Firebase Hosting deploy." >&2
+  echo "Set FIREBASE_SERVICE_ACCOUNT_FILE to a service-account JSON file path, or create the ${secret_name} repository secret first." >&2
+  exit 1
+}
+
 derive_defaults() {
   local project_id="${GCP_PROJECT_ID:-${FIREBASE_PROJECT_ID:-newleaf-trading}}"
   if [[ -z "${GCS_BUCKET:-}" && -n "${project_id}" ]]; then
@@ -261,6 +292,7 @@ fi
 
 set_secret_value GCP_WORKLOAD_IDENTITY_PROVIDER "${GCP_WORKLOAD_IDENTITY_PROVIDER}"
 set_secret_value GCP_SERVICE_ACCOUNT "${GCP_SERVICE_ACCOUNT}"
+set_firebase_hosting_secret
 set_secret_value MEDIA_RENDER_HMAC_SECRET "${MEDIA_RENDER_HMAC_SECRET}"
 set_secret_value YOUTUBE_CLIENT_SECRET "${YOUTUBE_CLIENT_SECRET:-}"
 

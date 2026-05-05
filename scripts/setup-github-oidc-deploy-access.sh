@@ -10,7 +10,7 @@ PROJECT_ID="${GCP_PROJECT_ID:-newleaf-trading}"
 PROJECT_NUMBER="${GCP_PROJECT_NUMBER:-240392819045}"
 POOL_ID="${GCP_WORKLOAD_IDENTITY_POOL_ID:-github}"
 PROVIDER_ID="${GCP_WORKLOAD_IDENTITY_PROVIDER_ID:-github-newleaf}"
-SERVICE_ACCOUNT_ID="${GCP_SERVICE_ACCOUNT_ID:-newleaf-github-deploy}"
+SERVICE_ACCOUNT_ID="${GCP_SERVICE_ACCOUNT_ID:-github-action-1228863292}"
 REPOSITORY="${GITHUB_REPOSITORY:-newleafsystem/admin-web}"
 APPLY=false
 
@@ -35,7 +35,7 @@ Environment overrides:
   GCP_PROJECT_NUMBER                     default: 240392819045
   GCP_WORKLOAD_IDENTITY_POOL_ID          default: github
   GCP_WORKLOAD_IDENTITY_PROVIDER_ID      default: github-newleaf
-  GCP_SERVICE_ACCOUNT_ID                 default: newleaf-github-deploy
+  GCP_SERVICE_ACCOUNT_ID                 default: github-action-1228863292
   GITHUB_REPOSITORY                      default: newleafsystem/admin-web
 
 This script is dry-run by default. Pass --apply to create IAM resources/bindings.
@@ -105,6 +105,7 @@ for role in "${roles[@]}"; do
   run_or_print gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member "serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
     --role "${role}" \
+    --condition=None \
     --quiet
 done
 

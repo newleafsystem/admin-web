@@ -292,8 +292,9 @@ Required GitHub repository variables:
 
 Required GitHub repository secrets:
 
+- `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING` as the Firebase Hosting service-account JSON used by Firebase Hosting deploy workflows
 - `GCP_WORKLOAD_IDENTITY_PROVIDER` for GitHub OIDC, for example `projects/<project-number>/locations/global/workloadIdentityPools/github/providers/github-newleaf`
-- `GCP_SERVICE_ACCOUNT` as a service-account email, for example `newleaf-github-deploy@newleaf-trading.iam.gserviceaccount.com`
+- `GCP_SERVICE_ACCOUNT` as a service-account email, currently `github-action-1228863292@newleaf-trading.iam.gserviceaccount.com`
 - `MEDIA_RENDER_HMAC_SECRET` for API-to-renderer signing
 - `YOUTUBE_CLIENT_SECRET`
 
@@ -304,7 +305,7 @@ npm run gcp:setup-github-oidc
 npm run gcp:setup-github-oidc -- --apply
 ```
 
-The first command is a dry run. The apply command creates/verifies `newleaf-github-deploy@newleaf-trading.iam.gserviceaccount.com`, grants the deploy roles required by Firebase Hosting and Cloud Run, and binds the existing GitHub Workload Identity provider to `newleafsystem/admin-web`.
+The first command is a dry run. The apply command creates/verifies `github-action-1228863292@newleaf-trading.iam.gserviceaccount.com`, grants the deploy roles required by Firebase Hosting and Cloud Run, and binds the existing GitHub Workload Identity provider to `newleafsystem/admin-web`.
 
 You can push the repository variables and deployment secrets with GitHub CLI:
 
@@ -318,7 +319,7 @@ Run a dry run first:
 ENV_FILE=.env.production npm run github:setup-actions -- --repo <github-owner>/<repo-name> --dry-run
 ```
 
-The script sets repository variables and these secrets: `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`, `MEDIA_RENDER_HMAC_SECRET`, and optional provider secrets that are present in the env file. It does not print secret values. Firebase Hosting uses GitHub OIDC / Google Workload Identity, so a separate Firebase service-account JSON secret is not required.
+The script sets repository variables and these secrets: `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING`, `GCP_WORKLOAD_IDENTITY_PROVIDER`, `GCP_SERVICE_ACCOUNT`, `MEDIA_RENDER_HMAC_SECRET`, and optional provider secrets that are present in the env file. It does not print secret values. Firebase Hosting uses `FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING`; Cloud Run uses GitHub OIDC / Google Workload Identity through `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT`.
 
 After env-template cleanup, remove obsolete GitHub repository variables and secrets with:
 
