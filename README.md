@@ -263,10 +263,8 @@ Required DNS at names.co.uk:
 - `admin.newleafsystem.com` records provided by Firebase Hosting custom domain setup.
 - Optional `api.newleafsystem.com` records if you also map a direct Cloud Run custom domain for the API.
 
-Required GitHub secrets and variables:
+Required GitHub repository variables:
 
-- `GCP_WORKLOAD_IDENTITY_PROVIDER` and `GCP_SERVICE_ACCOUNT` for Firebase Hosting and Cloud Run deploy workflows.
-- `MEDIA_RENDER_HMAC_SECRET` for API-to-renderer signing.
 - `GCP_PROJECT_ID=newleaf-trading`
 - `GCP_REGION=us-central1`
 - `GOOGLE_CLOUD_RUN_API_SERVICE=newleaf-api`
@@ -290,8 +288,23 @@ Required GitHub secrets and variables:
 - `VITE_FIREBASE_APP_ID=<firebase-web-app-id>`
 - `VITE_FIREBASE_MEASUREMENT_ID=<firebase-measurement-id>`
 - `YOUTUBE_CLIENT_ID=<google-oauth-web-client-id>`
-- `YOUTUBE_CLIENT_SECRET` as a GitHub secret
 - `YOUTUBE_SCOPES=https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl`
+
+Required GitHub repository secrets:
+
+- `GCP_WORKLOAD_IDENTITY_PROVIDER` for GitHub OIDC, for example `projects/<project-number>/locations/global/workloadIdentityPools/github/providers/github-newleaf`
+- `GCP_SERVICE_ACCOUNT` as a service-account email, for example `newleaf-github-deploy@newleaf-trading.iam.gserviceaccount.com`
+- `MEDIA_RENDER_HMAC_SECRET` for API-to-renderer signing
+- `YOUTUBE_CLIENT_SECRET`
+
+Google OIDC setup for GitHub Actions is automated by:
+
+```bash
+npm run gcp:setup-github-oidc
+npm run gcp:setup-github-oidc -- --apply
+```
+
+The first command is a dry run. The apply command creates/verifies `newleaf-github-deploy@newleaf-trading.iam.gserviceaccount.com`, grants the deploy roles required by Firebase Hosting and Cloud Run, and binds the existing GitHub Workload Identity provider to `newleafsystem/admin-web`.
 
 You can push the repository variables and deployment secrets with GitHub CLI:
 

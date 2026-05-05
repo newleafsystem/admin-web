@@ -12,6 +12,10 @@ jobs:
   build_and_preview:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'newleaf-trading' }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Node.js
@@ -42,11 +46,33 @@ jobs:
           VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
 
+      - name: Validate Google auth config
+        shell: bash
+        run: |
+          if [[ -z "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ]]; then
+            echo "GCP_WORKLOAD_IDENTITY_PROVIDER repository secret is required." >&2
+            exit 1
+          fi
+          if [[ ! "${GCP_SERVICE_ACCOUNT:-}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.iam\.gserviceaccount\.com$ ]]; then
+            echo "GCP_SERVICE_ACCOUNT must be a service-account email like name@project.iam.gserviceaccount.com." >&2
+            exit 1
+          fi
+
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
-          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify Google auth
+        run: |
+          gcloud config set project "${GCP_PROJECT_ID}"
+          gcloud auth list --filter=status:ACTIVE --format='value(account)'
 
       - name: Deploy Firebase Hosting preview
-        run: npx -y firebase-tools@latest hosting:channel:deploy "pr-${{ github.event.pull_request.number }}" --expires 7d --project newleaf-trading
+        run: npx -y firebase-tools@latest hosting:channel:deploy "pr-${{ github.event.pull_request.number }}" --expires 7d --project "${GCP_PROJECT_ID}" --non-interactive
