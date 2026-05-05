@@ -39,6 +39,7 @@ Important files:
 - Preserve audit history for deletes, failures, updates, retries, and external syncs.
 - Deleted provider videos should remain as audit records unless the user explicitly requests hard local deletion.
 - Backend services own OAuth token refresh, provider scopes, token health, retries, polling, webhooks, and request/response snapshots.
+- Treat OAuth `tokenSecretRef` values as opaque repository references. Publisher, sync, import, update, thumbnail, and delete services must call `repository.getSecret(...)` and must not check storage prefixes such as `dev-memory:` or `firestore-secret:`.
 
 ## FFmpeg And Media Rules
 

@@ -139,6 +139,7 @@ Before changing behavior, inspect the nearest relevant files and these docs:
 - Repository calls go through `apps/api/src/lib/repository.js` unless the feature intentionally uses local project files such as Video Studio.
 - Job status transitions should use `jobStateService` when workflow state matters.
 - Every provider callback, queue task, publish attempt, retry, import, and delete should be idempotent.
+- OAuth `tokenSecretRef` values are opaque repository references. Publisher, sync, import, update, thumbnail, and delete services must call `repository.getSecret(...)` instead of checking storage prefixes such as `dev-memory:` or `firestore-secret:`.
 
 ## Admin UI Patterns
 

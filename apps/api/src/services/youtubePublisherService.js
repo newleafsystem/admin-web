@@ -932,10 +932,11 @@ export function createYouTubePublisherService(options = {}) {
   async function updateAttemptProgress(attemptId, { status, stage, percent, label, uploadedBytes, totalBytes, patch = {} }) {
     const attempt = await repository.getPublishAttempt(attemptId);
     if (!attempt) return null;
+    const metadata = clearFailureMetadata(attempt.metadata);
     return repository.updatePublishAttempt(attemptId, {
       status,
       metadata: {
-        ...(attempt.metadata ?? {}),
+        ...metadata,
         ...progressMetadata({ stage, percent, label, uploadedBytes, totalBytes }),
         ...patch,
       },
@@ -1448,4 +1449,9 @@ function sanitizeError(error) {
     status: error.status ?? null,
     details: error.details ?? null,
   };
+}
+
+function clearFailureMetadata(metadata = {}) {
+  const { failureDetails, ...rest } = metadata ?? {};
+  return rest;
 }

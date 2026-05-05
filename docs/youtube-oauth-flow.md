@@ -87,7 +87,8 @@ POST https://www.googleapis.com/upload/youtube/v3/videos
 
 ## Production Notes
 
-- Replace the current `dev-memory:` token secret store with Google Secret Manager.
+- OAuth tokens are loaded through the repository secret abstraction. Publisher and sync services must treat `tokenSecretRef` as opaque so local `dev-memory:`, Firestore `firestore-secret:`, and future Google Secret Manager references work without provider-service changes.
+- If stricter secret isolation is needed later, move token payload storage behind the repository adapter to Google Secret Manager without changing publisher services.
 - If Google does not return a refresh token, the user likely already granted consent. Use `prompt=consent` for reconnects when a refresh token is required.
 - Public video uploads from unverified API clients can be restricted by Google until app verification/audit is complete.
 - Do not use a Google service account for a normal YouTube channel. YouTube user-channel publishing requires OAuth user consent.

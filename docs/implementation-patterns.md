@@ -175,12 +175,13 @@ resumeQueuedAttempts(): Promise<ResumeResult>
 Provider implementations must:
 
 - resolve the assigned connected account;
-- load tokens through secret references;
+- load tokens through opaque secret references by calling `repository.getSecret(account.tokenSecretRef)`;
 - verify required scopes before provider calls;
 - persist intermediate provider IDs as soon as possible;
 - update progress before long-running work;
 - handle provider errors with actionable messages;
 - preserve local audit records after provider deletes.
+- clear stale `metadata.failureDetails` when retrying or moving an attempt back into an active progress state, so queued/uploading records do not display old failure payloads.
 
 ## OAuth Pattern
 
@@ -198,6 +199,19 @@ Rules:
 - Store only secret references in account metadata.
 - Keep refresh tokens and access tokens in managed secret storage.
 - Merge configured scopes and existing saved scopes on reconnect so new permissions are requested without silently dropping old ones.
+
+## OAuth Secret Reference Pattern
+
+OAuth token references are repository-owned implementation details. Service code must treat `tokenSecretRef` as opaque.
+
+Rules:
+
+- Publisher, sync, import, thumbnail, metadata-update, and delete services must not check storage prefixes such as `dev-memory:` or `firestore-secret:`.
+- Services must resolve tokens only through `repository.getSecret(account.tokenSecretRef)`.
+- Services may write refreshed token payloads only through `repository.putSecret(...)` using the existing secret id and metadata.
+- Local development may return `dev-memory:` refs and Firestore production may return `firestore-secret:` refs. Future Google Secret Manager refs should not require publisher service changes.
+- Only repository adapters may parse or normalize secret reference prefixes.
+- Errors should say the OAuth token secret is missing, expired, or lacks scope. They should not say a non-local secret type is unsupported.
 
 ## Webhook Pattern
 

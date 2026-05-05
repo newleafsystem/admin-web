@@ -102,6 +102,7 @@ docs/agentic-ai-implementation-checklist.md
 - Preserve the existing JavaScript ES module style.
 - Prefer small modules and testable functions.
 - Follow existing Express route/service patterns.
+- Treat OAuth `tokenSecretRef` values as opaque repository references; only repository adapters may interpret prefixes such as `dev-memory:` or `firestore-secret:`.
 - Keep admin UI feature logic in `apps/admin/src/sections/*` and fetch normalization in `apps/admin/src/api.js`.
 - Avoid heavy dependencies unless the need is clear.
 - Avoid rewrites of working code.

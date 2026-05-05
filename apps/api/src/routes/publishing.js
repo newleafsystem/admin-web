@@ -242,6 +242,7 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
       const attempt = await repository.getPublishAttempt(req.params.attemptId);
       if (!attempt) throw notFound('Publish attempt not found', { attemptId: req.params.attemptId });
       const account = attempt.connectedAccountId ? null : await resolveConnectedAccount(repository, attempt.platform);
+      const retryMetadata = clearFailureMetadata(attempt.metadata);
       const updated = await repository.updatePublishAttempt(attempt.id, {
         connectedAccountId: attempt.connectedAccountId ?? account?.id ?? null,
         status: attempt.connectedAccountId || account ? 'queued' : 'failed',
@@ -249,7 +250,7 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
         errorMessage: attempt.connectedAccountId || account ? null : `No connected ${attempt.platform} account is available.`,
         attemptNo: attempt.attemptNo + 1,
         metadata: {
-          ...(attempt.metadata ?? {}),
+          ...retryMetadata,
           accountName: attempt.metadata?.accountName ?? account?.accountName ?? null,
           providerAccountId: attempt.metadata?.providerAccountId ?? account?.providerAccountId ?? null,
           ...publishProgressMetadata(
@@ -776,6 +777,11 @@ function publishProgressMetadata(stage, label, patch = {}) {
 function missingProgressMetadata(attempt) {
   const metadata = attempt.metadata ?? {};
   return metadata.progressStage === undefined || metadata.progressPercent === undefined || !metadata.progressLabel;
+}
+
+function clearFailureMetadata(metadata = {}) {
+  const { failureDetails, ...rest } = metadata ?? {};
+  return rest;
 }
 
 function progressStageForAttempt(attempt) {
