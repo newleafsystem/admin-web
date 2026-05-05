@@ -108,7 +108,16 @@ export function getRemainingPublishPlatforms(jobId, integratedPlatforms, unavail
 
 export function isArchivedPublishPlan(plan) {
   const attempts = plan?.attempts ?? [];
-  if (plan?.status === "deleted") {
+  if (plan?.status === "deleted" || plan?.status === "published") {
+    return true;
+  }
+  if (String(plan?.metadata?.externalSource ?? "").includes("_channel_import")) {
+    return true;
+  }
+  if (attempts.some((attempt) => String(attempt.id ?? "").startsWith("external_"))) {
+    return true;
+  }
+  if (attempts.some((attempt) => String(attempt.metadata?.externalSource ?? "").includes("_channel_import"))) {
     return true;
   }
   if (attempts.length === 0) {
@@ -126,6 +135,9 @@ export function isArchivedPublishPlan(plan) {
 export function isArchivedContentQueueJob(job, { publishPlans = [], publications = [] } = {}) {
   if (!job) {
     return false;
+  }
+  if (job.type === "external_video" || String(job.sourceType ?? "").startsWith("external_")) {
+    return true;
   }
 
   const relatedPlans = publishPlans.filter((plan) => plan.jobId === job.id);

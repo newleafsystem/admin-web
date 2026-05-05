@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "check": "node --check vite.config.js && node --check src/config.js && node --check src/firebaseClient.js && node --check src/api.js"
+    "check": "node --check vite.config.js && node --check src/config.js && node --check src/firebaseClient.js && node --check src/api.js && node --check src/utils.js && node --check src/utils.test.js",
+    "test": "node src/utils.test.js"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.0",
