@@ -8,23 +8,25 @@ import {
 } from "./firebaseClient.js";
 
 export function AuthGate({ children }) {
+  const canUseLocalDevSession = isLocalDevHost();
+  const localDevSession = canUseLocalDevSession
+    ? {
+        user: {
+          id: "local-dev",
+          uid: "local-dev",
+          email: "local-dev@newleaf.invalid",
+          displayName: "Local Admin",
+          role: "admin",
+          roles: ["admin"],
+          immutable: true
+        },
+        roles: ["admin"]
+      }
+    : null;
   const [state, setState] = useState({
     loading: isFirebaseConfigured,
     firebaseUser: null,
-    session: isFirebaseConfigured
-      ? null
-      : {
-          user: {
-            id: "local-dev",
-            uid: "local-dev",
-            email: "local-dev@newleaf.invalid",
-            displayName: "Local Admin",
-            role: "admin",
-            roles: ["admin"],
-            immutable: true
-          },
-          roles: ["admin"]
-        },
+    session: isFirebaseConfigured ? null : localDevSession,
     error: null
   });
 
@@ -47,8 +49,20 @@ export function AuthGate({ children }) {
     });
   }, []);
 
-  if (!isFirebaseConfigured) {
+  if (!isFirebaseConfigured && canUseLocalDevSession) {
     return renderChildren(children, state.session);
+  }
+
+  if (!isFirebaseConfigured) {
+    return (
+      <main className="auth-screen">
+        <section className="auth-panel">
+          <p className="eyebrow">NewLeaf Admin</p>
+          <h1>Authentication is not configured</h1>
+          <p>This deployed admin build is missing Firebase web configuration, so Google sign-in cannot start.</p>
+        </section>
+      </main>
+    );
   }
 
   if (state.loading) {
@@ -78,7 +92,7 @@ export function AuthGate({ children }) {
                 setState((current) => ({ ...current, error: null }));
                 await signInWithGoogle();
               } catch (error) {
-                setState({ loading: false, user: null, error: error.message });
+                setState({ loading: false, firebaseUser: null, session: null, error: error.message });
               }
             }}
           >
@@ -124,4 +138,14 @@ export function AuthGate({ children }) {
 
 function renderChildren(children, session) {
   return typeof children === "function" ? children(session) : children;
+}
+
+function isLocalDevHost() {
+  if (import.meta.env.DEV) {
+    return true;
+  }
+  if (typeof window === "undefined") {
+    return false;
+  }
+  return ["localhost", "127.0.0.1"].includes(window.location.hostname);
 }

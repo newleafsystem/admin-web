@@ -5,6 +5,7 @@ import process from 'node:process';
 
 const env = {
   ...process.env,
+  REQUIRE_AUTH: process.env.REQUIRE_AUTH?.trim() || 'true',
   VITE_API_BASE_URL: process.env.VITE_API_BASE_URL?.trim() || '/api/v1',
 };
 

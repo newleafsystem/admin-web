@@ -706,7 +706,7 @@ function normalizeJob(job, artifacts = [], providerJobs = []) {
     type: job.type ?? "video_job",
     sourceType,
     status,
-    owner: metadata.owner ?? job.ownerUid ?? "local-admin",
+    owner: metadata.owner ?? job.ownerUid ?? "Unknown operator",
     topic: metadata.topic ?? metadata.intakeModeLabel ?? sourceType,
     targetDurationSec: Number(job.targetDurationSec ?? metadata.targetDurationSec ?? 0),
     updatedAt: formatDate(job.updatedAt ?? job.createdAt),

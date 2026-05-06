@@ -47,13 +47,17 @@ export function createJobsRouter({
       if (!JOB_STATUSES.includes(status)) {
         throw badRequest('Unsupported initial job status', { status, allowed: JOB_STATUSES });
       }
+      const metadata = optionalObject(body, 'metadata', { defaultValue: {} });
       const job = await jobStateService.createJob({
         title: requireString(body, 'title', { maxLength: 300 }),
         type: optionalString(body, 'type', { maxLength: 100, defaultValue: 'trade_video' }),
         status,
         sourceType: optionalString(body, 'sourceType', { maxLength: 80, defaultValue: null }),
         targetDurationSec: optionalNumber(body, 'targetDurationSec', { min: 1, max: 3600, defaultValue: null }),
-        metadata: optionalObject(body, 'metadata', { defaultValue: {} }),
+        metadata: {
+          ...metadata,
+          owner: operatorLabel(req.user),
+        },
         ownerUid: req.user.uid,
       });
       res.status(201).json({ job });
@@ -464,6 +468,10 @@ export function createJobsRouter({
   );
 
   return router;
+}
+
+function operatorLabel(user) {
+  return user?.email ?? user?.displayName ?? user?.uid ?? 'Unknown operator';
 }
 
 async function requestHeyGenVideo({ req, repository, jobStateService, videoAssemblyService, regenerate }) {

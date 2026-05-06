@@ -126,6 +126,17 @@ button.secondary {
   box-shadow: var(--shadow);
 }
 
+.app-loader {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  width: 100%;
+  justify-content: flex-start;
+  border-color: rgba(184, 134, 45, 0.32);
+  background: #fff9ec;
+  color: var(--ink);
+}
+
 .loading-spinner {
   width: 16px;
   height: 16px;

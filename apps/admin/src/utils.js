@@ -237,7 +237,7 @@ export function getSegmentClipUploads(draft) {
     .filter((segment) => segment.file);
 }
 
-export function buildContentJobPayload(draft) {
+export function buildContentJobPayload(draft, actor = {}) {
   const mode = getIntakeMode(draft.mode);
   const trimmedTitle = draft.title.trim();
   const prompt = draft.prompt.trim();
@@ -250,7 +250,7 @@ export function buildContentJobPayload(draft) {
     intakeMode: mode.id,
     intakeModeLabel: mode.label,
     targetDurationSec,
-    owner: "local-admin",
+    owner: actor.email ?? actor.displayName ?? actor.uid ?? "Unknown operator",
     risk: "low"
   };
 

@@ -361,7 +361,7 @@ export default function App({ session }) {
     setActionError(null);
 
     try {
-      const createdJob = await createContentJob(buildContentJobPayload(contentDraft));
+      const createdJob = await createContentJob(buildContentJobPayload(contentDraft, session?.user));
       let nextView = "Review";
 
       if (contentDraft.mode === "video_upload" && contentDraft.videoFile) {
@@ -381,7 +381,7 @@ export default function App({ session }) {
       setSelectedJobId(createdJob.id);
       setPublishDraft((current) => ({ ...current, jobId: createdJob.id }));
       setAuditEvents((current) =>
-        addAuditEvent(current, "create_content_job", createdJob.id, "local-admin", {
+        addAuditEvent(current, "create_content_job", createdJob.id, currentActor(session), {
           title: createdJob.title,
           mode: contentDraft.mode,
           sourceType: createdJob.sourceType
@@ -420,7 +420,7 @@ export default function App({ session }) {
       setJobs(refreshedJobs);
       setSelectedJobId(jobId);
       setAuditEvents((current) =>
-        addAuditEvent(current, "upload_video_segment", jobId, "local-admin", {
+        addAuditEvent(current, "upload_video_segment", jobId, currentActor(session), {
           jobId,
           heygenVideoId,
           filename: file.name,
@@ -444,7 +444,7 @@ export default function App({ session }) {
       );
       setSelectedJobId(jobId);
       setAuditEvents((current) =>
-        addAuditEvent(current, "upload_thumbnail", jobId, "local-admin", {
+        addAuditEvent(current, "upload_thumbnail", jobId, currentActor(session), {
           jobId,
           artifactId: result.artifact?.id ?? null,
           filename: file.name,
@@ -467,7 +467,7 @@ export default function App({ session }) {
       );
       setSelectedJobId(jobId);
       setAuditEvents((current) =>
-        addAuditEvent(current, "generate_thumbnail", jobId, "local-admin", {
+        addAuditEvent(current, "generate_thumbnail", jobId, currentActor(session), {
           jobId,
           artifactId: result.artifact?.id ?? null,
           atSeconds
@@ -488,7 +488,7 @@ export default function App({ session }) {
       setJobs(refreshedJobs);
       setSelectedJobId(jobId);
       setAuditEvents((current) =>
-        addAuditEvent(current, "poll_heygen_segment", jobId, "local-admin", {
+        addAuditEvent(current, "poll_heygen_segment", jobId, currentActor(session), {
           jobId,
           providerJobId,
           action: result.action,
@@ -515,7 +515,7 @@ export default function App({ session }) {
       );
       setPublishDraft((current) => ({ ...current, jobId: targetJob.id }));
       setAuditEvents((current) =>
-        addAuditEvent(current, "approve_job", targetJob.id, "local-admin", {
+        addAuditEvent(current, "approve_job", targetJob.id, currentActor(session), {
           title: targetJob.title,
           previousStatus: targetJob.status,
           nextStatus: updatedJob.status
@@ -541,7 +541,7 @@ export default function App({ session }) {
       setJobs(nextJobs);
       setSelectedJobId(nextReviewableJobs[0]?.id ?? nextJobs[0]?.id ?? null);
       setAuditEvents((current) =>
-        addAuditEvent(current, "delete_review_job", targetJob.id, "local-admin", {
+        addAuditEvent(current, "delete_review_job", targetJob.id, currentActor(session), {
           title: targetJob.title,
           status: targetJob.status,
           sourceType: targetJob.sourceType,
@@ -587,7 +587,7 @@ export default function App({ session }) {
         current.map((job) => (job.id === targetJob.id ? mergeJob(job, updatedJob) : job))
       );
       setAuditEvents((current) =>
-        addAuditEvent(current, "edit_review_script", targetJob.id, "local-admin", {
+        addAuditEvent(current, "edit_review_script", targetJob.id, currentActor(session), {
           title: targetJob.title,
           previousPreviewCount: targetJob.script.preview.length,
           nextPreviewCount: scriptPreview.length
@@ -618,7 +618,7 @@ export default function App({ session }) {
         current.map((job) => (job.id === targetJob.id ? mergeJob(job, updatedJob) : job))
       );
       setAuditEvents((current) =>
-        addAuditEvent(current, `regenerate_${scope}`, targetJob.id, "local-admin", {
+        addAuditEvent(current, `regenerate_${scope}`, targetJob.id, currentActor(session), {
           title: targetJob.title,
           scope,
           nextStatus: updatedJob.status,
@@ -646,7 +646,7 @@ export default function App({ session }) {
       );
       setSummaryWorkflow({ jobId: targetJob.id, isGenerating: false, error: null });
       setAuditEvents((current) =>
-        addAuditEvent(current, "generate_review_summary", targetJob.id, "local-admin", {
+        addAuditEvent(current, "generate_review_summary", targetJob.id, currentActor(session), {
           title: targetJob.title,
           provider: result.summary?.provider ?? result.summary?.model ?? "configured AI provider"
         })
@@ -666,7 +666,7 @@ export default function App({ session }) {
       await retryPublishAttempt(attempt.id);
       setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish attempts...", fetchPublishPlans));
       setAuditEvents((current) =>
-        addAuditEvent(current, "retry_publish_attempt", `${planId}/${attempt.platform}`, "local-admin", {
+        addAuditEvent(current, "retry_publish_attempt", `${planId}/${attempt.platform}`, currentActor(session), {
           planId,
           platform: attempt.platform,
           attemptId: attempt.id,
@@ -764,7 +764,7 @@ export default function App({ session }) {
         platforms: integratedPlatforms.length === 1 ? [integratedPlatforms[0].id] : []
       }));
       setAuditEvents((current) =>
-        addAuditEvent(current, "create_publish_plan", publishDraft.jobId, "local-admin", {
+        addAuditEvent(current, "create_publish_plan", publishDraft.jobId, currentActor(session), {
           title: publishTitle,
           platforms,
           scheduledAt: publishDraft.scheduledAt || "Not scheduled",
@@ -811,7 +811,7 @@ export default function App({ session }) {
         error: null
       }));
       setAuditEvents((current) =>
-        addAuditEvent(current, "generate_youtube_tags", publishDraft.jobId, "local-admin", {
+        addAuditEvent(current, "generate_youtube_tags", publishDraft.jobId, currentActor(session), {
           title,
           generatedTags: result.tags,
           model: result.model,
@@ -833,7 +833,7 @@ export default function App({ session }) {
       await approvePublishPlan(planId);
       setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
       setAuditEvents((current) =>
-        addAuditEvent(current, "approve_publish_plan", planId, "local-admin", {
+        addAuditEvent(current, "approve_publish_plan", planId, currentActor(session), {
           planId
         })
       );
@@ -856,7 +856,7 @@ export default function App({ session }) {
       setPublications(refreshedPublications);
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
       setAuditEvents((current) =>
-        addAuditEvent(current, "publish_plan", planId, "local-admin", {
+        addAuditEvent(current, "publish_plan", planId, currentActor(session), {
           planId,
           status: result.plan.status,
           attempts: result.attempts.map((attempt) => ({
@@ -927,7 +927,7 @@ export default function App({ session }) {
       });
       applyPublicationUpdate(updated);
       setAuditEvents((current) =>
-        addAuditEvent(current, "update_publication", publicationId, "local-admin", {
+        addAuditEvent(current, "update_publication", publicationId, currentActor(session), {
           publicationId,
           updatedFields: Object.keys(payload),
           platform: updated.platform,
@@ -951,7 +951,7 @@ export default function App({ session }) {
       applyPublicationUpdate(updated);
       setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
       setAuditEvents((current) =>
-        addAuditEvent(current, "delete_publication", publicationId, "local-admin", {
+        addAuditEvent(current, "delete_publication", publicationId, currentActor(session), {
           publicationId,
           platform: updated.platform,
           providerPostId: updated.providerPostId,
@@ -986,7 +986,7 @@ export default function App({ session }) {
       setPublishPlans(refreshedPlans);
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
       setAuditEvents((current) =>
-        addAuditEvent(current, "delete_job_publications", jobId, "local-admin", {
+        addAuditEvent(current, "delete_job_publications", jobId, currentActor(session), {
           jobId,
           deleted: result.publications.length,
           failed: result.failed.length,
@@ -1041,7 +1041,7 @@ export default function App({ session }) {
       );
       applyPublicationUpdate(updated);
       setAuditEvents((current) =>
-        addAuditEvent(current, "hype_publication", publicationId, "local-admin", {
+        addAuditEvent(current, "hype_publication", publicationId, currentActor(session), {
           publicationId,
           platform: updated.platform,
           status: updated.status
@@ -1068,7 +1068,7 @@ export default function App({ session }) {
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
       setPublicationImportWorkflow({ platform: null, isImporting: false, error: null });
       setAuditEvents((current) =>
-        addAuditEvent(current, `sync_${platform}_channel`, `${result.imported} imported, ${result.updated} updated`, "local-admin", {
+        addAuditEvent(current, `sync_${platform}_channel`, `${result.imported} imported, ${result.updated} updated`, currentActor(session), {
           platform,
           imported: result.imported,
           updated: result.updated,
@@ -1111,7 +1111,7 @@ export default function App({ session }) {
         );
       }
       setAuditEvents((current) =>
-        addAuditEvent(current, "reconnect_account", accountId, "local-admin", {
+        addAuditEvent(current, "reconnect_account", accountId, currentActor(session), {
           accountId,
           platform: account?.platform,
           accountName: account?.accountName
@@ -1195,7 +1195,7 @@ export default function App({ session }) {
       await deleteSocialAccount(accountId);
       setConnectedAccounts((current) => current.filter((candidate) => candidate.id !== accountId));
       setAuditEvents((current) =>
-        addAuditEvent(current, "disconnect_social_account", account?.accountName ?? accountId, "local-admin", {
+        addAuditEvent(current, "disconnect_social_account", account?.accountName ?? accountId, currentActor(session), {
           accountId,
           platform: account?.platform,
           accountName: account?.accountName
@@ -1213,7 +1213,7 @@ export default function App({ session }) {
       setServiceClients((current) => [result.client, ...current]);
       setVendorCredentialResult(result);
       setAuditEvents((current) =>
-        addAuditEvent(current, "create_vendor_client", result.client.id, "local-admin", {
+        addAuditEvent(current, "create_vendor_client", result.client.id, currentActor(session), {
           name: result.client.name,
           keyId: result.client.keyId,
           scopes: result.client.scopes
@@ -1235,7 +1235,7 @@ export default function App({ session }) {
       );
       setVendorCredentialResult(result);
       setAuditEvents((current) =>
-        addAuditEvent(current, "rotate_vendor_client", result.client.id, "local-admin", {
+        addAuditEvent(current, "rotate_vendor_client", result.client.id, currentActor(session), {
           name: result.client.name,
           keyId: result.client.keyId
         })
@@ -1256,7 +1256,7 @@ export default function App({ session }) {
         setVendorCredentialResult(null);
       }
       setAuditEvents((current) =>
-        addAuditEvent(current, "revoke_vendor_client", updated.id, "local-admin", {
+        addAuditEvent(current, "revoke_vendor_client", updated.id, currentActor(session), {
           name: updated.name,
           keyId: updated.keyId
         })
@@ -1274,7 +1274,7 @@ export default function App({ session }) {
       );
       setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
       setAuditEvents((current) =>
-        addAuditEvent(current, "update_user_role", updated.email, session?.user?.email ?? "local-admin", {
+        addAuditEvent(current, "update_user_role", updated.email, currentActor(session), {
           userId: updated.id,
           role: updated.role
         })
@@ -1291,7 +1291,7 @@ export default function App({ session }) {
       const removed = await withSectionLoader("Users", "Removing user access...", () => deleteUser(userId));
       setUsers((current) => current.filter((user) => user.id !== removed.id));
       setAuditEvents((current) =>
-        addAuditEvent(current, "delete_user", removed.email, session?.user?.email ?? "local-admin", {
+        addAuditEvent(current, "delete_user", removed.email, currentActor(session), {
           userId: removed.id,
           role: removed.role
         })
@@ -1345,9 +1345,16 @@ export default function App({ session }) {
           </div>
           <div className="operator-strip">
             <span>Staging</span>
-            <span>{session?.user?.email ?? "local-admin"}</span>
+            <span>{currentActor(session)}</span>
           </div>
         </header>
+
+        {Object.keys(sectionLoaders).length > 0 && (
+          <section className="section-loader app-loader" aria-live="polite">
+            <span className="loading-spinner" aria-hidden="true" />
+            {Object.values(sectionLoaders)[0]}
+          </section>
+        )}
 
         {loadError ? (
           <section className="empty-state">
@@ -1492,6 +1499,10 @@ export default function App({ session }) {
       </main>
     </div>
   );
+}
+
+function currentActor(session) {
+  return session?.user?.email ?? session?.user?.displayName ?? session?.user?.uid ?? "Unknown operator";
 }
 
 function hydratePublishDraftForJobChange(current, patch, jobs) {
