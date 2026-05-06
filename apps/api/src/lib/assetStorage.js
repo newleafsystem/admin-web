@@ -4,7 +4,7 @@ import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import { Storage } from '@google-cloud/storage';
 import { config } from '../config.js';
-import { badRequest, conflict } from './httpErrors.js';
+import { badGateway, badRequest, conflict } from './httpErrors.js';
 
 let storageClient = null;
 
@@ -23,6 +23,10 @@ export function buildObjectStorageKey({ jobId, kind, filename, timestamp = Date.
     safeObjectSegment(kind),
     `${timestamp}-${sanitizeFilename(filename)}`,
   ].join('/');
+}
+
+export function buildObjectStorageJobPrefix(jobId) {
+  return `uploads/${safeObjectSegment(jobId)}/`;
 }
 
 export async function uploadBufferToObjectStorage({ storageKey, buffer, mimeType }) {
@@ -129,6 +133,79 @@ export async function materializeObjectStorageArtifact(artifact, { localDataDir,
   };
 }
 
+export async function deleteObjectStorageArtifact(artifact, { ignoreNotFound = true } = {}) {
+  if (!isObjectStorageProvider(artifact?.storageProvider)) {
+    return {
+      deleted: false,
+      skipped: true,
+      reason: 'not_object_storage',
+      artifactId: artifact?.id ?? null,
+      storageProvider: artifact?.storageProvider ?? null,
+    };
+  }
+
+  const storageKey = assertSafeObjectKey(artifact.storageKey);
+  const bucket = objectStorageBucket();
+  const file = bucket.file(storageKey);
+
+  try {
+    await file.delete({ ignoreNotFound });
+  } catch (error) {
+    if (ignoreNotFound && isObjectNotFoundError(error)) {
+      return {
+        deleted: false,
+        skipped: true,
+        reason: 'object_not_found',
+        artifactId: artifact.id,
+        storageProvider: artifact.storageProvider,
+        storageKey,
+      };
+    }
+    throw badGateway('Unable to delete artifact from object storage', {
+      artifactId: artifact.id,
+      storageProvider: artifact.storageProvider,
+      storageKey,
+      status: error.code ?? error.status ?? null,
+    });
+  }
+
+  return {
+    deleted: true,
+    skipped: false,
+    artifactId: artifact.id,
+    storageProvider: artifact.storageProvider,
+    storageKey,
+    bucket: objectStorageBucketName(),
+  };
+}
+
+export async function deleteObjectStoragePrefix(prefix, { ignoreNotFound = true } = {}) {
+  const storagePrefix = assertSafeObjectPrefix(prefix);
+  try {
+    await objectStorageBucket().deleteFiles({ prefix: storagePrefix, force: true });
+  } catch (error) {
+    if (ignoreNotFound && isObjectNotFoundError(error)) {
+      return {
+        deleted: false,
+        skipped: true,
+        reason: 'prefix_not_found',
+        prefix: storagePrefix,
+      };
+    }
+    throw badGateway('Unable to delete object storage prefix', {
+      prefix: storagePrefix,
+      status: error.code ?? error.status ?? null,
+    });
+  }
+
+  return {
+    deleted: true,
+    skipped: false,
+    prefix: storagePrefix,
+    bucket: objectStorageBucketName(),
+  };
+}
+
 export function sanitizeFilename(value) {
   const filename = path.basename(String(value ?? '')).replace(/[^\w.\- ]+/g, '_').trim();
   return filename || 'upload.bin';
@@ -146,6 +223,14 @@ export function assertSafeObjectKey(value) {
     throw badRequest('Invalid object storage key');
   }
   return key;
+}
+
+function assertSafeObjectPrefix(value) {
+  const prefix = assertSafeObjectKey(value);
+  if (!prefix.endsWith('/')) {
+    throw badRequest('Invalid object storage prefix');
+  }
+  return prefix;
 }
 
 function objectStorageBucket() {
@@ -186,4 +271,8 @@ function assertPathInside(rootDir, filePath) {
   if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
     throw conflict('Resolved object cache path is outside local storage');
   }
+}
+
+function isObjectNotFoundError(error) {
+  return Number(error?.code ?? error?.status) === 404;
 }

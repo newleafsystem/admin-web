@@ -16,6 +16,7 @@ import { authenticateRequest } from './middleware/auth.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import { createRepository } from './lib/repositoryFactory.js';
+import { deleteObjectStorageArtifact, deleteObjectStoragePrefix, shouldUseObjectStorage } from './lib/assetStorage.js';
 import { createHeyGenService } from './services/heygenService.js';
 import { createJobStateService } from './services/jobStateService.js';
 import { createSocialConfigService } from './services/socialConfigService.js';
@@ -51,7 +52,13 @@ export function createApp(options = {}) {
   const publisherService =
     options.publisherService ??
     createSocialPublisherService({ repository, jobStateService, youtubePublisherService });
+  const artifactStorageService = options.artifactStorageService ?? {
+    deleteObjectStorageArtifact,
+    deleteObjectStoragePrefix,
+    shouldUseObjectStorage,
+  };
   const services = {
+    artifactStorageService,
     repository,
     heygenService,
     jobStateService,

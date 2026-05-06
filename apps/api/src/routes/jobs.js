@@ -3,6 +3,13 @@ import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
 import {
+  buildObjectStorageJobPrefix,
+  deleteObjectStorageArtifact,
+  deleteObjectStoragePrefix,
+  isObjectStorageProvider,
+  shouldUseObjectStorage,
+} from '../lib/assetStorage.js';
+import {
   optionalNumber,
   optionalObject,
   optionalString,
@@ -34,6 +41,7 @@ export function createJobsRouter({
   videoAssemblyService,
   videoReviewService,
   videoThumbnailService,
+  artifactStorageService = { deleteObjectStorageArtifact, deleteObjectStoragePrefix, shouldUseObjectStorage },
 }) {
   const router = Router();
 
@@ -153,6 +161,12 @@ export function createJobsRouter({
         });
       }
 
+      const artifacts = await repository.listArtifactsForJob(job.id);
+      const storageCleanup = await cleanupJobArtifactStorage({
+        artifacts,
+        jobId: job.id,
+        artifactStorageService,
+      });
       const archivedPublishing = await archivePublishingRecordsForQueueDelete(repository, {
         job,
         publishPlans,
@@ -166,11 +180,12 @@ export function createJobsRouter({
           ...deleted,
           publishPlans: archivedPublishing.publishPlans,
           publishAttempts: archivedPublishing.publishAttempts,
+          storageCleanup,
         },
         task: {
           type: 'delete_content_queue_job',
           queued: false,
-          note: 'Content job, local artifact records, provider job records, and failed or stuck publishing records were removed from the active queue.',
+          note: 'Content job, artifact storage, local artifact records, provider job records, and failed or stuck publishing records were removed from the active queue.',
         },
       });
     }),
@@ -595,5 +610,47 @@ async function archivePublishingRecordsForQueueDelete(repository, { job, publish
   return {
     publishPlans: archivedPlans,
     publishAttempts: archivedAttempts,
+  };
+}
+
+async function cleanupJobArtifactStorage({ artifacts, jobId, artifactStorageService }) {
+  const objectStorageArtifacts = artifacts.filter((artifact) => isObjectStorageProvider(artifact.storageProvider));
+  const objects = [];
+
+  for (const artifact of objectStorageArtifacts) {
+    const result = await artifactStorageService.deleteObjectStorageArtifact(artifact, {
+      ignoreNotFound: true,
+    });
+    objects.push({
+      artifactId: artifact.id,
+      storageProvider: artifact.storageProvider,
+      storageKey: artifact.storageKey,
+      deleted: Boolean(result.deleted),
+      skipped: Boolean(result.skipped),
+      reason: result.reason ?? null,
+    });
+  }
+
+  let prefix = null;
+  if (artifactStorageService.shouldUseObjectStorage?.() && artifactStorageService.deleteObjectStoragePrefix) {
+    const storagePrefix = buildObjectStorageJobPrefix(jobId);
+    const result = await artifactStorageService.deleteObjectStoragePrefix(storagePrefix, {
+      ignoreNotFound: true,
+    });
+    prefix = {
+      storagePrefix,
+      deleted: Boolean(result.deleted),
+      skipped: Boolean(result.skipped),
+      reason: result.reason ?? null,
+    };
+  }
+
+  return {
+    artifactCount: artifacts.length,
+    objectStorageCount: objectStorageArtifacts.length,
+    deletedObjectCount: objects.filter((object) => object.deleted).length,
+    skippedObjectCount: objects.filter((object) => object.skipped).length,
+    prefix,
+    objects,
   };
 }

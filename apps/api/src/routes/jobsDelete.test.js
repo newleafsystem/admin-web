@@ -8,9 +8,32 @@ const { createApp } = await import('../app.js');
 const { createInMemoryRepository } = await import('../lib/repository.js');
 
 const repository = createInMemoryRepository();
+const deletedStorageArtifacts = [];
+const deletedStoragePrefixes = [];
 const app = createApp({
   repository,
   autoResumeQueuedUploads: false,
+  artifactStorageService: {
+    shouldUseObjectStorage() {
+      return true;
+    },
+    async deleteObjectStorageArtifact(artifact) {
+      deletedStorageArtifacts.push(artifact);
+      return {
+        deleted: true,
+        artifactId: artifact.id,
+        storageProvider: artifact.storageProvider,
+        storageKey: artifact.storageKey,
+      };
+    },
+    async deleteObjectStoragePrefix(prefix) {
+      deletedStoragePrefixes.push(prefix);
+      return {
+        deleted: true,
+        prefix,
+      };
+    },
+  },
 });
 const server = await listen(app);
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -45,6 +68,17 @@ try {
       publisherStatus: 'Temporary failure',
     },
   });
+  const artifact = await repository.createArtifact({
+    jobId: stuckJob.id,
+    kind: 'video',
+    storageProvider: 'gcs',
+    storageKey: `uploads/${stuckJob.id}/video/final.mp4`,
+    mimeType: 'video/mp4',
+    sizeBytes: 1234,
+    metadata: {
+      filename: 'final.mp4',
+    },
+  });
 
   const deleteResponse = await fetch(`${baseUrl}/api/v1/jobs/${stuckJob.id}`, {
     method: 'DELETE',
@@ -61,6 +95,15 @@ try {
   assert.equal(deleteBody.deleted.publishAttempts.length, 1);
   assert.equal(deleteBody.deleted.publishAttempts[0].status, 'deleted');
   assert.equal(deleteBody.deleted.publishAttempts[0].metadata.previousStatus, 'failed');
+  assert.equal(deleteBody.deleted.storageCleanup.artifactCount, 1);
+  assert.equal(deleteBody.deleted.storageCleanup.objectStorageCount, 1);
+  assert.equal(deleteBody.deleted.storageCleanup.deletedObjectCount, 1);
+  assert.equal(deleteBody.deleted.storageCleanup.prefix.storagePrefix, `uploads/${stuckJob.id}/`);
+  assert.equal(deleteBody.deleted.storageCleanup.prefix.deleted, true);
+  assert.equal(deleteBody.deleted.storageCleanup.objects[0].artifactId, artifact.id);
+  assert.equal(deletedStorageArtifacts.length, 1);
+  assert.equal(deletedStorageArtifacts[0].storageKey, artifact.storageKey);
+  assert.deepEqual(deletedStoragePrefixes, [`uploads/${stuckJob.id}/`]);
   assert.equal(await repository.getJob(stuckJob.id), undefined);
   assert.equal((await repository.getPublishPlan(plan.id)).status, 'deleted');
   assert.equal((await repository.getPublishAttempt(attempt.id)).status, 'deleted');
