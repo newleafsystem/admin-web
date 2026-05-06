@@ -57,6 +57,13 @@ TIMEOUT="${TIMEOUT:-900}"
 SKIP_ENABLE_APIS="${SKIP_ENABLE_APIS:-true}"
 SKIP_PROVISIONING="${SKIP_PROVISIONING:-true}"
 CLOUD_BUILD_SUPPRESS_LOGS="${CLOUD_BUILD_SUPPRESS_LOGS:-true}"
+BIND_EXISTING_SECRETS="${BIND_EXISTING_SECRETS:-true}"
+
+if [[ "${REQUIRE_AUTH:-true}" != "true" && "${ALLOW_UNAUTHENTICATED_API_DEPLOY:-false}" != "true" ]]; then
+  echo "ERROR: Refusing to deploy Cloud Run API with REQUIRE_AUTH=${REQUIRE_AUTH:-unset}." >&2
+  echo "Set REQUIRE_AUTH=true, or set ALLOW_UNAUTHENTICATED_API_DEPLOY=true for an intentional non-production test service." >&2
+  exit 1
+fi
 
 if [[ "${ALLOW_LOCAL_DEPLOY_VALUES:-false}" != "true" ]]; then
   for pair in \
@@ -156,6 +163,9 @@ add_secret_if_present() {
     if [[ "${SKIP_PROVISIONING}" != "true" ]]; then
       ensure_secret "${secret_name}" "${value}"
     fi
+    secret_specs+=("${env_name}=${secret_name}:latest")
+  elif [[ "${BIND_EXISTING_SECRETS}" == "true" ]] && \
+    gcloud secrets describe "${secret_name}" --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
     secret_specs+=("${env_name}=${secret_name}:latest")
   fi
 }

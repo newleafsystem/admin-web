@@ -8,25 +8,10 @@ import {
 } from "./firebaseClient.js";
 
 export function AuthGate({ children }) {
-  const canUseLocalDevSession = isLocalDevHost();
-  const localDevSession = canUseLocalDevSession
-    ? {
-        user: {
-          id: "local-dev",
-          uid: "local-dev",
-          email: "local-dev@newleaf.invalid",
-          displayName: "Local Admin",
-          role: "admin",
-          roles: ["admin"],
-          immutable: true
-        },
-        roles: ["admin"]
-      }
-    : null;
   const [state, setState] = useState({
     loading: isFirebaseConfigured,
     firebaseUser: null,
-    session: isFirebaseConfigured ? null : localDevSession,
+    session: null,
     error: null
   });
 
@@ -42,16 +27,15 @@ export function AuthGate({ children }) {
       setState((current) => ({ ...current, loading: true, firebaseUser, error: null }));
       try {
         const session = await fetchCurrentSession();
+        if (isInvalidProductionSession(session)) {
+          throw new Error("Server authentication is misconfigured. Please retry after deployment is corrected.");
+        }
         setState({ loading: false, firebaseUser, session, error: null });
       } catch (error) {
         setState({ loading: false, firebaseUser, session: null, error: error.message });
       }
     });
   }, []);
-
-  if (!isFirebaseConfigured && canUseLocalDevSession) {
-    return renderChildren(children, state.session);
-  }
 
   if (!isFirebaseConfigured) {
     return (
@@ -140,12 +124,9 @@ function renderChildren(children, session) {
   return typeof children === "function" ? children(session) : children;
 }
 
-function isLocalDevHost() {
+function isInvalidProductionSession(session) {
   if (import.meta.env.DEV) {
-    return true;
-  }
-  if (typeof window === "undefined") {
     return false;
   }
-  return ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  return /@newleaf\.invalid$/i.test(session?.user?.email ?? "");
 }

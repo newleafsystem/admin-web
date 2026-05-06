@@ -359,6 +359,7 @@ export default function App({ session }) {
 
     setContentDraft((current) => ({ ...current, isSubmitting: true, error: null, message: null }));
     setActionError(null);
+    setSectionLoading("Create Content", "Creating content job...");
 
     try {
       const createdJob = await createContentJob(buildContentJobPayload(contentDraft, session?.user));
@@ -369,13 +370,16 @@ export default function App({ session }) {
       }
 
       if (contentDraft.mode === "text_to_heygen" || contentDraft.mode === "segmented_video") {
+        setSectionLoading("Create Content", "Requesting HeyGen video...");
         const generatedJob = await requestVideoGeneration(createdJob.id, buildVideoGenerationScript(contentDraft));
         if (contentDraft.mode === "segmented_video") {
+          setSectionLoading("Create Content", "Uploading segment clips...");
           await uploadInitialSegmentClips(createdJob.id, generatedJob.providerJobs, getSegmentClipUploads(contentDraft));
         }
         nextView = "Content Queue";
       }
 
+      clearSectionLoading("Create Content");
       const refreshedJobs = await withSectionLoader("Content Queue", "Refreshing content queue...", fetchJobs);
       setJobs(refreshedJobs);
       setSelectedJobId(createdJob.id);
@@ -399,6 +403,8 @@ export default function App({ session }) {
         error: error.message,
         message: null
       }));
+    } finally {
+      clearSectionLoading("Create Content");
     }
   }
 
