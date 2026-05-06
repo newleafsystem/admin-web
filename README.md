@@ -270,15 +270,19 @@ Required GitHub repository variables:
 - `GOOGLE_CLOUD_RUN_API_SERVICE=newleaf-api`
 - `GOOGLE_CLOUD_RUN_RENDERER_SERVICE=newleaf-ffmpeg-renderer`
 - `GCS_BUCKET=<firebase-storage-bucket>` is the only backend/media bucket variable used by the API and renderer
+- `MIN_INSTANCES=1`
+- `CPU_THROTTLING=false`
 - `SKIP_ENABLE_APIS=true`
 - `SKIP_PROVISIONING=true`
 - `CLOUD_BUILD_SUPPRESS_LOGS=true`
 - `REQUIRE_AUTH=true`
-- `AUTH_ADMIN_EMAILS=<space-separated-admin-google-emails>`
+- Initial admin access is hardcoded to `sd.nirsha@gmail.com`; subsequent users are managed from the admin Users screen.
 - `FIRESTORE_DATABASE_ID=newleafdb`
 - `PUBLIC_BASE_URL=https://admin.newleafsystem.com`
 - `ADMIN_BASE_URL=https://admin.newleafsystem.com`
 - `SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com`
+- `SOCIAL_PUBLICATION_SYNC_ENABLED=true`
+- `SOCIAL_PUBLICATION_SYNC_INTERVAL_MS=3600000`
 - `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com`
 - `VITE_FIREBASE_API_KEY=<firebase-web-api-key>`
 - `VITE_FIREBASE_AUTH_DOMAIN=newleaf-trading.firebaseapp.com`

@@ -9,8 +9,6 @@ void initializeFirebaseAnalytics();
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthGate>
-      <App />
-    </AuthGate>
+    <AuthGate>{(session) => <App session={session} />}</AuthGate>
   </React.StrictMode>
 );

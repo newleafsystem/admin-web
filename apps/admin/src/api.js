@@ -2,12 +2,13 @@ import { API_BASE_URL } from "./config.js";
 import { getAuthToken } from "./firebaseClient.js";
 
 export async function fetchOperationsSnapshot() {
-  const [jobs, publishPlans, connectedAccounts, publications, serviceClients] = await Promise.all([
+  const [jobs, publishPlans, connectedAccounts, publications, serviceClients, users] = await Promise.all([
     fetchJobs(),
     fetchPublishPlans(),
     fetchSocialAccounts(),
     fetchPublications(),
-    fetchServiceClients().catch(() => [])
+    fetchServiceClients().catch(() => []),
+    fetchUsers().catch(() => [])
   ]);
 
   return {
@@ -16,7 +17,18 @@ export async function fetchOperationsSnapshot() {
     connectedAccounts,
     publications,
     serviceClients,
+    users,
     auditEvents: []
+  };
+}
+
+export async function fetchCurrentSession() {
+  const response = await apiFetch(`${API_BASE_URL}/session`);
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to load user session");
+  return {
+    user: normalizeAppUser(body.user),
+    roles: body.roles ?? body.user?.roles ?? []
   };
 }
 
@@ -571,6 +583,35 @@ export async function revokeServiceClient(clientId) {
   return normalizeServiceClient(body.client);
 }
 
+export async function fetchUsers() {
+  const response = await apiFetch(`${API_BASE_URL}/users`);
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to load users");
+  return (body.users ?? []).map(normalizeAppUser);
+}
+
+export async function updateUserRole(userId, role) {
+  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({ role })
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to update user role");
+  return normalizeAppUser(body.user);
+}
+
+export async function deleteUser(userId) {
+  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
+    method: "DELETE"
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to delete user");
+  return normalizeAppUser(body.user);
+}
+
 async function apiFetch(url, options) {
   try {
     const token = await getAuthToken();
@@ -629,6 +670,24 @@ function normalizeServiceClient(client) {
     updatedAt: formatDate(client.updatedAt),
     rotatedAt: formatDate(client.rotatedAt),
     revokedAt: formatDate(client.revokedAt)
+  };
+}
+
+function normalizeAppUser(user = {}) {
+  return {
+    id: user.id ?? user.uid ?? "",
+    uid: user.uid ?? user.id ?? "",
+    email: user.email ?? "",
+    displayName: user.displayName ?? user.email ?? user.uid ?? "Unknown user",
+    photoUrl: user.photoUrl ?? null,
+    role: user.role ?? (user.roles?.includes("admin") ? "admin" : "anonymous"),
+    roles: user.roles ?? [],
+    status: user.status ?? "active",
+    immutable: Boolean(user.immutable),
+    firstSeenAt: formatDate(user.firstSeenAt ?? user.createdAt),
+    lastLoginAt: formatDate(user.lastLoginAt),
+    updatedAt: formatDate(user.updatedAt),
+    authMode: user.authMode ?? null
   };
 }
 

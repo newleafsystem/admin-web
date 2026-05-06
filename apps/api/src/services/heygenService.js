@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { config, isProduction } from '../config.js';
-import { badRequest, conflict, unauthorized } from '../lib/httpErrors.js';
+import { badGateway, badRequest, conflict, unauthorized } from '../lib/httpErrors.js';
 
 export function createHeyGenService(options = {}) {
   const serviceConfig = options.config ?? config.heygen;
@@ -61,7 +61,7 @@ export function createHeyGenService(options = {}) {
       });
       const body = await readProviderJson(response);
       if (!response.ok) {
-        throw conflict('Unable to request HeyGen video segment', {
+        throw badGateway('Unable to request HeyGen video segment', {
           status: response.status,
           provider: providerErrorSummary(body),
         });
@@ -69,7 +69,7 @@ export function createHeyGenService(options = {}) {
 
       const externalId = extractVideoId(body);
       if (!externalId) {
-        throw conflict('HeyGen video segment response did not include a video id', {
+        throw badGateway('HeyGen video segment response did not include a video id', {
           provider: providerErrorSummary(body),
         });
       }
@@ -183,7 +183,7 @@ export function createHeyGenService(options = {}) {
       });
       const body = await readProviderJson(response);
       if (!response.ok) {
-        throw conflict('Unable to poll HeyGen video status', {
+        throw badGateway('Unable to poll HeyGen video status', {
           status: response.status,
           provider: providerErrorSummary(body),
         });

@@ -55,7 +55,7 @@ FFMPEG_PATH=
 FFPROBE_PATH=
 ```
 
-`VIDEO_STORAGE_DIR` is reserved for the future worker that downloads completed HeyGen clips into NewLeaf-owned storage before assembly.
+`VIDEO_STORAGE_DIR` may point to a subdirectory under `LOCAL_DATA_DIR`. If it is absolute and outside `LOCAL_DATA_DIR`, the API falls back to `LOCAL_DATA_DIR/video-assembler` so local-disk artifact paths remain streamable through NewLeaf asset routes.
 
 Current backend wiring:
 
@@ -83,7 +83,7 @@ or:
 }
 ```
 
-When the last required segment completes, the backend runs FFmpeg assembly and stores the final video as a local `video` artifact.
+When the last required segment completes, the backend runs FFmpeg assembly, stores the final video as a local `video` artifact, and attempts a best-effort FFmpeg thumbnail snapshot. If FFmpeg is unavailable or the snapshot fails, video generation still completes without a thumbnail.
 
 ## Admin Hybrid Flow
 

@@ -70,6 +70,7 @@ function defaultCollections(prefix = '') {
     secrets: `${normalizedPrefix}repositorySecrets`,
     serviceClients: `${normalizedPrefix}serviceClients`,
     smartCollections: `${normalizedPrefix}smartCollections`,
+    appUsers: `${normalizedPrefix}appUsers`,
   };
 }
 
@@ -575,6 +576,55 @@ export function createFirestoreRepository({
 
     async deleteSmartCollection(collectionId) {
       return deleteRecord('smartCollections', collectionId);
+    },
+
+    async listAppUsers() {
+      return listRecords('appUsers');
+    },
+
+    async getAppUser(userId) {
+      return getRecord('appUsers', userId);
+    },
+
+    async findAppUserByEmail(email) {
+      const normalizedEmail = String(email ?? '').toLowerCase();
+      const matches = await listRecords(
+        'appUsers',
+        (candidate) => String(candidate.email ?? '').toLowerCase() === normalizedEmail,
+      );
+      return copy(matches[0]);
+    },
+
+    async upsertAppUser(input) {
+      const timestamp = clock();
+      const id = input.id ?? input.uid ?? makeId('appUser');
+      const existing = await getRecord('appUsers', id);
+      const user = {
+        id,
+        uid: input.uid ?? existing?.uid ?? id,
+        email: input.email ?? existing?.email ?? null,
+        displayName: input.displayName ?? existing?.displayName ?? null,
+        photoUrl: input.photoUrl ?? existing?.photoUrl ?? null,
+        role: input.role ?? existing?.role ?? 'anonymous',
+        status: input.status ?? existing?.status ?? 'active',
+        immutable: Boolean(input.immutable ?? existing?.immutable ?? false),
+        firstSeenAt: input.firstSeenAt ?? existing?.firstSeenAt ?? timestamp,
+        lastLoginAt: input.lastLoginAt ?? existing?.lastLoginAt ?? null,
+        roleUpdatedAt: input.roleUpdatedAt ?? existing?.roleUpdatedAt ?? null,
+        roleUpdatedBy: input.roleUpdatedBy ?? existing?.roleUpdatedBy ?? null,
+        metadata: input.metadata ?? existing?.metadata ?? {},
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      };
+      return setRecord('appUsers', id, user);
+    },
+
+    async updateAppUser(userId, patch) {
+      return updateRecord('appUsers', userId, patch);
+    },
+
+    async deleteAppUser(userId) {
+      return deleteRecord('appUsers', userId);
     },
   };
 }

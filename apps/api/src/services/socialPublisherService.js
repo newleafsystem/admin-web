@@ -1,7 +1,7 @@
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
-import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import { badGateway, badRequest, conflict, notFound } from '../lib/httpErrors.js';
 import { isObjectStorageProvider, materializeObjectStorageArtifact } from '../lib/assetStorage.js';
 import { canTransition } from './jobStateService.js';
 import { createSocialPublicationImportService } from './socialPublicationImportService.js';
@@ -1510,7 +1510,7 @@ async function readResponseBody(response) {
 
 function assertProviderOk(response, payload, message) {
   if (response.ok) return;
-  throw conflict(message, {
+  throw badGateway(message, {
     status: response.status,
     response: payload,
   });

@@ -6,6 +6,7 @@ export const navItems = [
   "Video Studio",
   "Published Videos",
   "Accounts",
+  "Users",
   "Vendors",
   "Audit"
 ];
@@ -18,6 +19,7 @@ export const routeByView = Object.freeze({
   "Video Studio": "/video-studio",
   "Published Videos": "/published-videos",
   Accounts: "/accounts",
+  Users: "/users",
   Vendors: "/vendors",
   Audit: "/audit"
 });
@@ -49,6 +51,9 @@ export const statusText = {
   attention: "Attention",
   reconnecting: "Reconnecting",
   disconnected: "Disconnected",
+  anonymous: "Anonymous",
+  admin: "Admin",
+  active: "Active",
   oauth_pending: "OAuth pending",
   healthy: "Healthy",
   ready: "Ready",

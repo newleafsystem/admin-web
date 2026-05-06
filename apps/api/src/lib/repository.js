@@ -44,6 +44,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
   const secrets = new Map();
   const serviceClients = new Map();
   const smartCollections = new Map();
+  const appUsers = new Map();
   let hydrated = false;
 
   async function hydrate() {
@@ -63,6 +64,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       secrets: [],
       serviceClients: [],
       smartCollections: [],
+      appUsers: [],
     });
     loadCollection(jobs, persisted.jobs);
     loadCollection(artifacts, persisted.artifacts);
@@ -74,6 +76,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
     loadCollection(secrets, persisted.secrets);
     loadCollection(serviceClients, persisted.serviceClients);
     loadCollection(smartCollections, persisted.smartCollections);
+    loadCollection(appUsers, persisted.appUsers);
     hydrated = true;
   }
 
@@ -93,6 +96,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       secrets: Array.from(secrets.values()),
       serviceClients: Array.from(serviceClients.values()),
       smartCollections: Array.from(smartCollections.values()),
+      appUsers: Array.from(appUsers.values()),
     });
   }
 
@@ -632,6 +636,75 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       const existing = smartCollections.get(collectionId);
       if (!existing) return null;
       smartCollections.delete(collectionId);
+      await persist();
+      return copy(existing);
+    },
+
+    async listAppUsers() {
+      await hydrate();
+      return listFromMap(appUsers);
+    },
+
+    async getAppUser(userId) {
+      await hydrate();
+      return copy(appUsers.get(userId));
+    },
+
+    async findAppUserByEmail(email) {
+      await hydrate();
+      const normalizedEmail = String(email ?? '').toLowerCase();
+      const user = Array.from(appUsers.values()).find(
+        (candidate) => String(candidate.email ?? '').toLowerCase() === normalizedEmail,
+      );
+      return copy(user);
+    },
+
+    async upsertAppUser(input) {
+      await hydrate();
+      const timestamp = clock();
+      const id = input.id ?? input.uid ?? makeId('appUser');
+      const existing = appUsers.get(id);
+      const user = {
+        id,
+        uid: input.uid ?? existing?.uid ?? id,
+        email: input.email ?? existing?.email ?? null,
+        displayName: input.displayName ?? existing?.displayName ?? null,
+        photoUrl: input.photoUrl ?? existing?.photoUrl ?? null,
+        role: input.role ?? existing?.role ?? 'anonymous',
+        status: input.status ?? existing?.status ?? 'active',
+        immutable: Boolean(input.immutable ?? existing?.immutable ?? false),
+        firstSeenAt: input.firstSeenAt ?? existing?.firstSeenAt ?? timestamp,
+        lastLoginAt: input.lastLoginAt ?? existing?.lastLoginAt ?? null,
+        roleUpdatedAt: input.roleUpdatedAt ?? existing?.roleUpdatedAt ?? null,
+        roleUpdatedBy: input.roleUpdatedBy ?? existing?.roleUpdatedBy ?? null,
+        metadata: input.metadata ?? existing?.metadata ?? {},
+        createdAt: existing?.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      };
+      appUsers.set(id, user);
+      await persist();
+      return copy(user);
+    },
+
+    async updateAppUser(userId, patch) {
+      await hydrate();
+      const existing = appUsers.get(userId);
+      if (!existing) return null;
+      const updated = {
+        ...existing,
+        ...patch,
+        updatedAt: clock(),
+      };
+      appUsers.set(userId, updated);
+      await persist();
+      return copy(updated);
+    },
+
+    async deleteAppUser(userId) {
+      await hydrate();
+      const existing = appUsers.get(userId);
+      if (!existing) return null;
+      appUsers.delete(userId);
       await persist();
       return copy(existing);
     },

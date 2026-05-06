@@ -10,6 +10,7 @@ import { createServiceClientsRouter } from './routes/serviceClients.js';
 import { createServiceDocsRouter } from './routes/serviceDocs.js';
 import { createSmartCollectionsRouter } from './routes/smartCollections.js';
 import { createSocialAccountsRouter, createSocialOAuthCallbackRouter } from './routes/socialAccounts.js';
+import { createUsersRouter } from './routes/users.js';
 import { createVideoProjectsRouter } from './routes/videoProjects.js';
 import { authenticateRequest } from './middleware/auth.js';
 import { corsMiddleware } from './middleware/cors.js';
@@ -20,8 +21,10 @@ import { createJobStateService } from './services/jobStateService.js';
 import { createSocialConfigService } from './services/socialConfigService.js';
 import { createSocialOAuthService } from './services/socialOAuthService.js';
 import { createSocialPublisherService } from './services/socialPublisherService.js';
+import { startPublicationSyncScheduler } from './services/publicationSyncScheduler.js';
 import { createYouTubeOAuthService } from './services/youtubeOAuthService.js';
 import { createYouTubePublisherService } from './services/youtubePublisherService.js';
+import { createUserAccessService } from './services/userAccessService.js';
 import { createVideoAssemblyService } from './services/videoAssemblyService.js';
 import { createVideoReviewService } from './services/videoReviewService.js';
 import { createVideoStudioService } from './services/videoStudioService.js';
@@ -30,16 +33,18 @@ import { createVideoThumbnailService } from './services/videoThumbnailService.js
 export function createApp(options = {}) {
   const repository = options.repository ?? createRepository();
   const heygenService = options.heygenService ?? createHeyGenService();
+  const userAccessService = options.userAccessService ?? createUserAccessService({ repository });
+  const videoThumbnailService =
+    options.videoThumbnailService ?? createVideoThumbnailService({ repository });
   const videoAssemblyService =
-    options.videoAssemblyService ?? createVideoAssemblyService({ repository, heygenService });
+    options.videoAssemblyService ??
+    createVideoAssemblyService({ repository, heygenService, videoThumbnailService });
   const jobStateService = options.jobStateService ?? createJobStateService({ repository, videoAssemblyService });
   const socialConfigService = options.socialConfigService ?? createSocialConfigService();
   const socialOAuthService = options.socialOAuthService ?? createSocialOAuthService();
   const youtubeOAuthService = options.youtubeOAuthService ?? createYouTubeOAuthService();
   const videoReviewService = options.videoReviewService ?? createVideoReviewService();
   const videoStudioService = options.videoStudioService ?? createVideoStudioService();
-  const videoThumbnailService =
-    options.videoThumbnailService ?? createVideoThumbnailService({ repository });
   const youtubePublisherService =
     options.youtubePublisherService ??
     createYouTubePublisherService({ repository, jobStateService, youtubeOAuthService });
@@ -53,6 +58,7 @@ export function createApp(options = {}) {
     publisherService,
     socialConfigService,
     socialOAuthService,
+    userAccessService,
     videoAssemblyService,
     youtubeOAuthService,
     youtubePublisherService,
@@ -105,7 +111,8 @@ export function createApp(options = {}) {
   app.use('/api/v1/service', createServiceDocsRouter());
   app.use('/api/v1/service', createServiceApiRouter(services));
 
-  app.use(authenticateRequest());
+  app.use(authenticateRequest({ repository, userAccessService }));
+  app.use('/api/v1', createUsersRouter(services));
   app.use('/api/v1/assets', createAssetsRouter(services));
   app.use('/api/v1/jobs', createJobsRouter(services));
   app.use('/api/v1', createVideoProjectsRouter(services));
@@ -123,6 +130,13 @@ export function createApp(options = {}) {
         console.error('Unable to resume queued publisher uploads', error);
       });
     }, 0);
+  }
+
+  if (options.autoSyncPublications !== false) {
+    startPublicationSyncScheduler({
+      publisherService,
+      config: config.social,
+    });
   }
 
   return app;

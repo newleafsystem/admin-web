@@ -1,4 +1,4 @@
-import { badRequest, conflict } from '../lib/httpErrors.js';
+import { badGateway, badRequest, conflict } from '../lib/httpErrors.js';
 
 const SYNCABLE_PLATFORMS = new Set(['youtube', 'x', 'linkedin', 'instagram', 'facebook']);
 const X_USER_TWEETS_URL = 'https://api.x.com/2/users';
@@ -466,7 +466,7 @@ export function createSocialPublicationImportService(options = {}) {
     });
     const payload = await readResponseBody(response);
     if (!response.ok) {
-      throw conflict(message, {
+      throw badGateway(message, {
         status: response.status,
         response: payload,
       });

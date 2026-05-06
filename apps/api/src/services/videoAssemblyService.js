@@ -10,7 +10,7 @@ import {
   VideoAssemblerError,
 } from '@newleaf/video-assembler';
 import { config } from '../config.js';
-import { conflict } from '../lib/httpErrors.js';
+import { conflict, internalServerError } from '../lib/httpErrors.js';
 import { buildObjectStorageKey, shouldUseObjectStorage, uploadFileToObjectStorage } from '../lib/assetStorage.js';
 
 const DEFAULT_ASSEMBLY_SETTINGS = Object.freeze({
@@ -25,9 +25,13 @@ const DEFAULT_ASSEMBLY_SETTINGS = Object.freeze({
 export function createVideoAssemblyService(options = {}) {
   const repository = options.repository;
   const heygenService = options.heygenService;
+  const videoThumbnailService = options.videoThumbnailService ?? null;
   const serviceConfig = options.config ?? config.videoAssembler;
   const localDataDir = path.resolve(process.cwd(), config.localDataDir);
-  const storageRoot = path.resolve(process.cwd(), serviceConfig.storageDir);
+  const storageRoot = resolveStorageRoot({
+    configuredStorageDir: serviceConfig.storageDir,
+    localDataDir,
+  });
   const manifestsDir = path.join(storageRoot, 'manifests');
   const inputDir = path.join(storageRoot, 'input');
   const outputDir = path.join(storageRoot, 'output');
@@ -256,6 +260,12 @@ export function createVideoAssemblyService(options = {}) {
         },
       });
 
+      await generateAutomaticThumbnail({
+        jobId: providerJob.jobId,
+        videoThumbnailService,
+        actorUid,
+      });
+
       return {
         action: 'stitched_video_ready',
         segment: segmentUpdate,
@@ -391,12 +401,46 @@ export function createVideoAssemblyService(options = {}) {
   function toLocalStorageKey(filePath) {
     const relative = path.relative(localDataDir, filePath);
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw conflict('Video assembly output must stay inside local data storage', {
+      throw internalServerError('Video assembly output must stay inside local data storage', {
         filePath,
         localDataDir,
       });
     }
     return relative;
+  }
+}
+
+function resolveStorageRoot({ configuredStorageDir, localDataDir }) {
+  const fallback = path.join(localDataDir, 'video-assembler');
+  const resolved = configuredStorageDir
+    ? path.resolve(process.cwd(), configuredStorageDir)
+    : fallback;
+  return isPathInside(localDataDir, resolved) ? resolved : fallback;
+}
+
+function isPathInside(rootDir, filePath) {
+  const relative = path.relative(rootDir, filePath);
+  return Boolean(relative) && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+async function generateAutomaticThumbnail({ jobId, videoThumbnailService, actorUid }) {
+  if (!videoThumbnailService?.generateThumbnail) {
+    return null;
+  }
+
+  try {
+    return await videoThumbnailService.generateThumbnail({
+      jobId,
+      atSeconds: 1,
+      actorUid: actorUid ?? 'heygen:auto-thumbnail',
+    });
+  } catch (error) {
+    console.warn('Automatic thumbnail generation skipped', {
+      jobId,
+      message: error.message,
+      status: error.status ?? null,
+    });
+    return null;
   }
 }
 

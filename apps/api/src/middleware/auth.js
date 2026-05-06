@@ -1,21 +1,16 @@
 import { config } from '../config.js';
 import { forbidden, unauthorized } from '../lib/httpErrors.js';
 import { getFirebaseAuth } from '../lib/firebaseAdmin.js';
-
-const LOCAL_DEV_USER = Object.freeze({
-  uid: 'local-dev',
-  email: 'local-dev@newleaf.invalid',
-  roles: ['admin', 'editor', 'reviewer', 'publisher', 'viewer'],
-  authMode: 'local-dev',
-});
+import { createUserAccessService, localAdminUser } from '../services/userAccessService.js';
 
 export function authenticateRequest(options = {}) {
   const requireAuth = options.requireAuth ?? config.auth.requireAuth;
+  const userAccessService = options.userAccessService ?? createUserAccessService({ repository: options.repository });
 
   return async (req, res, next) => {
     try {
       if (!requireAuth) {
-        req.user = LOCAL_DEV_USER;
+        req.user = localAdminUser();
         return next();
       }
 
@@ -31,13 +26,16 @@ export function authenticateRequest(options = {}) {
       }
 
       const decodedToken = await auth.verifyIdToken(match[1]);
-      const email = decodedToken.email ?? null;
-      req.user = {
+      const user = await userAccessService.ensureAuthenticatedUser({
         uid: decodedToken.uid,
-        email,
-        roles: resolveRoles(decodedToken, email),
-        claims: decodedToken,
+        email: decodedToken.email ?? null,
+        displayName: decodedToken.name ?? null,
+        photoUrl: decodedToken.picture ?? null,
         authMode: 'firebase',
+      });
+      req.user = {
+        ...user,
+        claims: decodedToken,
       };
       return next();
     } catch (error) {
@@ -54,27 +52,4 @@ export function requireRole(...allowedRoles) {
     }
     return next(forbidden('Insufficient role for this operation', { allowedRoles }));
   };
-}
-
-function normalizeRoles(value) {
-  if (Array.isArray(value)) {
-    return value.filter((role) => typeof role === 'string');
-  }
-  if (typeof value === 'string' && value.trim()) {
-    return [value.trim()];
-  }
-  return [];
-}
-
-function resolveRoles(decodedToken, email) {
-  const roles = normalizeRoles(decodedToken.roles ?? decodedToken.role);
-  if (roles.length > 0) {
-    return roles;
-  }
-
-  if (email && config.auth.adminEmails.includes(email.toLowerCase())) {
-    return ['admin', 'editor', 'reviewer', 'publisher', 'viewer'];
-  }
-
-  return roles;
 }

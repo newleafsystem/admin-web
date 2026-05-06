@@ -21,6 +21,7 @@ export function PublishedVideos({
   const [visibilityFilter, setVisibilityFilter] = useState("all");
   const [recordFilter, setRecordFilter] = useState("active");
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
+  const [metadataEditorId, setMetadataEditorId] = useState(null);
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
   const jobById = new Map(jobs.map((job) => [job.id, job]));
   const jobTitleById = new Map(jobs.map((job) => [job.id, job.title]));
@@ -44,6 +45,15 @@ export function PublishedVideos({
     setDeleteConfirmation(null);
   }
 
+  function openMetadataEditor(publicationId) {
+    setOpenActionMenuId(null);
+    setMetadataEditorId(publicationId);
+  }
+
+  function closeMetadataEditor() {
+    setMetadataEditorId(null);
+  }
+
   function confirmDelete() {
     if (!deleteConfirmation) {
       return;
@@ -56,22 +66,21 @@ export function PublishedVideos({
     closeDeleteConfirmation();
   }
 
-  function changeVisibility(publicationId, privacyStatus) {
-    updatePublicationDraft(publicationId, { privacyStatus, isSaving: true });
-    savePublication(publicationId, { privacyStatus }).catch(() => {});
-  }
-
   function updateMetadataField(publicationId, patch) {
     updatePublicationDraft(publicationId, patch);
   }
 
   async function savePublicationMetadata(publicationId, draft) {
-    await savePublication(publicationId, {
+    const payload = {
       title: draft.title,
       description: draft.description,
       tags: parseDelimitedList(draft.tagsText),
       hashtags: parseDelimitedList(draft.hashtagsText).map((hashtag) => hashtag.replace(/^#+/, ""))
-    });
+    };
+    if (draft.privacyStatus && draft.privacyStatus !== "unknown") {
+      payload.privacyStatus = draft.privacyStatus;
+    }
+    await savePublication(publicationId, payload);
   }
 
   async function uploadPublicationThumbnail(publication, file) {
@@ -188,23 +197,18 @@ export function PublishedVideos({
                       channelCount={channelCountByJobId.get(publication.jobId) ?? 0}
                       draft={draft}
                       isMenuOpen={openActionMenuId === publication.id}
-                      job={publicationJob(publication, jobById)}
                       jobTitle={jobTitleById.get(publication.jobId)}
                       key={publication.id}
-                      onChangeVisibility={changeVisibility}
                       onCloseMenu={() => setOpenActionMenuId(null)}
                       onDelete={openDeleteConfirmation}
                       onHype={(publicationId) => {
                         setOpenActionMenuId(null);
                         requestPublicationHype(publicationId);
                       }}
+                      onOpenMetadata={openMetadataEditor}
                       onToggleMenu={() =>
                         setOpenActionMenuId((current) => (current === publication.id ? null : publication.id))
                       }
-                      onGenerateThumbnail={generatePublicationThumbnail}
-                      onSaveMetadata={savePublicationMetadata}
-                      onUpdateMetadataField={updateMetadataField}
-                      onUploadThumbnail={uploadPublicationThumbnail}
                       publication={publication}
                       title={title}
                     />
@@ -221,6 +225,19 @@ export function PublishedVideos({
           confirmation={deleteConfirmation}
           onCancel={closeDeleteConfirmation}
           onConfirm={confirmDelete}
+        />
+      )}
+
+      {metadataEditorId && (
+        <MetadataEditorDialog
+          draft={publicationDrafts[metadataEditorId]}
+          job={publicationJob(publications.find((publication) => publication.id === metadataEditorId), jobById)}
+          onCancel={closeMetadataEditor}
+          onGenerateThumbnail={generatePublicationThumbnail}
+          onSave={savePublicationMetadata}
+          onUpdateMetadataField={updateMetadataField}
+          onUploadThumbnail={uploadPublicationThumbnail}
+          publication={publications.find((publication) => publication.id === metadataEditorId)}
         />
       )}
     </div>
@@ -251,6 +268,9 @@ function platformSyncAction(section, { importPlatformChannelPublications, public
 }
 
 function publicationJob(publication, jobById) {
+  if (!publication) {
+    return null;
+  }
   const job = jobById.get(publication.jobId);
   if (!job) {
     return null;
@@ -303,23 +323,17 @@ function ActivePublicationCard({
   channelCount,
   draft,
   isMenuOpen,
-  job,
   jobTitle,
-  onChangeVisibility,
   onCloseMenu,
   onDelete,
-  onGenerateThumbnail,
   onHype,
-  onSaveMetadata,
+  onOpenMetadata,
   onToggleMenu,
-  onUpdateMetadataField,
-  onUploadThumbnail,
   publication,
   title
 }) {
   const hasProviderUrl = Boolean(publication.providerUrl);
   const isSaving = Boolean(draft.isSaving);
-  const canSaveMetadata = Boolean(String(draft.title ?? "").trim() && String(draft.description ?? "").trim());
   const metaLine = [
     publication.account,
     publication.publishedAt ? `Published ${publication.publishedAt}` : `Updated ${publication.updatedAt ?? "Unknown"}`
@@ -353,6 +367,9 @@ function ActivePublicationCard({
             )}
             <button type="button" role="menuitem" onClick={() => onHype(publication.id)}>
               Hype video
+            </button>
+            <button type="button" role="menuitem" onClick={() => onOpenMetadata(publication.id)}>
+              Edit metadata
             </button>
             {channelCount > 1 && (
               <button
@@ -415,77 +432,19 @@ function ActivePublicationCard({
           {publication.externalSource && <span>Imported</span>}
         </div>
 
-        <div className="video-card-controls">
-          <label>
-            Visibility
-            <select
-              value={draft.privacyStatus || publication.privacyStatus || "unknown"}
-              disabled={isSaving}
-              onChange={(event) => onChangeVisibility(publication.id, event.target.value)}
-            >
-              <option value="unknown" disabled>
-                Unknown
-              </option>
-              <option value="private">Private</option>
-              <option value="public">Public</option>
-              <option value="unlisted">Unlisted</option>
-            </select>
-          </label>
-
-          <div className="publication-fields published-metadata-fields">
-            <label>
-              Title
-              <input
-                value={draft.title ?? ""}
-                disabled={isSaving}
-                onChange={(event) => onUpdateMetadataField(publication.id, { title: event.target.value })}
-              />
-            </label>
-            <label>
-              Tags
-              <input
-                value={draft.tagsText ?? ""}
-                disabled={isSaving}
-                placeholder="tag1, tag2"
-                onChange={(event) => onUpdateMetadataField(publication.id, { tagsText: event.target.value })}
-              />
-            </label>
-            <label className="publication-description">
-              Description
-              <textarea
-                value={draft.description ?? ""}
-                disabled={isSaving}
-                onChange={(event) => onUpdateMetadataField(publication.id, { description: event.target.value })}
-              />
-            </label>
-            <label>
-              Hashtags
-              <input
-                value={draft.hashtagsText ?? ""}
-                disabled={isSaving}
-                placeholder="#newleaf, #trading"
-                onChange={(event) => onUpdateMetadataField(publication.id, { hashtagsText: event.target.value })}
-              />
-            </label>
-            <div className="action-row publication-actions">
-              <button
-                type="button"
-                disabled={isSaving || !canSaveMetadata}
-                onClick={() => onSaveMetadata(publication.id, draft).catch(() => {})}
-              >
-                {isSaving ? "Saving..." : "Save metadata"}
-              </button>
-            </div>
-          </div>
-
-          <div className="published-thumbnail-controls">
-            <ThumbnailManager
-              generateThumbnail={(jobId, atSeconds) => onGenerateThumbnail(publication, atSeconds)}
-              job={job}
-              showPreview={false}
-              uploadThumbnail={(jobId, file) => onUploadThumbnail(publication, file)}
-            />
-          </div>
+        <div className="video-card-actions">
+          {hasProviderUrl ? (
+            <a className="button-link" href={publication.providerUrl} target="_blank" rel="noreferrer">
+              Open
+            </a>
+          ) : (
+            <button type="button" disabled>
+              Open
+            </button>
+          )}
+          <button type="button" disabled={isSaving} onClick={() => onOpenMetadata(publication.id)}>
+            {isSaving ? "Saving..." : "Edit"}
+          </button>
         </div>
 
         {publication.status !== "published" && <ProgressMeter progress={publication.progress} />}
@@ -535,6 +494,132 @@ function DeletedPublicationCard({ draft, publication, title }) {
       <ProgressMeter progress={publication.progress} />
       {draft.error && <p className="form-error">{draft.error}</p>}
     </article>
+  );
+}
+
+function MetadataEditorDialog({
+  draft,
+  job,
+  onCancel,
+  onGenerateThumbnail,
+  onSave,
+  onUpdateMetadataField,
+  onUploadThumbnail,
+  publication
+}) {
+  if (!publication) {
+    return null;
+  }
+
+  const editorDraft = draft ?? {
+    title: publication.title,
+    description: publication.description,
+    privacyStatus: publication.privacyStatus,
+    tagsText: publication.tags.join(", "),
+    hashtagsText: publication.hashtags?.join(", ") ?? "",
+    isSaving: false,
+    error: null
+  };
+  const isSaving = Boolean(editorDraft.isSaving);
+  const canSaveMetadata = Boolean(String(editorDraft.title ?? "").trim() && String(editorDraft.description ?? "").trim());
+
+  async function save() {
+    await onSave(publication.id, editorDraft);
+    onCancel();
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
+      <section
+        aria-labelledby="metadata-editor-title"
+        aria-modal="true"
+        className="modal-dialog publication-metadata-dialog"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <h2 id="metadata-editor-title">Edit Publication</h2>
+            <span className="muted">{platformLabel(publication.platform)} - {publication.account}</span>
+          </div>
+          <button aria-label="Close metadata editor" className="modal-close" type="button" onClick={onCancel}>
+            x
+          </button>
+        </div>
+
+        <div className="publication-fields metadata-dialog-fields">
+          <label>
+            Title
+            <input
+              value={editorDraft.title ?? ""}
+              disabled={isSaving}
+              onChange={(event) => onUpdateMetadataField(publication.id, { title: event.target.value })}
+            />
+          </label>
+          <label>
+            Visibility
+            <select
+              value={editorDraft.privacyStatus || publication.privacyStatus || "unknown"}
+              disabled={isSaving}
+              onChange={(event) => onUpdateMetadataField(publication.id, { privacyStatus: event.target.value })}
+            >
+              <option value="unknown" disabled>
+                Unknown
+              </option>
+              <option value="private">Private</option>
+              <option value="public">Public</option>
+              <option value="unlisted">Unlisted</option>
+            </select>
+          </label>
+          <label>
+            Tags
+            <input
+              value={editorDraft.tagsText ?? ""}
+              disabled={isSaving}
+              placeholder="tag1, tag2"
+              onChange={(event) => onUpdateMetadataField(publication.id, { tagsText: event.target.value })}
+            />
+          </label>
+          <label>
+            Hashtags
+            <input
+              value={editorDraft.hashtagsText ?? ""}
+              disabled={isSaving}
+              placeholder="#newleaf, #trading"
+              onChange={(event) => onUpdateMetadataField(publication.id, { hashtagsText: event.target.value })}
+            />
+          </label>
+          <label className="publication-description">
+            Description
+            <textarea
+              value={editorDraft.description ?? ""}
+              disabled={isSaving}
+              onChange={(event) => onUpdateMetadataField(publication.id, { description: event.target.value })}
+            />
+          </label>
+        </div>
+
+        <div className="published-thumbnail-controls metadata-thumbnail-controls">
+          <ThumbnailManager
+            generateThumbnail={(jobId, atSeconds) => onGenerateThumbnail(publication, atSeconds)}
+            job={job}
+            showPreview
+            uploadThumbnail={(jobId, file) => onUploadThumbnail(publication, file)}
+          />
+        </div>
+
+        {editorDraft.error && <p className="form-error">{editorDraft.error}</p>}
+
+        <div className="modal-actions">
+          <button type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button type="button" className="primary" disabled={isSaving || !canSaveMetadata} onClick={() => save().catch(() => {})}>
+            {isSaving ? "Saving..." : "Save metadata"}
+          </button>
+        </div>
+      </section>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
-import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import { badGateway, badRequest, conflict, notFound } from '../lib/httpErrors.js';
 import { isObjectStorageProvider, materializeObjectStorageArtifact } from '../lib/assetStorage.js';
 import { canTransition } from './jobStateService.js';
 
@@ -390,7 +390,7 @@ export function createYouTubePublisherService(options = {}) {
     }
     const uploadsPlaylistId = channel?.uploadsPlaylistId;
     if (!uploadsPlaylistId) {
-      throw conflict('Unable to find the YouTube uploads playlist for this account', { accountId: account.id });
+      throw badGateway('Unable to find the YouTube uploads playlist for this account', { accountId: account.id });
     }
 
     const playlistItems = await fetchUploadsPlaylistItems(accessToken, uploadsPlaylistId, maxResults);
@@ -689,7 +689,7 @@ export function createYouTubePublisherService(options = {}) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw conflict('Unable to read YouTube video status', {
+      throw badGateway('Unable to read YouTube video status', {
         status: response.status,
         response: payload,
       });
@@ -712,7 +712,7 @@ export function createYouTubePublisherService(options = {}) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw conflict('Unable to read YouTube video metadata', {
+      throw badGateway('Unable to read YouTube video metadata', {
         status: response.status,
         response: payload,
       });
@@ -757,7 +757,7 @@ export function createYouTubePublisherService(options = {}) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw conflict('Unable to update YouTube video visibility', {
+      throw badGateway('Unable to update YouTube video visibility', {
         status: response.status,
         response: payload,
       });
@@ -783,7 +783,7 @@ export function createYouTubePublisherService(options = {}) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
-      throw conflict('Unable to update YouTube video metadata', {
+      throw badGateway('Unable to update YouTube video metadata', {
         status: response.status,
         response: payload,
       });
@@ -807,7 +807,7 @@ export function createYouTubePublisherService(options = {}) {
     if (response.status === 404) {
       return { deleted: true, alreadyMissing: true, status: 404, response: payload };
     }
-    throw conflict('Unable to delete YouTube video', {
+    throw badGateway('Unable to delete YouTube video', {
       status: response.status,
       response: payload,
     });
@@ -831,7 +831,7 @@ export function createYouTubePublisherService(options = {}) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw conflict('Unable to list YouTube channel uploads', {
+        throw badGateway('Unable to list YouTube channel uploads', {
           status: response.status,
           response: payload,
         });
@@ -857,7 +857,7 @@ export function createYouTubePublisherService(options = {}) {
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw conflict('Unable to read YouTube video details', {
+        throw badGateway('Unable to read YouTube video details', {
           status: response.status,
           response: payload,
         });
@@ -886,7 +886,7 @@ export function createYouTubePublisherService(options = {}) {
     });
     const location = response.headers.get('location');
     if (!response.ok || !location) {
-      throw conflict('Unable to start YouTube resumable upload', {
+      throw badGateway('Unable to start YouTube resumable upload', {
         status: response.status,
         response: await readResponseBody(response),
       });

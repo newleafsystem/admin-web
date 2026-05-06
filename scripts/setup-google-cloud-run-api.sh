@@ -15,9 +15,11 @@
 #   SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com
 #   CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com
 #   MEDIA_RENDERER_URL=<cloud-run-renderer-url>
+#   MIN_INSTANCES=1
 #   MAX_INSTANCES=3
 #   MEMORY=1Gi
 #   CPU=1
+#   CPU_THROTTLING=false
 #   TIMEOUT=900
 #   SKIP_ENABLE_APIS=true
 #   SKIP_PROVISIONING=true
@@ -46,9 +48,11 @@ PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-https://admin.newleafsystem.com}"
 ADMIN_BASE_URL="${ADMIN_BASE_URL:-https://admin.newleafsystem.com}"
 SOCIAL_CALLBACK_BASE_URL="${SOCIAL_CALLBACK_BASE_URL:-${PUBLIC_BASE_URL}}"
 CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-${ADMIN_BASE_URL}}"
+MIN_INSTANCES="${MIN_INSTANCES:-1}"
 MAX_INSTANCES="${MAX_INSTANCES:-3}"
 MEMORY="${MEMORY:-1Gi}"
 CPU="${CPU:-1}"
+CPU_THROTTLING="${CPU_THROTTLING:-false}"
 TIMEOUT="${TIMEOUT:-900}"
 SKIP_ENABLE_APIS="${SKIP_ENABLE_APIS:-true}"
 SKIP_PROVISIONING="${SKIP_PROVISIONING:-true}"
@@ -228,7 +232,7 @@ env_vars=(
   "CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}"
   "LOCAL_DATA_DIR=/tmp/newleaf-api"
   "GCS_BUCKET=${GCS_BUCKET}"
-  "VIDEO_STORAGE_DIR=/tmp/newleaf-video-assembler"
+  "VIDEO_STORAGE_DIR=/tmp/newleaf-api/video-assembler"
 )
 
 add_env_if_present() {
@@ -254,6 +258,9 @@ add_env_if_present YOUTUBE_DEFAULT_PRIVACY_STATUS
 add_env_if_present YOUTUBE_DEFAULT_CATEGORY_ID
 add_env_if_present YOUTUBE_UPLOAD_CHUNK_BYTES
 add_env_if_present YOUTUBE_AUTO_RESUME_QUEUED_UPLOADS
+add_env_if_present SOCIAL_PUBLICATION_SYNC_ENABLED
+add_env_if_present SOCIAL_PUBLICATION_SYNC_INTERVAL_MS
+add_env_if_present SOCIAL_PUBLICATION_SYNC_MAX_RESULTS
 add_env_if_present X_CLIENT_ID
 add_env_if_present X_REDIRECT_URI
 add_env_if_present X_SCOPES
@@ -276,12 +283,21 @@ deploy_args=(
   --memory "${MEMORY}"
   --cpu "${CPU}"
   --timeout "${TIMEOUT}"
-  --min-instances 0
+  --min-instances "${MIN_INSTANCES}"
   --max-instances "${MAX_INSTANCES}"
   --allow-unauthenticated
   --set-env-vars "$(IFS=,; echo "${env_vars[*]}")"
   --project "${GCP_PROJECT_ID}"
 )
+
+if [[ "${CPU_THROTTLING}" == "false" ]]; then
+  deploy_args+=(--no-cpu-throttling)
+elif [[ "${CPU_THROTTLING}" == "true" ]]; then
+  deploy_args+=(--cpu-throttling)
+else
+  echo "ERROR: CPU_THROTTLING must be true or false." >&2
+  exit 1
+fi
 
 if (( ${#secret_specs[@]} > 0 )); then
   deploy_args+=(--set-secrets "$(IFS=,; echo "${secret_specs[*]}")")

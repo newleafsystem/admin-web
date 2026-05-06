@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { fetchCurrentSession } from "./api.js";
 import {
   isFirebaseConfigured,
   signInWithGoogle,
@@ -7,17 +8,47 @@ import {
 } from "./firebaseClient.js";
 
 export function AuthGate({ children }) {
-  const [state, setState] = useState({ loading: isFirebaseConfigured, user: null, error: null });
+  const [state, setState] = useState({
+    loading: isFirebaseConfigured,
+    firebaseUser: null,
+    session: isFirebaseConfigured
+      ? null
+      : {
+          user: {
+            id: "local-dev",
+            uid: "local-dev",
+            email: "local-dev@newleaf.invalid",
+            displayName: "Local Admin",
+            role: "admin",
+            roles: ["admin"],
+            immutable: true
+          },
+          roles: ["admin"]
+        },
+    error: null
+  });
 
   useEffect(() => {
     if (!isFirebaseConfigured) {
       return undefined;
     }
-    return subscribeToAuth((user) => setState({ loading: false, user, error: null }));
+    return subscribeToAuth(async (firebaseUser) => {
+      if (!firebaseUser) {
+        setState({ loading: false, firebaseUser: null, session: null, error: null });
+        return;
+      }
+      setState((current) => ({ ...current, loading: true, firebaseUser, error: null }));
+      try {
+        const session = await fetchCurrentSession();
+        setState({ loading: false, firebaseUser, session, error: null });
+      } catch (error) {
+        setState({ loading: false, firebaseUser, session: null, error: error.message });
+      }
+    });
   }, []);
 
   if (!isFirebaseConfigured) {
-    return children;
+    return renderChildren(children, state.session);
   }
 
   if (state.loading) {
@@ -31,7 +62,7 @@ export function AuthGate({ children }) {
     );
   }
 
-  if (!state.user) {
+  if (!state.firebaseUser) {
     return (
       <main className="auth-screen">
         <section className="auth-panel">
@@ -58,15 +89,39 @@ export function AuthGate({ children }) {
     );
   }
 
+  if (!state.session?.roles?.includes("admin")) {
+    return (
+      <main className="auth-screen">
+        <section className="auth-panel">
+          <p className="eyebrow">NewLeaf Admin</p>
+          <h1>Access Pending</h1>
+          <p>Your account is signed in, but an admin has not granted console access yet.</p>
+          <div className="pending-account">
+            <strong>{state.session?.user?.email ?? state.firebaseUser.email}</strong>
+            <span>Role: {state.session?.user?.role ?? "anonymous"}</span>
+          </div>
+          {state.error && <p className="form-error">{state.error}</p>}
+          <button type="button" className="ghost" onClick={() => void signOutUser()}>
+            Sign out
+          </button>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <>
       <div className="auth-session-bar">
-        <span>{state.user.email}</span>
+        <span>{state.session.user.email}</span>
         <button type="button" className="ghost" onClick={() => void signOutUser()}>
           Sign out
         </button>
       </div>
-      {children}
+      {renderChildren(children, state.session)}
     </>
   );
+}
+
+function renderChildren(children, session) {
+  return typeof children === "function" ? children(session) : children;
 }

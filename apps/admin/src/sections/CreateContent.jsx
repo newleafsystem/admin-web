@@ -75,8 +75,8 @@ export function CreateContent({ contentDraft, intakeModes, submitContentDraft, u
             <label>
               Target duration
               <input
-                min="15"
-                step="15"
+                min="5"
+                step="5"
                 type="number"
                 value={contentDraft.targetDurationSec}
                 onChange={(event) => updateContentDraft({ targetDurationSec: event.target.value })}

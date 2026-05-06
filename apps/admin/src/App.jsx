@@ -5,6 +5,7 @@ import {
   createContentJob,
   createPublishPlan,
   createServiceClient,
+  deleteUser,
   deleteJobPublications,
   deletePublication,
   deleteReviewJob,
@@ -13,6 +14,7 @@ import {
   fetchOperationsSnapshot,
   fetchPublishPlans,
   fetchPublications,
+  fetchUsers,
   generateJobScript,
   generateJobThumbnail,
   generateVideoSummary,
@@ -29,6 +31,7 @@ import {
   retryPublishAttempt,
   startSocialOAuth,
   updateContentJob,
+  updateUserRole,
   updatePublication,
   uploadLocalVideo,
   uploadJobThumbnail,
@@ -78,6 +81,9 @@ const Dashboard = lazy(() =>
 const PublishedVideos = lazy(() =>
   import("./sections/PublishedVideos.jsx").then((module) => ({ default: module.PublishedVideos }))
 );
+const Users = lazy(() =>
+  import("./sections/Users.jsx").then((module) => ({ default: module.Users }))
+);
 const ReviewWorkspace = lazy(() =>
   import("./sections/ReviewWorkspace.jsx").then((module) => ({ default: module.ReviewWorkspace }))
 );
@@ -88,12 +94,13 @@ const VideoStudio = lazy(() =>
   import("./sections/VideoStudio.jsx").then((module) => ({ default: module.VideoStudio }))
 );
 
-export default function App() {
+export default function App({ session }) {
   const [activeView, setActiveViewState] = useState(getViewFromLocation);
   const [jobs, setJobs] = useState([]);
   const [publishPlans, setPublishPlans] = useState([]);
   const [publications, setPublications] = useState([]);
   const [serviceClients, setServiceClients] = useState([]);
+  const [users, setUsers] = useState([]);
   const [publicationDrafts, setPublicationDrafts] = useState({});
   const [connectedAccounts, setConnectedAccounts] = useState([]);
   const [auditEvents, setAuditEvents] = useState([]);
@@ -103,6 +110,7 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [actionError, setActionError] = useState(null);
+  const [sectionLoaders, setSectionLoaders] = useState({});
   const [contentDraft, setContentDraft] = useState(initialContentDraft);
   const [publishDraft, setPublishDraft] = useState(initialPublishDraft);
   const [summaryWorkflow, setSummaryWorkflow] = useState({ jobId: null, isGenerating: false, error: null });
@@ -137,6 +145,30 @@ export default function App() {
     setVendorCredentialResult(null);
   }
 
+  function setSectionLoading(view, label) {
+    setSectionLoaders((current) => ({
+      ...current,
+      [view]: label
+    }));
+  }
+
+  function clearSectionLoading(view) {
+    setSectionLoaders((current) => {
+      const next = { ...current };
+      delete next[view];
+      return next;
+    });
+  }
+
+  async function withSectionLoader(view, label, task) {
+    setSectionLoading(view, label);
+    try {
+      return await task();
+    } finally {
+      clearSectionLoading(view);
+    }
+  }
+
   useEffect(() => {
     let isMounted = true;
 
@@ -157,6 +189,7 @@ export default function App() {
         setPublishPlans(snapshot.publishPlans);
         setPublications(snapshot.publications);
         setServiceClients(snapshot.serviceClients);
+        setUsers(snapshot.users);
         setPublicationDrafts(buildPublicationDrafts(snapshot.publications));
         setConnectedAccounts(snapshot.connectedAccounts);
         setAuditEvents(snapshot.auditEvents);
@@ -343,7 +376,7 @@ export default function App() {
         nextView = "Content Queue";
       }
 
-      const refreshedJobs = await fetchJobs();
+      const refreshedJobs = await withSectionLoader("Content Queue", "Refreshing content queue...", fetchJobs);
       setJobs(refreshedJobs);
       setSelectedJobId(createdJob.id);
       setPublishDraft((current) => ({ ...current, jobId: createdJob.id }));
@@ -379,11 +412,11 @@ export default function App() {
     }
   }
 
-  async function uploadAssemblySegmentClip(jobId, heygenVideoId, file) {
+  async function uploadAssemblySegmentClip(jobId, heygenVideoId, file, options = {}) {
     setActionError(null);
     try {
       await uploadVideoAssemblySegment(jobId, heygenVideoId, file);
-      const refreshedJobs = await fetchJobs();
+      const refreshedJobs = await withSectionLoader("Content Queue", "Refreshing content queue...", fetchJobs);
       setJobs(refreshedJobs);
       setSelectedJobId(jobId);
       setAuditEvents((current) =>
@@ -451,7 +484,7 @@ export default function App() {
     setActionError(null);
     try {
       const result = await pollHeyGenProviderJob(jobId, providerJobId);
-      const refreshedJobs = await fetchJobs();
+      const refreshedJobs = await withSectionLoader("Content Queue", "Refreshing content queue...", fetchJobs);
       setJobs(refreshedJobs);
       setSelectedJobId(jobId);
       setAuditEvents((current) =>
@@ -631,7 +664,7 @@ export default function App() {
     setActionError(null);
     try {
       await retryPublishAttempt(attempt.id);
-      setPublishPlans(await fetchPublishPlans());
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish attempts...", fetchPublishPlans));
       setAuditEvents((current) =>
         addAuditEvent(current, "retry_publish_attempt", `${planId}/${attempt.platform}`, "local-admin", {
           planId,
@@ -724,7 +757,7 @@ export default function App() {
           thumbnailSource: job?.thumbnail?.source ?? null
         }
       });
-      setPublishPlans(await fetchPublishPlans());
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
       setPublishDraft((current) => ({
         ...initialPublishDraft,
         jobId: "",
@@ -798,7 +831,7 @@ export default function App() {
     setActionError(null);
     try {
       await approvePublishPlan(planId);
-      setPublishPlans(await fetchPublishPlans());
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
       setAuditEvents((current) =>
         addAuditEvent(current, "approve_publish_plan", planId, "local-admin", {
           planId
@@ -812,10 +845,14 @@ export default function App() {
   async function startPublishing(planId) {
     setActionError(null);
     try {
-      const result = await publishPlan(planId);
-      setPublishPlans(await fetchPublishPlans());
-      setJobs(await fetchJobs());
-      const refreshedPublications = await fetchPublications();
+      const result = await withSectionLoader("Content Queue", "Starting publishing...", () => publishPlan(planId));
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
+      setJobs(await withSectionLoader("Content Queue", "Refreshing content queue...", fetchJobs));
+      const refreshedPublications = await withSectionLoader(
+        "Published Videos",
+        "Refreshing published videos...",
+        fetchPublications
+      );
       setPublications(refreshedPublications);
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
       setAuditEvents((current) =>
@@ -872,20 +909,22 @@ export default function App() {
     updatePublicationDraft(publicationId, { isSaving: true });
     setActionError(null);
     try {
-      const payload =
-        overrides ?? {
-          title: draft.title,
-          description: draft.description,
-          tags: draft.tagsText
-            .split(",")
-            .map((tag) => tag.trim())
-            .filter(Boolean),
-          hashtags: parseDelimitedTags(draft.hashtagsText)
-        };
-      if (!overrides && draft.privacyStatus && draft.privacyStatus !== "unknown") {
-        payload.privacyStatus = draft.privacyStatus;
-      }
-      const updated = await updatePublication(publicationId, payload);
+      const updated = await withSectionLoader("Published Videos", "Saving publication metadata...", async () => {
+        const payload =
+          overrides ?? {
+            title: draft.title,
+            description: draft.description,
+            tags: draft.tagsText
+              .split(",")
+              .map((tag) => tag.trim())
+              .filter(Boolean),
+            hashtags: parseDelimitedTags(draft.hashtagsText)
+          };
+        if (!overrides && draft.privacyStatus && draft.privacyStatus !== "unknown") {
+          payload.privacyStatus = draft.privacyStatus;
+        }
+        return updatePublication(publicationId, payload);
+      });
       applyPublicationUpdate(updated);
       setAuditEvents((current) =>
         addAuditEvent(current, "update_publication", publicationId, "local-admin", {
@@ -906,9 +945,11 @@ export default function App() {
     setActionError(null);
     markPublicationDeleting((publication) => publication.id === publicationId);
     try {
-      const updated = await deletePublication(publicationId, "admin_requested");
+      const updated = await withSectionLoader("Published Videos", "Deleting publication...", () =>
+        deletePublication(publicationId, "admin_requested")
+      );
       applyPublicationUpdate(updated);
-      setPublishPlans(await fetchPublishPlans());
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
       setAuditEvents((current) =>
         addAuditEvent(current, "delete_publication", publicationId, "local-admin", {
           publicationId,
@@ -919,7 +960,10 @@ export default function App() {
         })
       );
     } catch (error) {
-      const [refreshedPublications, refreshedPlans] = await Promise.all([fetchPublications(), fetchPublishPlans()]);
+      const [refreshedPublications, refreshedPlans] = await Promise.all([
+        withSectionLoader("Published Videos", "Refreshing published videos...", fetchPublications),
+        withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans)
+      ]);
       setPublications(refreshedPublications);
       setPublishPlans(refreshedPlans);
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
@@ -931,8 +975,13 @@ export default function App() {
     setActionError(null);
     markPublicationDeleting((publication) => publication.jobId === jobId && publication.status !== "deleted");
     try {
-      const result = await deleteJobPublications(jobId, "admin_requested_all_channels");
-      const [refreshedPublications, refreshedPlans] = await Promise.all([fetchPublications(), fetchPublishPlans()]);
+      const result = await withSectionLoader("Published Videos", "Deleting channel publications...", () =>
+        deleteJobPublications(jobId, "admin_requested_all_channels")
+      );
+      const [refreshedPublications, refreshedPlans] = await Promise.all([
+        withSectionLoader("Published Videos", "Refreshing published videos...", fetchPublications),
+        withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans)
+      ]);
       setPublications(refreshedPublications);
       setPublishPlans(refreshedPlans);
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
@@ -952,7 +1001,10 @@ export default function App() {
         );
       }
     } catch (error) {
-      const [refreshedPublications, refreshedPlans] = await Promise.all([fetchPublications(), fetchPublishPlans()]);
+      const [refreshedPublications, refreshedPlans] = await Promise.all([
+        withSectionLoader("Published Videos", "Refreshing published videos...", fetchPublications),
+        withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans)
+      ]);
       setPublications(refreshedPublications);
       setPublishPlans(refreshedPlans);
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
@@ -984,7 +1036,9 @@ export default function App() {
   async function requestPublicationHype(publicationId) {
     setActionError(null);
     try {
-      const updated = await hypePublication(publicationId);
+      const updated = await withSectionLoader("Published Videos", "Requesting publication action...", () =>
+        hypePublication(publicationId)
+      );
       applyPublicationUpdate(updated);
       setAuditEvents((current) =>
         addAuditEvent(current, "hype_publication", publicationId, "local-admin", {
@@ -1002,8 +1056,14 @@ export default function App() {
     setActionError(null);
     setPublicationImportWorkflow({ platform, isImporting: true, error: null });
     try {
-      const result = await importPlatformPublications(platform);
-      const refreshedPublications = await fetchPublications();
+      const result = await withSectionLoader("Published Videos", `Syncing ${platform} videos...`, () =>
+        importPlatformPublications(platform)
+      );
+      const refreshedPublications = await withSectionLoader(
+        "Published Videos",
+        "Refreshing published videos...",
+        fetchPublications
+      );
       setPublications(refreshedPublications);
       setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
       setPublicationImportWorkflow({ platform: null, isImporting: false, error: null });
@@ -1206,6 +1266,52 @@ export default function App() {
     }
   }
 
+  async function changeUserRole(userId, role) {
+    setActionError(null);
+    try {
+      const updated = await withSectionLoader("Users", "Updating user access...", () =>
+        updateUserRole(userId, role)
+      );
+      setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
+      setAuditEvents((current) =>
+        addAuditEvent(current, "update_user_role", updated.email, session?.user?.email ?? "local-admin", {
+          userId: updated.id,
+          role: updated.role
+        })
+      );
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
+  async function removeUser(userId) {
+    setActionError(null);
+    try {
+      const removed = await withSectionLoader("Users", "Removing user access...", () => deleteUser(userId));
+      setUsers((current) => current.filter((user) => user.id !== removed.id));
+      setAuditEvents((current) =>
+        addAuditEvent(current, "delete_user", removed.email, session?.user?.email ?? "local-admin", {
+          userId: removed.id,
+          role: removed.role
+        })
+      );
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
+  async function refreshUsers() {
+    setActionError(null);
+    try {
+      const refreshed = await withSectionLoader("Users", "Refreshing users...", fetchUsers);
+      setUsers(refreshed);
+    } catch (error) {
+      setActionError(error.message);
+    }
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1239,7 +1345,7 @@ export default function App() {
           </div>
           <div className="operator-strip">
             <span>Staging</span>
-            <span>local-admin</span>
+            <span>{session?.user?.email ?? "local-admin"}</span>
           </div>
         </header>
 
@@ -1251,6 +1357,12 @@ export default function App() {
           <section className="empty-state">Loading operations snapshot...</section>
         ) : (
           <Suspense fallback={<section className="empty-state">Loading section...</section>}>
+            {sectionLoaders[activeView] && (
+              <section className="section-loader" aria-live="polite">
+                <span className="loading-spinner" aria-hidden="true" />
+                {sectionLoaders[activeView]}
+              </section>
+            )}
             {actionError && <section className="form-error">{actionError}</section>}
 
             {activeView === "Dashboard" && (
@@ -1349,6 +1461,16 @@ export default function App() {
                 reconnectAccount={reconnectAccount}
                 socialPlatforms={socialPlatforms}
                 updateAccountWorkflow={updateAccountWorkflow}
+              />
+            )}
+
+            {activeView === "Users" && (
+              <Users
+                currentUserId={session?.user?.id}
+                onDeleteUser={removeUser}
+                onRefresh={refreshUsers}
+                onUpdateRole={changeUserRole}
+                users={users}
               />
             )}
 

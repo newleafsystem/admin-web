@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { config } from '../config.js';
-import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import { badRequest, conflict, notFound, serviceUnavailable } from '../lib/httpErrors.js';
 import {
   buildObjectStorageKey,
   isObjectStorageProvider,
@@ -247,7 +247,7 @@ async function runCommand(command, args, options = {}) {
         resolve();
         return;
       }
-      reject(conflict(`${options.commandName ?? command} failed while generating thumbnail`, {
+      reject(serviceUnavailable(`${options.commandName ?? command} failed while generating thumbnail`, {
         exitCode: code,
         detail: lastLines(stderr),
       }));
@@ -257,10 +257,10 @@ async function runCommand(command, args, options = {}) {
 
 function commandSpawnError(error, command, options = {}) {
   if (error?.code === 'ENOENT') {
-    return conflict(`${options.commandName ?? command} is not installed or not available in PATH`);
+    return serviceUnavailable(`${options.commandName ?? command} is not installed or not available in PATH`);
   }
   if (error?.code === 'EACCES' || error?.code === 'EPERM') {
-    return conflict(`${options.commandName ?? command} could not be executed: ${error.message}`);
+    return serviceUnavailable(`${options.commandName ?? command} could not be executed: ${error.message}`);
   }
   return error;
 }

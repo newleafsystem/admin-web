@@ -35,7 +35,6 @@ export const config = Object.freeze({
   adminBaseUrl: process.env.ADMIN_BASE_URL ?? 'http://localhost:5173',
   auth: {
     requireAuth: readBoolean('REQUIRE_AUTH', false),
-    adminEmails: readStringList('AUTH_ADMIN_EMAILS', '').map((email) => email.toLowerCase()),
   },
   serviceApi: {
     keyHashes: readStringList('SERVICE_API_KEY_HASHES', ''),
@@ -86,6 +85,9 @@ export const config = Object.freeze({
     accountsConfigPath: readOptionalString('SOCIAL_ACCOUNTS_CONFIG_PATH'),
     publisherEnabledPlatforms: readStringList('SOCIAL_PUBLISH_ENABLED_PLATFORMS', 'youtube x linkedin instagram facebook'),
     autoResumeQueuedUploads: readBoolean('SOCIAL_AUTO_RESUME_QUEUED_UPLOADS', true),
+    publicationSyncEnabled: readBoolean('SOCIAL_PUBLICATION_SYNC_ENABLED', true),
+    publicationSyncIntervalMs: readNumber('SOCIAL_PUBLICATION_SYNC_INTERVAL_MS', 60 * 60 * 1000),
+    publicationSyncMaxResults: readNumber('SOCIAL_PUBLICATION_SYNC_MAX_RESULTS', 100),
     publisherStatusMaxPolls: readNumber('SOCIAL_PUBLISH_STATUS_MAX_POLLS', 20),
   },
   cors: {
