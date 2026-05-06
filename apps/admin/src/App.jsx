@@ -359,13 +359,14 @@ export default function App({ session }) {
 
     setContentDraft((current) => ({ ...current, isSubmitting: true, error: null, message: null }));
     setActionError(null);
-    setSectionLoading("Create Content", "Creating content job...");
+    setSectionLoading("Create Content", "Preparing video...");
 
     try {
       const createdJob = await createContentJob(buildContentJobPayload(contentDraft, session?.user));
       let nextView = "Review";
 
       if (contentDraft.mode === "video_upload" && contentDraft.videoFile) {
+        setSectionLoading("Create Content", "Uploading video for review...");
         await uploadLocalVideo(createdJob.id, contentDraft.videoFile);
       }
 
@@ -393,7 +394,7 @@ export default function App({ session }) {
       );
       setContentDraft({
         ...initialContentDraft,
-        message: `Created ${createdJob.title}`
+        message: `${createdJob.title} is ready for the next step.`
       });
       setActiveView(nextView);
     } catch (error) {
@@ -567,7 +568,7 @@ export default function App({ session }) {
   async function saveReviewScript(jobId = selectedJob?.id, scriptText = "") {
     const targetJob = jobs.find((job) => job.id === jobId) ?? selectedJob;
     if (!targetJob) {
-      throw new Error("Select a review job before saving the script.");
+      throw new Error("Select a review video before saving the script.");
     }
 
     const normalizedScript = String(scriptText ?? "").trim();
@@ -709,7 +710,7 @@ export default function App({ session }) {
   async function submitPublishDraft(event) {
     event.preventDefault();
     if (!publishDraft.jobId) {
-      setPublishDraft((current) => ({ ...current, error: "Select a job before creating a plan." }));
+      setPublishDraft((current) => ({ ...current, error: "Select an approved video before publishing." }));
       return;
     }
     if (publishDraft.platforms.length === 0) {
@@ -719,11 +720,11 @@ export default function App({ session }) {
     const publishTitle = publishDraft.title.trim();
     const publishDescription = publishDraft.description.trim();
     if (!publishTitle) {
-      setPublishDraft((current) => ({ ...current, error: "Enter a title before creating a publish plan." }));
+      setPublishDraft((current) => ({ ...current, error: "Enter a title before publishing." }));
       return;
     }
     if (!publishDescription) {
-      setPublishDraft((current) => ({ ...current, error: "Enter a description before creating a publish plan." }));
+      setPublishDraft((current) => ({ ...current, error: "Enter a description before publishing." }));
       return;
     }
 
@@ -741,7 +742,7 @@ export default function App({ session }) {
     if (platforms.length === 0) {
       setPublishDraft((current) => ({
         ...current,
-        error: "This job has no remaining connected platforms available for publishing."
+        error: "This video has no remaining connected channels available for publishing."
       }));
       return;
     }
@@ -749,7 +750,7 @@ export default function App({ session }) {
     setPublishDraft((current) => ({ ...current, isSubmitting: true, error: null }));
     setActionError(null);
     try {
-      await createPublishPlan({
+      const plan = await withSectionLoader("Content Queue", "Preparing publishing...", () => createPublishPlan({
         jobId: publishDraft.jobId,
         platforms,
         scheduledAt: publishDraft.scheduledAt || null,
@@ -762,20 +763,38 @@ export default function App({ session }) {
           thumbnailUrl: job?.thumbnail?.url ?? null,
           thumbnailSource: job?.thumbnail?.source ?? null
         }
-      });
-      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
+      }));
+      await withSectionLoader("Content Queue", "Approving publishing...", () => approvePublishPlan(plan.id));
+      const shouldPublishNow = !isFutureSchedule(publishDraft.scheduledAt);
+      let publishResult = null;
+      if (shouldPublishNow) {
+        publishResult = await withSectionLoader("Content Queue", "Publishing to selected channels...", () =>
+          publishPlan(plan.id)
+        );
+      }
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publishing state...", fetchPublishPlans));
+      setJobs(await withSectionLoader("Content Queue", "Refreshing video queue...", fetchJobs));
+      const refreshedPublications = await withSectionLoader(
+        "Published Videos",
+        "Refreshing published videos...",
+        fetchPublications
+      );
+      setPublications(refreshedPublications);
+      setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
       setPublishDraft((current) => ({
         ...initialPublishDraft,
         jobId: "",
         platforms: integratedPlatforms.length === 1 ? [integratedPlatforms[0].id] : []
       }));
       setAuditEvents((current) =>
-        addAuditEvent(current, "create_publish_plan", publishDraft.jobId, currentActor(session), {
+        addAuditEvent(current, shouldPublishNow ? "publish_video" : "schedule_publish", publishDraft.jobId, currentActor(session), {
           title: publishTitle,
           platforms,
           scheduledAt: publishDraft.scheduledAt || "Not scheduled",
           hashtags: parseDelimitedTags(publishDraft.hashtagsText),
-          tags: parseDelimitedTags(publishDraft.youtubeTagsText)
+          tags: parseDelimitedTags(publishDraft.youtubeTagsText),
+          planId: plan.id,
+          attempts: publishResult?.attempts?.length ?? 0
         })
       );
     } catch (error) {
@@ -789,7 +808,7 @@ export default function App({ session }) {
 
   async function requestYouTubeTagGeneration() {
     if (!publishDraft.jobId) {
-      setPublishDraft((current) => ({ ...current, error: "Select a job before generating YouTube tags." }));
+      setPublishDraft((current) => ({ ...current, error: "Select a video before generating YouTube tags." }));
       return;
     }
     const title = publishDraft.title.trim();
@@ -833,14 +852,25 @@ export default function App({ session }) {
     }
   }
 
-  async function approvePlan(planId) {
+  async function approveAndPublishPlan(planId) {
     setActionError(null);
     try {
-      await approvePublishPlan(planId);
-      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
+      await withSectionLoader("Content Queue", "Approving publishing...", () => approvePublishPlan(planId));
+      const result = await withSectionLoader("Content Queue", "Publishing to selected channels...", () => publishPlan(planId));
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publishing state...", fetchPublishPlans));
+      setJobs(await withSectionLoader("Content Queue", "Refreshing video queue...", fetchJobs));
+      const refreshedPublications = await withSectionLoader(
+        "Published Videos",
+        "Refreshing published videos...",
+        fetchPublications
+      );
+      setPublications(refreshedPublications);
+      setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
       setAuditEvents((current) =>
-        addAuditEvent(current, "approve_publish_plan", planId, currentActor(session), {
-          planId
+        addAuditEvent(current, "approve_and_publish", planId, currentActor(session), {
+          planId,
+          status: result.plan.status,
+          attempts: result.attempts.length
         })
       );
     } catch (error) {
@@ -852,8 +882,8 @@ export default function App({ session }) {
     setActionError(null);
     try {
       const result = await withSectionLoader("Content Queue", "Starting publishing...", () => publishPlan(planId));
-      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
-      setJobs(await withSectionLoader("Content Queue", "Refreshing content queue...", fetchJobs));
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publishing state...", fetchPublishPlans));
+      setJobs(await withSectionLoader("Content Queue", "Refreshing video queue...", fetchJobs));
       const refreshedPublications = await withSectionLoader(
         "Published Videos",
         "Refreshing published videos...",
@@ -955,7 +985,7 @@ export default function App({ session }) {
         deletePublication(publicationId, "admin_requested")
       );
       applyPublicationUpdate(updated);
-      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans));
+      setPublishPlans(await withSectionLoader("Content Queue", "Refreshing publishing state...", fetchPublishPlans));
       setAuditEvents((current) =>
         addAuditEvent(current, "delete_publication", publicationId, currentActor(session), {
           publicationId,
@@ -968,7 +998,7 @@ export default function App({ session }) {
     } catch (error) {
       const [refreshedPublications, refreshedPlans] = await Promise.all([
         withSectionLoader("Published Videos", "Refreshing published videos...", fetchPublications),
-        withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans)
+        withSectionLoader("Content Queue", "Refreshing publishing state...", fetchPublishPlans)
       ]);
       setPublications(refreshedPublications);
       setPublishPlans(refreshedPlans);
@@ -986,7 +1016,7 @@ export default function App({ session }) {
       );
       const [refreshedPublications, refreshedPlans] = await Promise.all([
         withSectionLoader("Published Videos", "Refreshing published videos...", fetchPublications),
-        withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans)
+        withSectionLoader("Content Queue", "Refreshing publishing state...", fetchPublishPlans)
       ]);
       setPublications(refreshedPublications);
       setPublishPlans(refreshedPlans);
@@ -1009,7 +1039,7 @@ export default function App({ session }) {
     } catch (error) {
       const [refreshedPublications, refreshedPlans] = await Promise.all([
         withSectionLoader("Published Videos", "Refreshing published videos...", fetchPublications),
-        withSectionLoader("Content Queue", "Refreshing publish plans...", fetchPublishPlans)
+        withSectionLoader("Content Queue", "Refreshing publishing state...", fetchPublishPlans)
       ]);
       setPublications(refreshedPublications);
       setPublishPlans(refreshedPlans);
@@ -1350,7 +1380,6 @@ export default function App({ session }) {
             <h1>{activeView}</h1>
           </div>
           <div className="operator-strip">
-            <span>Staging</span>
             <span>{currentActor(session)}</span>
           </div>
         </header>
@@ -1399,7 +1428,7 @@ export default function App({ session }) {
 
             {activeView === "Content Queue" && (
               <ContentQueue
-                approvePlan={approvePlan}
+                approvePlan={approveAndPublishPlan}
                 connectedAccounts={connectedAccounts}
                 filteredJobs={filteredJobs}
                 jobs={contentQueueJobs}
@@ -1586,6 +1615,14 @@ function parseDelimitedTags(value) {
         .filter(Boolean)
     )
   );
+}
+
+function isFutureSchedule(value) {
+  if (!value) {
+    return false;
+  }
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) && timestamp > Date.now() + 60_000;
 }
 
 function normalizeTagText(value) {

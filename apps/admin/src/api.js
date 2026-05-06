@@ -239,45 +239,56 @@ export async function renderVideoStudioProject(projectId) {
 }
 
 export async function requestVideoGeneration(jobId, script) {
-  const response = await apiFetch(`${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/generate-video`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({ script })
+  return requestVideoGenerationWithRecovery({
+    jobId,
+    path: `${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/generate-video`,
+    body: { script },
+    fallbackMessage: "Unable to request HeyGen video"
   });
-  const body = await readJson(response);
-  assertOk(response, body, "Unable to request HeyGen video");
-  return normalizeJob(body.job, [], body.providerJobs ?? (body.providerJob ? [body.providerJob] : []));
 }
 
 export async function regenerateJobVideo(jobId, script = null) {
-  const response = await apiFetch(`${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/regenerate-video`, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json"
-    },
-    body: JSON.stringify({ script })
+  return requestVideoGenerationWithRecovery({
+    jobId,
+    path: `${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/regenerate-video`,
+    body: { script },
+    fallbackMessage: "Unable to regenerate video"
   });
-  const body = await readJson(response);
-  assertOk(response, body, "Unable to regenerate video");
-  return normalizeJob(body.job, [], body.providerJobs ?? (body.providerJob ? [body.providerJob] : []));
 }
 
 export async function pollHeyGenProviderJob(jobId, providerJobId) {
-  const response = await apiFetch(
-    `${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/provider-jobs/${encodeURIComponent(providerJobId)}/poll`,
-    {
-      method: "POST"
+  try {
+    const response = await apiFetch(
+      `${API_BASE_URL}/jobs/${encodeURIComponent(jobId)}/provider-jobs/${encodeURIComponent(providerJobId)}/poll`,
+      {
+        method: "POST"
+      }
+    );
+    const body = await readJson(response);
+    assertOk(response, body, "Unable to poll HeyGen provider job");
+    return {
+      action: body.action,
+      pollResult: body.pollResult,
+      job: normalizeJob(body.job, body.artifacts ?? [], body.providerJobs ?? [])
+    };
+  } catch (error) {
+    if (!isRecoverableLongRunningError(error)) {
+      throw error;
     }
-  );
-  const body = await readJson(response);
-  assertOk(response, body, "Unable to poll HeyGen provider job");
-  return {
-    action: body.action,
-    pollResult: body.pollResult,
-    job: normalizeJob(body.job, body.artifacts ?? [], body.providerJobs ?? [])
-  };
+    const recovered = await recoverLongRunningJob(jobId);
+    if (!recovered) {
+      throw error;
+    }
+    return {
+      action: "poll_recovered_after_timeout",
+      pollResult: {
+        status: recovered.video.status,
+        recovered: true,
+        note: "The HeyGen poll took longer than the gateway allowed, so the video state was refreshed from storage."
+      },
+      job: recovered
+    };
+  }
 }
 
 export async function generateJobScript(jobId) {
@@ -610,6 +621,66 @@ export async function deleteUser(userId) {
   const body = await readJson(response);
   assertOk(response, body, "Unable to delete user");
   return normalizeAppUser(body.user);
+}
+
+async function requestVideoGenerationWithRecovery({ jobId, path, body, fallbackMessage }) {
+  try {
+    const response = await apiFetch(path, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify(body)
+    });
+    const responseBody = await readJson(response);
+    assertOk(response, responseBody, fallbackMessage);
+    return normalizeJob(
+      responseBody.job,
+      responseBody.artifacts ?? [],
+      responseBody.providerJobs ?? (responseBody.providerJob ? [responseBody.providerJob] : [])
+    );
+  } catch (error) {
+    if (!isRecoverableLongRunningError(error)) {
+      throw error;
+    }
+    const recovered = await recoverLongRunningJob(jobId);
+    if (recovered?.metadata?.videoAssembly || recovered?.providerJobs?.length > 0) {
+      return recovered;
+    }
+    throw error;
+  }
+}
+
+async function recoverLongRunningJob(jobId) {
+  for (const delayMs of [2500, 5000, 10000]) {
+    await delay(delayMs);
+    try {
+      const details = await fetchJobDetail(jobId);
+      return normalizeJob(details.job, details.artifacts ?? [], details.providerJobs ?? []);
+    } catch {
+      // Keep retrying; the original long-running request may still be committing state.
+    }
+  }
+  return null;
+}
+
+function isRecoverableLongRunningError(error) {
+  const status = Number(error?.status);
+  if ([408, 425, 429, 500, 502, 503, 504].includes(status)) {
+    return true;
+  }
+  const message = String(error?.message ?? "").toLowerCase();
+  return (
+    message.includes("timeout") ||
+    message.includes("timed out") ||
+    message.includes("networkerror") ||
+    message.includes("failed to fetch") ||
+    message.includes("unable to reach api")
+  );
+}
+
+function delay(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 async function apiFetch(url, options) {
@@ -998,8 +1069,8 @@ function progressPercentForStatus(status) {
 
 function progressLabelForStatus(status) {
   const labels = {
-    draft: "Publish plan is still in draft.",
-    approved: "Approved and waiting for Publish.",
+    draft: "Publishing is still being prepared.",
+    approved: "Approved and waiting to publish.",
     queued: "Queued for publisher worker.",
     retrying: "Queued for retry.",
     uploading: "Uploading video to channel.",

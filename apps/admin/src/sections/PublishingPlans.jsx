@@ -8,7 +8,7 @@ import {
 } from "../utils.js";
 
 export function PublishingPlans({
-  approvePlan,
+  approveAndPublishPlan,
   connectedAccounts,
   jobs,
   publications,
@@ -72,12 +72,12 @@ export function PublishingPlans({
 
   const destinationHelp =
     integratedPlatforms.length === 0
-      ? "Connect at least one publishing account before creating a publish plan."
+      ? "Connect at least one publishing account before publishing."
       : publishDraft.jobId && selectedDestinationPlatforms.length === 0
-        ? "This job is already published, planned, or publishing to every connected platform."
+        ? "This video is already published, scheduled, or publishing to every connected channel."
         : null;
 
-  const canCreatePlan = Boolean(
+  const canPublish = Boolean(
     !publishDraft.isSubmitting &&
       publishDraft.jobId &&
       publishDraft.platforms.length > 0 &&
@@ -91,8 +91,8 @@ export function PublishingPlans({
       {readyJobs.length > 0 && (
         <section className="panel">
           <div className="panel-heading">
-            <h2>Ready For Publishing</h2>
-            <span className="muted">{readyJobs.length} approved job{readyJobs.length === 1 ? "" : "s"}</span>
+            <h2>Approved Videos</h2>
+            <span className="muted">{readyJobs.length} ready</span>
           </div>
           <div className="compact-list">
             {readyJobs.map((job) => (
@@ -116,19 +116,19 @@ export function PublishingPlans({
       <section className="panel">
         <form className="publish-form" onSubmit={submitPublishDraft}>
           <div className="panel-heading">
-            <h2>New Publish Plan</h2>
-            <button className="primary" type="submit" disabled={!canCreatePlan}>
-              {publishDraft.isSubmitting ? "Creating..." : "Create plan"}
+            <h2>Publish Video</h2>
+            <button className="primary" type="submit" disabled={!canPublish}>
+              {publishDraft.isSubmitting ? "Publishing..." : publishDraft.scheduledAt ? "Schedule publish" : "Publish now"}
             </button>
           </div>
           <div className="publish-form-grid">
             <label>
-              Job
+              Video
               <select
                 value={publishDraft.jobId}
                 onChange={(event) => updatePublishDraft({ jobId: event.target.value })}
               >
-                <option value="">Select job</option>
+                <option value="">Select video</option>
                 {jobsWithRemainingDestinations.map((job) => (
                   <option key={job.id} value={job.id}>
                     {job.title}
@@ -222,7 +222,7 @@ export function PublishingPlans({
 
       <div className="publish-grid">
         {activePublishPlans.length === 0 ? (
-          <section className="empty-state">No publishing plans yet.</section>
+          <section className="empty-state">No scheduled or active publishing yet.</section>
         ) : (
           activePublishPlans.map((plan) => {
             const activeAttempts = plan.attempts.filter((attempt) => attempt.status !== "deleted");
@@ -236,13 +236,13 @@ export function PublishingPlans({
                 <span className="attempt-actions">
                   <StatusBadge status={plan.status} />
                   {plan.status === "draft" && (
-                    <button type="button" onClick={() => approvePlan(plan.id)}>
-                      Approve
+                    <button type="button" onClick={() => approveAndPublishPlan(plan.id)}>
+                      Approve and publish
                     </button>
                   )}
                   {plan.status === "approved" && (
                     <button type="button" onClick={() => startPublishing(plan.id)}>
-                      Publish
+                      Publish now
                     </button>
                   )}
                 </span>

@@ -107,7 +107,7 @@ export function ContentQueue({
             <table>
               <thead>
                 <tr>
-                  <th>Job</th>
+                  <th>Video</th>
                   <th>Owner</th>
                   <th>Status</th>
                   <th>Source</th>
@@ -119,7 +119,7 @@ export function ContentQueue({
                 {filteredJobs.length === 0 ? (
                   <tr>
                     <td className="table-empty" colSpan="6">
-                      No content jobs yet.
+                      No videos are waiting yet.
                     </td>
                   </tr>
                 ) : (
@@ -147,7 +147,7 @@ export function ContentQueue({
                             openJobDetails(job.id);
                           }}
                         >
-                          View details
+                          Details
                         </button>
                       </td>
                     </tr>
@@ -182,11 +182,11 @@ export function ContentQueue({
           <summary>
             <span>
               <strong>Publishing Controls</strong>
-              <small>Create plans, approve destinations, publish, or retry failed attempts.</small>
+              <small>Choose channels, schedule, and publish approved videos.</small>
             </span>
           </summary>
           <PublishingPlans
-            approvePlan={approvePlan}
+            approveAndPublishPlan={approvePlan}
             connectedAccounts={connectedAccounts}
             jobs={jobs}
             publications={publications}
@@ -206,7 +206,7 @@ export function ContentQueue({
           <summary>
             <span>
               <strong>Media And Upload Status</strong>
-              <small>{selectedJob ? `Scoped to ${selectedJob.title}` : "All jobs"}</small>
+              <small>{selectedJob ? `Showing ${selectedJob.title}` : "All videos"}</small>
             </span>
           </summary>
           <VideoStatus
@@ -258,7 +258,7 @@ function ContentJobDetailsModal({
       >
         <div className="modal-header">
           <div>
-            <p className="eyebrow">Content job</p>
+            <p className="eyebrow">Video</p>
             <h2 id="content-job-details-title">{job.title}</h2>
           </div>
           <div className="modal-header-actions">
@@ -271,7 +271,7 @@ function ContentJobDetailsModal({
 
         <dl className="detail-list modal-detail-list">
           <div>
-            <dt>Job ID</dt>
+            <dt>Video ID</dt>
             <dd>{job.id}</dd>
           </div>
           <div>
@@ -315,7 +315,7 @@ function ContentJobDetailsModal({
           </button>
           {canOpenReview && (
             <button className="primary" type="button" onClick={openReview}>
-              Open review workspace
+              Review video
             </button>
           )}
         </div>

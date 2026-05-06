@@ -40,7 +40,7 @@ jobs:
         run: npm run firebase:build
         env:
           REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
-          VITE_API_BASE_URL: /api/v1
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || '/api/v1' }}
           VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
           VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN }}
           VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}

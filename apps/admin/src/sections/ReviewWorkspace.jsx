@@ -117,7 +117,7 @@ export function ReviewWorkspace({
     <div className="view-stack">
       <section className="review-header panel">
         <div>
-          <p className="eyebrow">Review job</p>
+          <p className="eyebrow">Review video</p>
           <h2>{selectedJob.title}</h2>
           {selectedJob.script.disclaimer && <p>{selectedJob.script.disclaimer}</p>}
         </div>
@@ -153,15 +153,15 @@ export function ReviewWorkspace({
           )}
           {canApprove ? (
             <button className="primary" type="button" onClick={() => approveSelectedJob(selectedJob.id)}>
-              Approve
+              Approve for publishing
             </button>
           ) : isApprovedForPublishing ? (
             <button className="primary" type="button" onClick={openPublishing}>
-              Open publishing
+              Publish
             </button>
           ) : (
             <button className="primary" type="button" disabled>
-              Approve
+              Approve for publishing
             </button>
           )}
         </div>
@@ -323,7 +323,7 @@ function DeleteReviewConfirmationDialog({ confirmation, isDeleting, onCancel, on
       >
         <div className="modal-header">
           <div>
-            <h2 id="delete-review-title">Delete Review Job</h2>
+            <h2 id="delete-review-title">Delete Review Video</h2>
             <span className="muted">{confirmation.title}</span>
           </div>
           <button aria-label="Close confirmation" className="modal-close" type="button" disabled={isDeleting} onClick={onCancel}>
@@ -332,11 +332,11 @@ function DeleteReviewConfirmationDialog({ confirmation, isDeleting, onCancel, on
         </div>
 
         <p className="confirm-copy">
-          This removes the job from review and deletes its local job, artifact, and provider-job records. Published or publishing jobs cannot be deleted here.
+          This removes the video from review and deletes its local video, artifact, and provider records. Published or publishing videos cannot be deleted here.
         </p>
         <dl className="detail-list compact-details">
           <div>
-            <dt>Job ID</dt>
+            <dt>Video ID</dt>
             <dd>{confirmation.jobId}</dd>
           </div>
           <div>

@@ -2319,5 +2319,12 @@ textarea.script-editor:focus {
 
 .auth-session-bar .ghost {
   border-color: rgba(247, 245, 239, 0.45);
+  background: transparent;
   color: #f7f5ef;
+}
+
+.auth-session-bar .ghost:hover:not(:disabled) {
+  border-color: #f7f5ef;
+  background: rgba(247, 245, 239, 0.12);
+  color: #ffffff;
 }

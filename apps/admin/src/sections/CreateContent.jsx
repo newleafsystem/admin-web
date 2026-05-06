@@ -4,6 +4,7 @@ export function CreateContent({ contentDraft, intakeModes, submitContentDraft, u
   const selectedMode = getIntakeMode(contentDraft.mode);
   const selectedFile = contentDraft.videoFile;
   const segments = contentDraft.segments ?? [];
+  const submitLabel = submitLabelForMode(contentDraft.mode);
 
   function updateSegment(index, patch) {
     updateContentDraft({
@@ -42,11 +43,11 @@ export function CreateContent({ contentDraft, intakeModes, submitContentDraft, u
         <form className="intake-form" onSubmit={submitContentDraft}>
           <div className="panel-heading">
             <div>
-              <h2>Create Content</h2>
+              <h2>Prepare Video</h2>
               <span className="muted">{selectedMode.label}</span>
             </div>
             <button className="primary" type="submit" disabled={contentDraft.isSubmitting}>
-              {contentDraft.isSubmitting ? "Creating..." : "Create job"}
+              {contentDraft.isSubmitting ? submitLabel.busy : submitLabel.ready}
             </button>
           </div>
 
@@ -139,6 +140,9 @@ export function CreateContent({ contentDraft, intakeModes, submitContentDraft, u
                   <strong>{contentDraft.thumbnailLabel || "Auto placeholder thumbnail"}</strong>
                 </div>
               </div>
+              <p className="muted form-note">
+                Longer HeyGen videos can take a few minutes. The video stays in the queue while rendering continues.
+              </p>
             </div>
           )}
 
@@ -221,4 +225,17 @@ export function CreateContent({ contentDraft, intakeModes, submitContentDraft, u
       </section>
     </div>
   );
+}
+
+function submitLabelForMode(mode) {
+  if (mode === "text_to_heygen" || mode === "segmented_video") {
+    return {
+      ready: "Generate video",
+      busy: "Requesting video..."
+    };
+  }
+  return {
+    ready: "Send to review",
+    busy: "Sending..."
+  };
 }

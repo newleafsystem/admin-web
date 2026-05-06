@@ -485,12 +485,36 @@ async function requestHeyGenVideo({ req, repository, jobStateService, videoAssem
     actorUid: req.user.uid,
     reason: regenerate ? 'regenerate_video' : 'generate_video',
   });
-  const result = await videoAssemblyService.createAssemblyRequest({
-    job: transitionedJob,
-    script: optionalObject(body, 'script', { defaultValue: null }),
-    actorUid: req.user.uid,
-    regenerate,
-  });
+  let result;
+  try {
+    result = await videoAssemblyService.createAssemblyRequest({
+      job: transitionedJob,
+      script: optionalObject(body, 'script', { defaultValue: null }),
+      actorUid: req.user.uid,
+      regenerate,
+    });
+  } catch (error) {
+    await repository.updateJob(job.id, {
+      status: 'failed',
+      metadata: {
+        ...(transitionedJob.metadata ?? {}),
+        stage: 'HeyGen request failed',
+        videoAssemblyRequestError: {
+          message: error.message,
+          status: error.status ?? null,
+          at: new Date().toISOString(),
+        },
+      },
+      lastTransition: {
+        from: transitionedJob.status,
+        to: 'failed',
+        reason: regenerate ? 'regenerate_video_failed' : 'generate_video_failed',
+        actorUid: req.user.uid,
+        at: new Date().toISOString(),
+      },
+    });
+    throw error;
+  }
 
   return {
     job: result.job,

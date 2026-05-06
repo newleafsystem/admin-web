@@ -82,10 +82,10 @@ export function VideoStatus({
           <table>
             <thead>
               <tr>
-                <th>Content job</th>
+                <th>Video</th>
                 <th>Source</th>
                 <th>Asset status</th>
-                <th>Generation job</th>
+                <th>Generation</th>
                 <th>Last event</th>
               </tr>
             </thead>
@@ -173,11 +173,11 @@ export function VideoStatus({
                   <ProgressMeter progress={progress} />
                   <dl className="channel-progress-meta">
                     <div>
-                      <dt>Plan</dt>
+                      <dt>Publishing ID</dt>
                       <dd>{plan.id}</dd>
                     </div>
                     <div>
-                      <dt>Attempt</dt>
+                      <dt>Channel task</dt>
                       <dd>{attempt?.id ?? "Not created"}</dd>
                     </div>
                     <div>
@@ -343,8 +343,8 @@ function publishingProgressLabel(plan, attempt, publication) {
   }
   if (!attempt) {
     return plan.status === "approved"
-      ? "Approved and waiting for Publish."
-      : "Publish attempts have not started.";
+      ? "Approved and waiting to publish."
+      : "Publishing has not started.";
   }
   if (attempt.status === "queued") {
     return "Queued for publisher worker.";
