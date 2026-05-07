@@ -30,16 +30,23 @@ export async function setAuthSessionCookieFromIdToken(res, idToken) {
     expiresIn: config.auth.sessionCookieMaxAgeMs,
   });
   res.cookie(config.auth.sessionCookieName, sessionCookie, sessionCookieOptions());
+  if (config.auth.sessionCookieDomain) {
+    res.cookie(config.auth.sessionCookieName, sessionCookie, sessionCookieOptions({ hostOnly: true }));
+  }
   return {
     name: config.auth.sessionCookieName,
     maxAgeSec: Math.floor(config.auth.sessionCookieMaxAgeMs / 1000),
     domain: config.auth.sessionCookieDomain ?? null,
     path: config.auth.sessionCookiePath,
+    hostOnlyFallback: Boolean(config.auth.sessionCookieDomain),
   };
 }
 
 export function clearAuthSessionCookie(res) {
   res.clearCookie(config.auth.sessionCookieName, sessionCookieOptions({ clear: true }));
+  if (config.auth.sessionCookieDomain) {
+    res.clearCookie(config.auth.sessionCookieName, sessionCookieOptions({ clear: true, hostOnly: true }));
+  }
 }
 
 export function readCookieValue(cookieHeader, name) {
@@ -66,7 +73,7 @@ export function readCookieValue(cookieHeader, name) {
   return null;
 }
 
-function sessionCookieOptions({ clear = false } = {}) {
+function sessionCookieOptions({ clear = false, hostOnly = false } = {}) {
   const options = {
     httpOnly: true,
     secure: Boolean(config.auth.sessionCookieSecure),
@@ -76,7 +83,7 @@ function sessionCookieOptions({ clear = false } = {}) {
   if (!clear) {
     options.maxAge = config.auth.sessionCookieMaxAgeMs;
   }
-  if (config.auth.sessionCookieDomain) {
+  if (config.auth.sessionCookieDomain && !hostOnly) {
     options.domain = config.auth.sessionCookieDomain;
   }
   return options;
