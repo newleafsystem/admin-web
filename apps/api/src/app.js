@@ -115,7 +115,7 @@ export function createApp(options = {}) {
   }));
   app.use('/api/v1/webhooks/social', createSocialWebhookRouter(services));
   app.use('/api/v1/social', createSocialOAuthCallbackRouter(services));
-  app.use('/api/v1/service', createServiceDocsRouter());
+  app.use('/api/v1/service', createServiceDocsRouter(services));
   app.use('/api/v1/service', createServiceApiRouter(services));
 
   app.use(authenticateRequest({ repository, userAccessService }));

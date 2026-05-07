@@ -22,9 +22,11 @@ info:
     signing secret. Use `idempotencyKey` when submitting jobs so retries do not
     create duplicate HeyGen requests.
 
-    Swagger UI is documentation-first for this API. Protected calls should be
-    sent from a backend, Postman pre-request script, or local signing script that
-    can generate the exact HMAC headers for the request body.
+    Swagger UI is documentation-first for this API. Documentation routes require
+    either an approved admin Firebase bearer token or valid vendor service
+    credentials. Operational calls should be sent from a backend, Postman
+    pre-request script, or local signing script that can generate the exact HMAC
+    headers for the request body.
 servers:
   - url: http://localhost:8080/api/v1
 security:
@@ -177,9 +179,8 @@ components:
 paths:
   /service/docs:
     get:
-      security: []
       summary: Open Swagger UI documentation.
-      description: Public documentation page for vendors. Credentials are still required for protected API calls.
+      description: Protected documentation page for vendors and admins.
       responses:
         '200':
           description: Swagger UI HTML.
@@ -189,9 +190,8 @@ paths:
                 type: string
   /service/openapi.yaml:
     get:
-      security: []
       summary: Download the OpenAPI contract.
-      description: Public OpenAPI YAML contract used by the Swagger UI page.
+      description: Protected OpenAPI YAML contract used by the Swagger UI page.
       responses:
         '200':
           description: OpenAPI YAML.

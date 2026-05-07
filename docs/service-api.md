@@ -6,7 +6,7 @@ Do not call these routes from browser or mobile code. Store credentials only in 
 
 ## Swagger UI
 
-When the API is running locally, open:
+When the API is running locally, open with either an approved admin Firebase bearer token or signed vendor headers:
 
 ```text
 http://localhost:8080/api/v1/service/docs
@@ -18,7 +18,7 @@ The raw OpenAPI contract is available at:
 http://localhost:8080/api/v1/service/openapi.yaml
 ```
 
-The Swagger page is public documentation. Protected API calls still require the signed request headers below.
+The Swagger page and raw OpenAPI contract are protected. Anonymous browser requests return `Missing login or service API credentials`.
 
 Swagger "Try it out" is intentionally disabled because this API is meant for backend-to-backend calls. Generate the HMAC signature in the calling backend, Postman pre-request script, or a local test script, then send the signed request from there. If a request is sent without signed headers, the API returns `Missing service API credentials`.
 

@@ -2,13 +2,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fsp from 'node:fs/promises';
 import { Router } from 'express';
+import { authenticateUserOrService, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url));
 const openApiPath = path.resolve(currentDir, '../../../../docs/service-api-openapi.yaml');
 
-export function createServiceDocsRouter() {
+export function createServiceDocsRouter({ repository, userAccessService } = {}) {
   const router = Router();
+  router.use(authenticateUserOrService({ repository, userAccessService }), requireRole('service'));
 
   router.get(
     '/openapi.yaml',
@@ -21,17 +23,19 @@ export function createServiceDocsRouter() {
     }),
   );
 
-  router.get('/docs', (req, res) => {
+  router.get('/docs', asyncHandler(async (req, res) => {
+    const spec = await fsp.readFile(openApiPath, 'utf8');
     res
       .type('html')
       .set('X-Content-Type-Options', 'nosniff')
-      .send(renderSwaggerUiPage());
-  });
+      .send(renderSwaggerUiPage(spec));
+  }));
 
   return router;
 }
 
-function renderSwaggerUiPage() {
+function renderSwaggerUiPage(spec) {
+  const specDataUrl = `data:application/yaml;base64,${Buffer.from(spec, 'utf8').toString('base64')}`;
   return `<!doctype html>
 <html lang="en">
   <head>
@@ -118,16 +122,16 @@ function renderSwaggerUiPage() {
       <a href="/api/v1/service/openapi.yaml">OpenAPI YAML</a>
     </header>
     <section class="docs-note">
-      <strong>Protected calls require signed vendor credentials.</strong>
-      The docs page and OpenAPI YAML are public, but service operations must be called from a backend with
+      <strong>Service API documentation is protected.</strong>
+      Use either an approved NewLeaf admin session or backend vendor credentials. Operational service calls require
       <code>x-newleaf-key-id</code>, <code>x-newleaf-timestamp</code>, and <code>x-newleaf-signature</code>.
-      A browser request without those headers returns "Missing service API credentials".
+      Browser requests without a Firebase token or vendor credentials are rejected.
     </section>
     <main id="swagger-ui"></main>
     <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
     <script>
       window.ui = SwaggerUIBundle({
-        url: '/api/v1/service/openapi.yaml',
+        url: '${specDataUrl}',
         dom_id: '#swagger-ui',
         deepLinking: true,
         layout: 'BaseLayout',

@@ -636,13 +636,13 @@ Other backend systems can submit text-to-HeyGen jobs without using admin credent
 
 Create vendor access from the **Vendors** page. The UI shows a `keyId` and one-time `signingSecret`. The calling backend signs every request with HMAC-SHA256 and sends `x-newleaf-key-id`, `x-newleaf-timestamp`, and `x-newleaf-signature`.
 
-Swagger docs:
+Protected Swagger docs:
 
 ```text
 http://localhost:8080/api/v1/service/docs
 ```
 
-Raw OpenAPI YAML:
+Protected raw OpenAPI YAML:
 
 ```text
 http://localhost:8080/api/v1/service/openapi.yaml

@@ -318,7 +318,8 @@ Rules:
 - return sanitized jobs, provider jobs, manifests, and artifacts; never return raw provider request payloads, API keys, OAuth tokens, local file paths, or full repository records;
 - expose service-owned artifact content only after checking the job belongs to the same service key fingerprint;
 - expose vendor documentation through `GET /api/v1/service/docs` and the raw OpenAPI contract through `GET /api/v1/service/openapi.yaml`;
-- keep docs routes public, but keep every operational service route protected by signed request headers;
+- protect docs routes with either an approved admin Firebase bearer token or valid vendor service credentials;
+- keep every operational service route protected by signed request headers;
 - keep a low default rate limit and move rate limiting to Firebase Hosting, Cloud Run, or API gateway ingress for production.
 
 The current text-to-HeyGen service endpoint is:
