@@ -1,0 +1,18 @@
+{
+  "name": "NewLeaf System",
+  "short_name": "NewLeaf",
+  "description": "Video automation and social publishing operations console.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f6f1",
+  "theme_color": "#0b2d23",
+  "icons": [
+    {
+      "src": "/default-thumbnail.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

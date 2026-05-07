@@ -146,6 +146,12 @@ export default function App({ session }) {
     setVendorCredentialResult(null);
   }
 
+  useEffect(() => {
+    document.title = activeView === "Dashboard"
+      ? "NewLeaf System | Video Automation Console"
+      : `${activeView} | NewLeaf System`;
+  }, [activeView]);
+
   function setSectionLoading(view, label) {
     setSectionLoaders((current) => ({
       ...current,

@@ -1,5 +1,4 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getAnalytics, isSupported as isAnalyticsSupported } from "firebase/analytics";
 import {
   getAuth,
   GoogleAuthProvider,
@@ -58,19 +57,4 @@ export async function getAuthToken() {
     return null;
   }
   return firebaseAuth.currentUser.getIdToken();
-}
-
-export async function initializeFirebaseAnalytics() {
-  if (!firebaseApp || !firebaseConfig?.measurementId) {
-    return null;
-  }
-
-  try {
-    if (await isAnalyticsSupported()) {
-      return getAnalytics(firebaseApp);
-    }
-  } catch (error) {
-    console.warn("Firebase Analytics was not initialized.", error.message);
-  }
-  return null;
 }

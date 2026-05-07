@@ -532,8 +532,11 @@ Firebase Hosting serves static crawler files from `apps/admin/public`:
 
 - `robots.txt` allows the public SPA shell while blocking `/api/`, Firebase auth internals, and sensitive admin utility routes.
 - `sitemap.xml` lists the primary console routes currently intended for discovery.
+- `site.webmanifest` provides browser install metadata and theme colors.
 
 The current sitemap canonical host is `https://newleaf-trading.web.app` because that Firebase Hosting domain is live. Update both files when the custom domain is fully resolving and should become canonical.
+
+The admin shell includes static SEO and social-preview metadata in `apps/admin/index.html`. Performance-sensitive code should keep the authenticated console lazy-loaded behind `AuthGate`, defer non-critical analytics work, and preserve Vite chunk splitting for React, Firebase, and vendor packages.
 
 ## API Highlights
 
