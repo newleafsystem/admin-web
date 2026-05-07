@@ -523,7 +523,8 @@ Use Published Videos to:
 - delete from a channel;
 - delete from all channels for a job;
 - view deleted records through filters;
-- sync existing supported channel videos into the library from each platform section.
+- sync existing supported channel videos into the library from each platform section;
+- republish YouTube library records to connected channels with new title, description, tags, hashtags, visibility, and schedule metadata.
 
 ## API Highlights
 
@@ -559,6 +560,8 @@ POST /api/v1/publications/delete
 POST /api/v1/publications/import/youtube
 POST /api/v1/publications/import/:platform
 ```
+
+`POST /api/v1/publish-plans` accepts `republishOfPublicationId` for explicit YouTube republish flows. That flag records the source publication in plan metadata and bypasses the duplicate-platform guard only for the new republish plan.
 
 Social accounts:
 

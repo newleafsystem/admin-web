@@ -2,9 +2,10 @@ import { useState } from "react";
 import { ProgressMeter, StatusBadge } from "../components/common.jsx";
 import { ThumbnailManager } from "../components/ThumbnailManager.jsx";
 import { ThumbnailImage } from "../components/ThumbnailImage.jsx";
-import { platformIdFromLabel, platformLabel } from "../utils.js";
+import { isConnectedAccount, platformIdFromLabel, platformLabel } from "../utils.js";
 
 export function PublishedVideos({
+  connectedAccounts,
   importPlatformChannelPublications,
   jobs,
   publicationDrafts,
@@ -13,6 +14,7 @@ export function PublishedVideos({
   requestJobPublicationsDelete,
   requestPublicationDelete,
   requestPublicationHype,
+  requestPublicationRepublish,
   savePublication,
   generateThumbnail,
   socialPlatforms,
@@ -23,6 +25,7 @@ export function PublishedVideos({
   const [recordFilter, setRecordFilter] = useState("active");
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
   const [metadataEditorId, setMetadataEditorId] = useState(null);
+  const [republishPublicationId, setRepublishPublicationId] = useState(null);
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
   const jobById = new Map(jobs.map((job) => [job.id, job]));
   const jobTitleById = new Map(jobs.map((job) => [job.id, job.title]));
@@ -51,8 +54,17 @@ export function PublishedVideos({
     setMetadataEditorId(publicationId);
   }
 
+  function openRepublishDialog(publicationId) {
+    setOpenActionMenuId(null);
+    setRepublishPublicationId(publicationId);
+  }
+
   function closeMetadataEditor() {
     setMetadataEditorId(null);
+  }
+
+  function closeRepublishDialog() {
+    setRepublishPublicationId(null);
   }
 
   function confirmDelete() {
@@ -207,6 +219,7 @@ export function PublishedVideos({
                         requestPublicationHype(publicationId);
                       }}
                       onOpenMetadata={openMetadataEditor}
+                      onOpenRepublish={openRepublishDialog}
                       onToggleMenu={() =>
                         setOpenActionMenuId((current) => (current === publication.id ? null : publication.id))
                       }
@@ -239,6 +252,17 @@ export function PublishedVideos({
           onUpdateMetadataField={updateMetadataField}
           onUploadThumbnail={uploadPublicationThumbnail}
           publication={publications.find((publication) => publication.id === metadataEditorId)}
+        />
+      )}
+
+      {republishPublicationId && (
+        <RepublishDialog
+          key={republishPublicationId}
+          onCancel={closeRepublishDialog}
+          onRepublish={requestPublicationRepublish}
+          publication={publications.find((publication) => publication.id === republishPublicationId)}
+          connectedAccounts={connectedAccounts}
+          socialPlatforms={socialPlatforms}
         />
       )}
     </div>
@@ -289,6 +313,10 @@ function publicationJob(publication, jobById) {
   };
 }
 
+function canRepublishPublication(publication) {
+  return publication?.status === "published" && platformIdFromLabel(publication.platform) === "youtube";
+}
+
 function publicationThumbnailMetadata(job) {
   return {
     thumbnailArtifactId: job?.thumbnail?.artifactId ?? null,
@@ -329,12 +357,14 @@ function ActivePublicationCard({
   onDelete,
   onHype,
   onOpenMetadata,
+  onOpenRepublish,
   onToggleMenu,
   publication,
   title
 }) {
   const hasProviderUrl = Boolean(publication.providerUrl);
   const isSaving = Boolean(draft.isSaving);
+  const canRepublish = canRepublishPublication(publication);
   const metaLine = [
     publication.account,
     publication.publishedAt ? `Published ${publication.publishedAt}` : `Updated ${publication.updatedAt ?? "Unknown"}`
@@ -372,6 +402,11 @@ function ActivePublicationCard({
             <button type="button" role="menuitem" onClick={() => onOpenMetadata(publication.id)}>
               Edit metadata
             </button>
+            {canRepublish && (
+              <button type="button" role="menuitem" onClick={() => onOpenRepublish(publication.id)}>
+                Republish
+              </button>
+            )}
             {channelCount > 1 && (
               <button
                 type="button"
@@ -431,7 +466,7 @@ function ActivePublicationCard({
           {publication.externalSource && <span>Imported</span>}
         </div>
 
-        <div className="video-card-actions">
+        <div className={`video-card-actions${canRepublish ? " with-republish" : ""}`}>
           {hasProviderUrl ? (
             <a className="button-link" href={publication.providerUrl} target="_blank" rel="noreferrer">
               Open
@@ -444,6 +479,11 @@ function ActivePublicationCard({
           <button type="button" disabled={isSaving} onClick={() => onOpenMetadata(publication.id)}>
             {isSaving ? "Saving..." : "Edit"}
           </button>
+          {canRepublish && (
+            <button type="button" className="primary" onClick={() => onOpenRepublish(publication.id)}>
+              Republish
+            </button>
+          )}
         </div>
 
         {publication.status !== "published" && <ProgressMeter progress={publication.progress} />}
@@ -493,6 +533,190 @@ function DeletedPublicationCard({ draft, publication, title }) {
       <ProgressMeter progress={publication.progress} />
       {draft.error && <p className="form-error">{draft.error}</p>}
     </article>
+  );
+}
+
+function RepublishDialog({ connectedAccounts = [], onCancel, onRepublish, publication, socialPlatforms }) {
+  const connectedPlatformIds = new Set(
+    connectedAccounts.filter(isConnectedAccount).map((account) => platformIdFromLabel(account.platform))
+  );
+  const destinationPlatforms = socialPlatforms.filter(
+    (platform) => platform.publisherEnabled && connectedPlatformIds.has(platform.id)
+  );
+  const [draft, setDraft] = useState(() => ({
+    title: publication?.title ?? "",
+    description: publication?.description ?? "",
+    privacyStatus:
+      publication?.privacyStatus && publication.privacyStatus !== "unknown" ? publication.privacyStatus : "public",
+    tagsText: publication?.tags?.join(", ") ?? "",
+    hashtagsText: (publication?.hashtags ?? []).map((tag) => `#${String(tag).replace(/^#+/, "")}`).join(", "),
+    scheduledAt: "",
+    platforms: destinationPlatforms.map((platform) => platform.id),
+    isSubmitting: false,
+    error: null
+  }));
+
+  if (!publication) {
+    return null;
+  }
+
+  const canSubmit = Boolean(
+    draft.platforms.length > 0 &&
+      String(draft.title ?? "").trim() &&
+      String(draft.description ?? "").trim() &&
+      !draft.isSubmitting
+  );
+
+  function updateDraft(patch) {
+    setDraft((current) => ({
+      ...current,
+      ...patch,
+      error: null
+    }));
+  }
+
+  function toggleDestination(platformId) {
+    setDraft((current) => ({
+      ...current,
+      platforms: current.platforms.includes(platformId)
+        ? current.platforms.filter((candidate) => candidate !== platformId)
+        : [...current.platforms, platformId],
+      error: null
+    }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!canSubmit) {
+      updateDraft({ error: "Select destinations and enter publication metadata." });
+      return;
+    }
+    setDraft((current) => ({ ...current, isSubmitting: true, error: null }));
+    try {
+      await onRepublish(publication, {
+        platforms: draft.platforms,
+        scheduledAt: draft.scheduledAt,
+        title: draft.title,
+        description: draft.description,
+        privacyStatus: draft.privacyStatus,
+        tags: parseDelimitedList(draft.tagsText),
+        hashtags: parseDelimitedList(draft.hashtagsText).map((hashtag) => hashtag.replace(/^#+/, ""))
+      });
+      onCancel();
+    } catch (error) {
+      setDraft((current) => ({ ...current, isSubmitting: false, error: error.message }));
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
+      <section
+        aria-labelledby="republish-dialog-title"
+        aria-modal="true"
+        className="modal-dialog republish-dialog"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="modal-header">
+          <div>
+            <h2 id="republish-dialog-title">Republish Video</h2>
+            <span className="muted">{publication.title}</span>
+          </div>
+          <button aria-label="Close republish dialog" className="modal-close" type="button" onClick={onCancel}>
+            x
+          </button>
+        </div>
+
+        <form className="republish-form" onSubmit={submit}>
+          <div className="destination-grid" aria-label="Republish destinations">
+            {destinationPlatforms.length === 0 ? (
+              <div className="empty-inline destination-empty">No connected publishing channels are available.</div>
+            ) : (
+              destinationPlatforms.map((platform) => (
+                <label className="check-row" key={platform.id}>
+                  <input
+                    checked={draft.platforms.includes(platform.id)}
+                    disabled={draft.isSubmitting}
+                    type="checkbox"
+                    onChange={() => toggleDestination(platform.id)}
+                  />
+                  <span>{platform.label}</span>
+                </label>
+              ))
+            )}
+          </div>
+
+          <div className="publication-fields metadata-dialog-fields">
+            <label>
+              Title
+              <input
+                value={draft.title}
+                disabled={draft.isSubmitting}
+                onChange={(event) => updateDraft({ title: event.target.value })}
+              />
+            </label>
+            <label>
+              Visibility
+              <select
+                value={draft.privacyStatus}
+                disabled={draft.isSubmitting}
+                onChange={(event) => updateDraft({ privacyStatus: event.target.value })}
+              >
+                <option value="private">Private</option>
+                <option value="public">Public</option>
+                <option value="unlisted">Unlisted</option>
+              </select>
+            </label>
+            <label>
+              Tags
+              <input
+                value={draft.tagsText}
+                disabled={draft.isSubmitting}
+                placeholder="tag1, tag2"
+                onChange={(event) => updateDraft({ tagsText: event.target.value })}
+              />
+            </label>
+            <label>
+              Hashtags
+              <input
+                value={draft.hashtagsText}
+                disabled={draft.isSubmitting}
+                placeholder="#newleaf, #markets"
+                onChange={(event) => updateDraft({ hashtagsText: event.target.value })}
+              />
+            </label>
+            <label>
+              Schedule
+              <input
+                type="datetime-local"
+                value={draft.scheduledAt}
+                disabled={draft.isSubmitting}
+                onChange={(event) => updateDraft({ scheduledAt: event.target.value })}
+              />
+            </label>
+            <label className="publication-description">
+              Description
+              <textarea
+                value={draft.description}
+                disabled={draft.isSubmitting}
+                onChange={(event) => updateDraft({ description: event.target.value })}
+              />
+            </label>
+          </div>
+
+          {draft.error && <p className="form-error">{draft.error}</p>}
+
+          <div className="modal-actions">
+            <button type="button" disabled={draft.isSubmitting} onClick={onCancel}>
+              Cancel
+            </button>
+            <button type="submit" className="primary" disabled={!canSubmit}>
+              {draft.isSubmitting ? "Republishing..." : "Republish"}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
   );
 }
 

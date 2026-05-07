@@ -945,6 +945,7 @@ export default function App({ session }) {
     if (!draft && !overrides) return;
     updatePublicationDraft(publicationId, { isSaving: true });
     setActionError(null);
+    let auditFields = [];
     try {
       const updated = await withSectionLoader("Published Videos", "Saving publication metadata...", async () => {
         const payload =
@@ -960,13 +961,14 @@ export default function App({ session }) {
         if (!overrides && draft.privacyStatus && draft.privacyStatus !== "unknown") {
           payload.privacyStatus = draft.privacyStatus;
         }
+        auditFields = Object.keys(payload);
         return updatePublication(publicationId, payload);
       });
       applyPublicationUpdate(updated);
       setAuditEvents((current) =>
         addAuditEvent(current, "update_publication", publicationId, currentActor(session), {
           publicationId,
-          updatedFields: Object.keys(payload),
+          updatedFields: auditFields,
           platform: updated.platform,
           status: updated.status
         })
@@ -976,6 +978,71 @@ export default function App({ session }) {
       updatePublicationDraft(publicationId, { isSaving: false, error: error.message });
       throw error;
     }
+  }
+
+  async function requestPublicationRepublish(publication, payload) {
+    if (!publication?.id || !publication.jobId) {
+      throw new Error("Select a YouTube publication before republishing.");
+    }
+    const platforms = Array.from(new Set((payload.platforms ?? []).map((platform) => String(platform).toLowerCase())));
+    if (platforms.length === 0) {
+      throw new Error("Select at least one republish destination.");
+    }
+    const title = String(payload.title ?? "").trim();
+    const description = String(payload.description ?? "").trim();
+    if (!title || !description) {
+      throw new Error("Enter a title and description before republishing.");
+    }
+
+    setActionError(null);
+    const metadata = {
+      title,
+      description,
+      tags: payload.tags ?? [],
+      hashtags: payload.hashtags ?? []
+    };
+    if (payload.privacyStatus && payload.privacyStatus !== "unknown") {
+      metadata.privacyStatus = payload.privacyStatus;
+    }
+
+    const plan = await withSectionLoader("Published Videos", "Preparing republish...", () =>
+      createPublishPlan({
+        jobId: publication.jobId,
+        platforms,
+        scheduledAt: payload.scheduledAt || null,
+        republishOfPublicationId: publication.id,
+        metadata
+      })
+    );
+    await withSectionLoader("Published Videos", "Approving republish...", () => approvePublishPlan(plan.id));
+    const shouldPublishNow = !isFutureSchedule(payload.scheduledAt);
+    let publishResult = null;
+    if (shouldPublishNow) {
+      publishResult = await withSectionLoader("Published Videos", "Publishing to selected channels...", () =>
+        publishPlan(plan.id)
+      );
+    }
+    setPublishPlans(await withSectionLoader("Published Videos", "Refreshing publishing state...", fetchPublishPlans));
+    setJobs(await withSectionLoader("Published Videos", "Refreshing video queue...", fetchJobs));
+    const refreshedPublications = await withSectionLoader(
+      "Published Videos",
+      "Refreshing published videos...",
+      fetchPublications
+    );
+    setPublications(refreshedPublications);
+    setPublicationDrafts(buildPublicationDrafts(refreshedPublications));
+    setAuditEvents((current) =>
+      addAuditEvent(current, shouldPublishNow ? "republish_video" : "schedule_republish", publication.id, currentActor(session), {
+        title,
+        platforms,
+        scheduledAt: payload.scheduledAt || "Not scheduled",
+        sourcePlatform: publication.platform,
+        sourceProviderPostId: publication.providerPostId ?? null,
+        planId: plan.id,
+        attempts: publishResult?.attempts?.length ?? 0
+      })
+    );
+    return { plan, publishResult };
   }
 
   async function requestPublicationDelete(publicationId) {
@@ -1478,6 +1545,7 @@ export default function App({ session }) {
 
             {activeView === "Published Videos" && (
               <PublishedVideos
+                connectedAccounts={connectedAccounts}
                 jobs={jobs}
                 importPlatformChannelPublications={importPlatformChannelPublications}
                 publicationImportWorkflow={publicationImportWorkflow}
@@ -1486,6 +1554,7 @@ export default function App({ session }) {
                 requestJobPublicationsDelete={requestJobPublicationsDelete}
                 requestPublicationDelete={requestPublicationDelete}
                 requestPublicationHype={requestPublicationHype}
+                requestPublicationRepublish={requestPublicationRepublish}
                 savePublication={savePublication}
                 generateThumbnail={generateThumbnail}
                 socialPlatforms={socialPlatforms}

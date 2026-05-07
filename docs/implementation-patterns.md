@@ -462,11 +462,13 @@ Active records should show video cards with:
 - provider URL action;
 - visibility control where supported;
 - editable title, description, tags, hashtags, and thumbnail controls;
-- `...` action menu for delete and hype actions.
+- `...` action menu for delete, hype, and YouTube republish actions.
 
 Deleted records should be available through filters and should read as audit records.
 
 Sync controls belong inside each platform section. For example, YouTube channel import appears in the YouTube section, not in the Published Library toolbar.
+
+YouTube published records may start a republish flow from the card. The UI should collect destination channels, schedule, and replacement metadata in one modal, then create a publish plan with `republishOfPublicationId`. Only explicit republish plans may bypass the normal duplicate-platform guard; standard publishing must continue blocking accidental reposts to already-published or active platforms.
 
 ## Content Queue Archive Pattern
 

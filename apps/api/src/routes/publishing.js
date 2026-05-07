@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import { canTransition } from '../services/jobStateService.js';
 import {
   optionalObject,
   optionalNumber,
@@ -69,10 +70,17 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
     requireRole('admin', 'publisher'),
     asyncHandler(async (req, res) => {
       const body = requireObject(req.body);
-      rejectUnknownFields(body, ['jobId', 'platforms', 'metadata', 'scheduledAt']);
+      rejectUnknownFields(body, ['jobId', 'platforms', 'metadata', 'scheduledAt', 'republishOfPublicationId']);
       const jobId = requireString(body, 'jobId', { maxLength: 200 });
       const job = await repository.getJob(jobId);
       if (!job) throw notFound('Job not found', { jobId });
+      const republishSourceAttemptId = optionalString(body, 'republishOfPublicationId', {
+        maxLength: 200,
+        defaultValue: null,
+      });
+      const republishSource = republishSourceAttemptId
+        ? await validateRepublishSource(repository, { sourceAttemptId: republishSourceAttemptId, jobId })
+        : null;
 
       const platforms = Array.from(
         new Set(optionalStringArray(body, 'platforms', { minItems: 1, maxItems: 10 }).map((platform) => platform.toLowerCase())),
@@ -100,14 +108,19 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
         });
       }
 
-      const unavailable = await findUnavailablePublishPlatforms(repository, { jobId, platforms });
-      if (unavailable.length > 0) {
-        throw conflict('Publish plan contains platforms already published, planned, or in progress for this job', {
-          unavailable,
-        });
+      if (!republishSource) {
+        const unavailable = await findUnavailablePublishPlatforms(repository, { jobId, platforms });
+        if (unavailable.length > 0) {
+          throw conflict('Publish plan contains platforms already published, planned, or in progress for this job', {
+            unavailable,
+          });
+        }
       }
 
-      const metadata = normalizePublishMetadata(optionalObject(body, 'metadata', { defaultValue: {} }));
+      const metadata = {
+        ...normalizePublishMetadata(optionalObject(body, 'metadata', { defaultValue: {} })),
+        ...(republishSource ? republishMetadataForSource(republishSource, req.user.uid) : {}),
+      };
       const plan = await repository.createPublishPlan({
         jobId,
         platforms,
@@ -162,11 +175,15 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
       const job = await repository.getJob(plan.jobId);
       if (!job) throw notFound('Job not found', { jobId: plan.jobId });
       validatePublishMetadata(plan.metadata);
-      if (!['approved', 'partial_failed', 'publishing'].includes(job.status)) {
+      const isRepublish = isRepublishPlan(plan);
+      const allowedJobStatuses = isRepublish
+        ? ['approved', 'partial_failed', 'publishing', 'published']
+        : ['approved', 'partial_failed', 'publishing'];
+      if (!allowedJobStatuses.includes(job.status)) {
         throw conflict('Job must be approved before publishing can start', {
           jobId: job.id,
           status: job.status,
-          allowed: ['approved', 'partial_failed', 'publishing'],
+          allowed: allowedJobStatuses,
         });
       }
       const enabledPublishPlatforms = getEnabledPublishPlatforms(publisherService);
@@ -185,19 +202,21 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
         });
       }
 
-      const unavailable = await findUnavailablePublishPlatforms(repository, {
-        jobId: plan.jobId,
-        platforms: plan.platforms,
-        ignorePlanId: plan.id,
-      });
-      if (unavailable.length > 0) {
-        throw conflict('Cannot publish to platforms already published, planned, or in progress for this job', {
-          unavailable,
+      if (!isRepublish) {
+        const unavailable = await findUnavailablePublishPlatforms(repository, {
+          jobId: plan.jobId,
+          platforms: plan.platforms,
+          ignorePlanId: plan.id,
         });
+        if (unavailable.length > 0) {
+          throw conflict('Cannot publish to platforms already published, planned, or in progress for this job', {
+            unavailable,
+          });
+        }
       }
 
       const updatedPlan = await repository.updatePublishPlan(plan.id, { status: 'publishing' });
-      if (job.status !== 'publishing') {
+      if (job.status !== 'publishing' && canTransition(job.status, 'publishing')) {
         await jobStateService.transitionJob(job.id, 'publishing', {
           actorUid: req.user.uid,
           reason: 'publish_plan',
@@ -593,6 +612,51 @@ function normalizePublishMetadata(metadata) {
     hashtags: normalizeMetadataList(metadata.hashtags, { maxItems: 30 }).map((hashtag) => hashtag.replace(/^#+/, '')),
   };
   return normalized;
+}
+
+async function validateRepublishSource(repository, { sourceAttemptId, jobId }) {
+  const source = await repository.getPublishAttempt(sourceAttemptId);
+  if (!source) throw notFound('Source publication not found', { attemptId: sourceAttemptId });
+  if (source.jobId !== jobId) {
+    throw badRequest('Republish source must belong to the selected video', {
+      sourceAttemptId,
+      sourceJobId: source.jobId,
+      jobId,
+    });
+  }
+  if (source.platform !== 'youtube') {
+    throw badRequest('Only YouTube publications can be used as a republish source', {
+      sourceAttemptId,
+      platform: source.platform,
+    });
+  }
+  if (source.status !== 'published') {
+    throw conflict('Only published YouTube records can be republished', {
+      sourceAttemptId,
+      status: source.status,
+    });
+  }
+  if (!source.providerPostId && !source.providerUrl) {
+    throw conflict('Source YouTube publication is missing provider identifiers', {
+      sourceAttemptId,
+    });
+  }
+  return source;
+}
+
+function republishMetadataForSource(source, actorUid) {
+  return {
+    republishSourceAttemptId: source.id,
+    republishSourcePlatform: source.platform,
+    republishSourceProviderPostId: source.providerPostId ?? null,
+    republishSourceProviderUrl: source.providerUrl ?? source.metadata?.providerUrl ?? null,
+    republishRequestedAt: new Date().toISOString(),
+    republishRequestedBy: actorUid,
+  };
+}
+
+function isRepublishPlan(plan) {
+  return Boolean(plan?.metadata?.republishSourceAttemptId);
 }
 
 function validatePublishMetadata(metadata = {}) {
