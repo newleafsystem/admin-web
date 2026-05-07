@@ -1410,8 +1410,10 @@ export default function App({ session }) {
 
             {activeView === "Dashboard" && (
               <Dashboard
+                connectedAccounts={connectedAccounts}
                 jobs={jobs}
                 metrics={metrics}
+                publications={publications}
                 publishPlans={publishPlans}
                 setActiveView={setActiveView}
                 setSelectedJobId={setSelectedJobId}
