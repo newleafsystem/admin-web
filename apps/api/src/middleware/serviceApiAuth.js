@@ -130,9 +130,22 @@ function readApiKey(req) {
     return direct.trim();
   }
 
-  const authorization = req.get('authorization') ?? '';
-  const match = authorization.match(/^Bearer\s+(.+)$/i);
-  return match?.[1]?.trim() || null;
+  return readBearerToken(req.get('authorization'));
+}
+
+function readBearerToken(authorization) {
+  const header = String(authorization ?? '').trim();
+  if (header.length <= 'Bearer '.length || header.slice(0, 6).toLowerCase() !== 'bearer') {
+    return null;
+  }
+
+  const separator = header[6];
+  if (separator !== ' ' && separator !== '\t') {
+    return null;
+  }
+
+  const token = header.slice(7).trim();
+  return token || null;
 }
 
 export function buildServiceSignaturePayload({ method, originalUrl, timestamp, rawBody }) {

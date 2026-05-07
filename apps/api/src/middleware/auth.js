@@ -15,9 +15,8 @@ export function authenticateRequest(options = {}) {
         return next();
       }
 
-      const authorization = req.get('authorization') ?? '';
-      const match = authorization.match(/^Bearer\s+(.+)$/i);
-      if (!match) {
+      const bearerToken = readBearerToken(req.get('authorization'));
+      if (!bearerToken) {
         throw unauthorized('Missing bearer token');
       }
 
@@ -26,7 +25,7 @@ export function authenticateRequest(options = {}) {
         throw unauthorized('Firebase Auth is not configured');
       }
 
-      const decodedToken = await auth.verifyIdToken(match[1]);
+      const decodedToken = await auth.verifyIdToken(bearerToken);
       const user = await userAccessService.ensureAuthenticatedUser({
         uid: decodedToken.uid,
         email: decodedToken.email ?? null,
@@ -108,7 +107,7 @@ export function authenticateUserOrService(options = {}) {
 }
 
 function hasBearerToken(req) {
-  return /^Bearer\s+.+$/i.test(req.get('authorization') ?? '');
+  return Boolean(readBearerToken(req.get('authorization')));
 }
 
 function hasExplicitServiceCredentials(req) {
@@ -151,4 +150,19 @@ function restoreAuthState(req, snapshot) {
   } else {
     req.serviceClient = snapshot.serviceClient;
   }
+}
+
+function readBearerToken(authorization) {
+  const header = String(authorization ?? '').trim();
+  if (header.length <= 'Bearer '.length || header.slice(0, 6).toLowerCase() !== 'bearer') {
+    return null;
+  }
+
+  const separator = header[6];
+  if (separator !== ' ' && separator !== '\t') {
+    return null;
+  }
+
+  const token = header.slice(7).trim();
+  return token || null;
 }

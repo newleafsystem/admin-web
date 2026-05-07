@@ -42,9 +42,7 @@ export function createAssetsRouter({ repository }) {
     requireRole('admin', 'editor'),
     raw({ type: '*/*', limit: '500mb' }),
     asyncHandler(async (req, res) => {
-      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
-        throw badRequest('Upload body must contain file bytes');
-      }
+      const uploadBuffer = readUploadBuffer(req.body);
 
       const jobId = requireString(req.query, 'jobId', { maxLength: 200 });
       const job = await repository.getJob(jobId);
@@ -65,7 +63,7 @@ export function createAssetsRouter({ repository }) {
         const storageKey = buildObjectStorageKey({ jobId, kind, filename });
         const stored = await uploadBufferToObjectStorage({
           storageKey,
-          buffer: req.body,
+          buffer: uploadBuffer,
           mimeType,
         });
         const artifact = await repository.createArtifact({
@@ -97,7 +95,7 @@ export function createAssetsRouter({ repository }) {
       }
 
       await fsp.mkdir(path.dirname(filePath), { recursive: true });
-      await fsp.writeFile(filePath, req.body);
+      await fsp.writeFile(filePath, uploadBuffer);
 
       const artifact = await repository.createArtifact({
         jobId,
@@ -105,7 +103,7 @@ export function createAssetsRouter({ repository }) {
         storageProvider: 'local-disk',
         storageKey,
         mimeType,
-        sizeBytes: req.body.length,
+        sizeBytes: uploadBuffer.length,
         metadata: {
           filename,
           localPath: filePath,
@@ -256,6 +254,13 @@ export function createAssetsRouter({ repository }) {
   );
 
   return router;
+}
+
+function readUploadBuffer(value) {
+  if (!Buffer.isBuffer(value) || value.length === 0) {
+    throw badRequest('Upload body must contain file bytes');
+  }
+  return Buffer.from(value);
 }
 
 function safePathSegment(value) {
