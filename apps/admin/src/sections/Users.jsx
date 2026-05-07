@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { StatusBadge } from "../components/common.jsx";
+import { ModalShell, StatusBadge } from "../components/common.jsx";
 
 const ROLE_OPTIONS = ["admin", "anonymous"];
 
@@ -111,14 +111,7 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
 
 function DeleteUserDialog({ user, onCancel, onConfirm }) {
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        aria-labelledby="delete-user-title"
-        aria-modal="true"
-        className="modal-dialog confirm-dialog"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <ModalShell className="confirm-dialog" labelledBy="delete-user-title" onClose={onCancel}>
         <div className="modal-header">
           <div>
             <h2 id="delete-user-title">Remove User Access</h2>
@@ -141,7 +134,6 @@ function DeleteUserDialog({ user, onCancel, onConfirm }) {
             Remove access
           </button>
         </div>
-      </section>
-    </div>
+    </ModalShell>
   );
 }

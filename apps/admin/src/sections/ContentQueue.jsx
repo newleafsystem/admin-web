@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { StatusBadge } from "../components/common.jsx";
+import { useMemo, useState } from "react";
+import { ModalShell, StatusBadge } from "../components/common.jsx";
 import { ThumbnailManager } from "../components/ThumbnailManager.jsx";
 import { formatDuration, isReviewableJob } from "../utils.js";
 import { PublishingPlans } from "./PublishingPlans.jsx";
@@ -45,21 +45,6 @@ export function ContentQueue({
   const scopedPublications = selectedJob
     ? publications.filter((publication) => publication.jobId === selectedJob.id)
     : publications;
-
-  useEffect(() => {
-    if (!detailJobId) {
-      return undefined;
-    }
-
-    function closeOnEscape(event) {
-      if (event.key === "Escape") {
-        setDetailJobId(null);
-      }
-    }
-
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [detailJobId]);
 
   function openJobDetails(jobId) {
     setSelectedJobId(jobId);
@@ -248,14 +233,7 @@ function ContentJobDetailsModal({
   ].includes(job.status);
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
-      <section
-        aria-labelledby="content-job-details-title"
-        aria-modal="true"
-        className="modal-dialog"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <ModalShell labelledBy="content-job-details-title" onClose={onClose}>
         <div className="modal-header">
           <div>
             <p className="eyebrow">Video</p>
@@ -319,7 +297,6 @@ function ContentJobDetailsModal({
             </button>
           )}
         </div>
-      </section>
-    </div>
+    </ModalShell>
   );
 }

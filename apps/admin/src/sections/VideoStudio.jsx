@@ -7,6 +7,7 @@ import {
   updateVideoStudioTimeline,
   uploadVideoStudioAsset
 } from "../api.js";
+import { ModalShell } from "../components/common.jsx";
 
 const DEFAULT_FORM = {
   projectId: "newleaf-homepage-demo",
@@ -522,16 +523,16 @@ function AssetRow({ disabled, label, onDelete, track }) {
 
 function DeleteStudioConfirmationDialog({ confirmation, isDeleting, onCancel, onConfirm }) {
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={isDeleting ? undefined : onCancel}>
-      <div
-        aria-modal="true"
-        className="modal-dialog confirm-dialog"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <ModalShell
+      className="confirm-dialog"
+      closeOnBackdrop={!isDeleting}
+      closeOnEscape={!isDeleting}
+      labelledBy="delete-studio-title"
+      onClose={onCancel}
+    >
         <div className="modal-header">
           <div>
-            <h2>{confirmation.title}</h2>
+            <h2 id="delete-studio-title">{confirmation.title}</h2>
             <span className="muted">{confirmation.detail}</span>
           </div>
           <button aria-label="Close confirmation" className="modal-close" type="button" disabled={isDeleting} onClick={onCancel}>
@@ -551,8 +552,7 @@ function DeleteStudioConfirmationDialog({ confirmation, isDeleting, onCancel, on
             {isDeleting ? "Deleting..." : "Delete"}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }
 

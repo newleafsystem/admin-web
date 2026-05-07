@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { statusText } from "../constants.js";
 import { API_BASE_URL } from "../config.js";
 
@@ -72,6 +73,135 @@ export function ProgressMeter({ progress }) {
       </div>
     </div>
   );
+}
+
+export function ModalShell({
+  children,
+  className = "",
+  closeOnBackdrop = true,
+  closeOnEscape = true,
+  labelledBy,
+  onClose
+}) {
+  const dialogRef = useRef(null);
+  const previousFocusRef = useRef(null);
+
+  useEffect(() => {
+    previousFocusRef.current = document.activeElement;
+    window.setTimeout(() => dialogRef.current?.focus(), 0);
+
+    return () => {
+      const previousFocus = previousFocusRef.current;
+      if (previousFocus && typeof previousFocus.focus === "function") {
+        previousFocus.focus();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!closeOnEscape) {
+      return undefined;
+    }
+
+    function closeWithEscape(event) {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        onClose?.();
+      }
+    }
+
+    window.addEventListener("keydown", closeWithEscape);
+    return () => window.removeEventListener("keydown", closeWithEscape);
+  }, [closeOnEscape, onClose]);
+
+  function closeFromBackdrop(event) {
+    if (closeOnBackdrop && event.target === event.currentTarget) {
+      onClose?.();
+    }
+  }
+
+  function trapFocus(event) {
+    if (event.key !== "Tab") {
+      return;
+    }
+    const dialog = dialogRef.current;
+    if (!dialog) {
+      return;
+    }
+    const focusable = dialog.querySelectorAll(
+      [
+        "a[href]",
+        "button:not([disabled])",
+        "input:not([disabled])",
+        "select:not([disabled])",
+        "textarea:not([disabled])",
+        "[tabindex]:not([tabindex='-1'])"
+      ].join(", ")
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) {
+      event.preventDefault();
+      dialog.focus();
+      return;
+    }
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={closeFromBackdrop}>
+      <section
+        aria-labelledby={labelledBy}
+        aria-modal="true"
+        className={`modal-dialog ${className}`.trim()}
+        ref={dialogRef}
+        role="dialog"
+        tabIndex={-1}
+        onKeyDown={trapFocus}
+      >
+        {children}
+      </section>
+    </div>
+  );
+}
+
+export function useCloseOnOutside(active, onClose) {
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!active) {
+      return undefined;
+    }
+
+    function closeFromOutside(event) {
+      if (rootRef.current && !rootRef.current.contains(event.target)) {
+        onClose?.();
+      }
+    }
+
+    function closeWithEscape(event) {
+      if (event.key === "Escape") {
+        onClose?.();
+      }
+    }
+
+    document.addEventListener("pointerdown", closeFromOutside, true);
+    window.addEventListener("keydown", closeWithEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeFromOutside, true);
+      window.removeEventListener("keydown", closeWithEscape);
+    };
+  }, [active, onClose]);
+
+  return rootRef;
 }
 
 function uploadBytesLabel(progress) {

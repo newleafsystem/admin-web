@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { SummaryBlock, VideoPlayer } from "../components/common.jsx";
+import { ModalShell, SummaryBlock, VideoPlayer } from "../components/common.jsx";
 import { ThumbnailManager } from "../components/ThumbnailManager.jsx";
 
 export function ReviewWorkspace({
@@ -313,14 +313,13 @@ function getEditableScriptText(job) {
 
 function DeleteReviewConfirmationDialog({ confirmation, isDeleting, onCancel, onConfirm }) {
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={isDeleting ? undefined : onCancel}>
-      <section
-        aria-labelledby="delete-review-title"
-        aria-modal="true"
-        className="modal-dialog confirm-dialog"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <ModalShell
+      className="confirm-dialog"
+      closeOnBackdrop={!isDeleting}
+      closeOnEscape={!isDeleting}
+      labelledBy="delete-review-title"
+      onClose={onCancel}
+    >
         <div className="modal-header">
           <div>
             <h2 id="delete-review-title">Delete Review Video</h2>
@@ -353,7 +352,6 @@ function DeleteReviewConfirmationDialog({ confirmation, isDeleting, onCancel, on
             {isDeleting ? "Deleting..." : "Delete review"}
           </button>
         </div>
-      </section>
-    </div>
+    </ModalShell>
   );
 }

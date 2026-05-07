@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ProgressMeter, StatusBadge } from "../components/common.jsx";
+import { ModalShell, ProgressMeter, StatusBadge, useCloseOnOutside } from "../components/common.jsx";
 import { ThumbnailManager } from "../components/ThumbnailManager.jsx";
 import { ThumbnailImage } from "../components/ThumbnailImage.jsx";
 import { isConnectedAccount, platformIdFromLabel, platformLabel } from "../utils.js";
@@ -365,6 +365,7 @@ function ActivePublicationCard({
   const hasProviderUrl = Boolean(publication.providerUrl);
   const isSaving = Boolean(draft.isSaving);
   const canRepublish = canRepublishPublication(publication);
+  const menuRef = useCloseOnOutside(isMenuOpen, onCloseMenu);
   const metaLine = [
     publication.account,
     publication.publishedAt ? `Published ${publication.publishedAt}` : `Updated ${publication.updatedAt ?? "Unknown"}`
@@ -373,8 +374,8 @@ function ActivePublicationCard({
     .join(" - ");
 
   return (
-    <article className="video-library-card">
-      <div className="video-card-menu">
+    <article className={`video-library-card${isMenuOpen ? " menu-open" : ""}`}>
+      <div className="video-card-menu" ref={menuRef}>
         <button
           aria-expanded={isMenuOpen}
           aria-haspopup="menu"
@@ -609,14 +610,13 @@ function RepublishDialog({ connectedAccounts = [], onCancel, onRepublish, public
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        aria-labelledby="republish-dialog-title"
-        aria-modal="true"
-        className="modal-dialog republish-dialog"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <ModalShell
+      className="republish-dialog"
+      closeOnBackdrop={!draft.isSubmitting}
+      closeOnEscape={!draft.isSubmitting}
+      labelledBy="republish-dialog-title"
+      onClose={onCancel}
+    >
         <div className="modal-header">
           <div>
             <h2 id="republish-dialog-title">Republish Video</h2>
@@ -715,8 +715,7 @@ function RepublishDialog({ connectedAccounts = [], onCancel, onRepublish, public
             </button>
           </div>
         </form>
-      </section>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -752,14 +751,13 @@ function MetadataEditorDialog({
   }
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        aria-labelledby="metadata-editor-title"
-        aria-modal="true"
-        className="modal-dialog publication-metadata-dialog"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <ModalShell
+      className="publication-metadata-dialog"
+      closeOnBackdrop={!isSaving}
+      closeOnEscape={!isSaving}
+      labelledBy="metadata-editor-title"
+      onClose={onCancel}
+    >
         <div className="modal-header">
           <div>
             <h2 id="metadata-editor-title">Edit Publication</h2>
@@ -841,8 +839,7 @@ function MetadataEditorDialog({
             {isSaving ? "Saving..." : "Save metadata"}
           </button>
         </div>
-      </section>
-    </div>
+    </ModalShell>
   );
 }
 
@@ -850,14 +847,7 @@ function DeleteConfirmationDialog({ confirmation, onCancel, onConfirm }) {
   const isBulkDelete = confirmation.scope === "all";
 
   return (
-    <div className="modal-backdrop" role="presentation" onMouseDown={onCancel}>
-      <section
-        aria-labelledby="delete-publication-title"
-        aria-modal="true"
-        className="modal-dialog confirm-dialog"
-        role="dialog"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
+    <ModalShell className="confirm-dialog" labelledBy="delete-publication-title" onClose={onCancel}>
         <div className="modal-header">
           <div>
             <h2 id="delete-publication-title">
@@ -884,8 +874,7 @@ function DeleteConfirmationDialog({ confirmation, onCancel, onConfirm }) {
             {isBulkDelete ? "Delete from all channels" : "Delete from channel"}
           </button>
         </div>
-      </section>
-    </div>
+    </ModalShell>
   );
 }
 
