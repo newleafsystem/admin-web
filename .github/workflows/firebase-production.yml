@@ -4,6 +4,13 @@ on:
   push:
     branches:
       - main
+    paths:
+      - '.firebaserc'
+      - 'apps/admin/**'
+      - 'firebase.json'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/build-firebase-hosting.js'
   workflow_dispatch:
 
 concurrency:

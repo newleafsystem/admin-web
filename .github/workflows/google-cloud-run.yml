@@ -4,6 +4,16 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'apps/api/**'
+      - 'docs/service-api-openapi.yaml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'packages/video-assembler/**'
+      - 'scripts/setup-google-cloud-run-api.sh'
+      - 'scripts/setup-google-cloud-run-renderer.sh'
+      - 'services/api/**'
+      - 'services/media-renderer/**'
   workflow_dispatch:
     inputs:
       deploy_api:
@@ -102,7 +112,7 @@ jobs:
             exit 0
           fi
 
-          api=true
+          api=false
           renderer=false
           before="${{ github.event.before }}"
           if [[ -z "$before" || "$before" =~ ^0+$ ]]; then
@@ -121,7 +131,11 @@ jobs:
 
           changed_files="$(git diff --name-only "$before" "${{ github.sha }}")"
 
-          if echo "$changed_files" | grep -Eq '^(services/media-renderer/|scripts/setup-google-cloud-run-renderer\.sh)'; then
+          if echo "$changed_files" | grep -Eq '^(apps/api/|docs/service-api-openapi\.yaml|package\.json|package-lock\.json|packages/video-assembler/|scripts/setup-google-cloud-run-api\.sh|services/api/)'; then
+            api=true
+          fi
+
+          if echo "$changed_files" | grep -Eq '^(package\.json|package-lock\.json|scripts/setup-google-cloud-run-renderer\.sh|services/media-renderer/)'; then
             renderer=true
           fi
 

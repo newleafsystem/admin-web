@@ -378,10 +378,11 @@ The sync script refuses to push `localhost` or `127.0.0.1` URLs to Cloud Run unl
 
 Deploy lifecycle:
 
-- Pull requests create Firebase Hosting preview channels through `.github/workflows/firebase-hosting-pull-request.yml`.
-- `main` deploys Firebase Hosting production through `.github/workflows/firebase-production.yml`.
-- `main` deploys the Cloud Run API through `.github/workflows/google-cloud-run.yml`.
-- `main` deploys the FFmpeg renderer only when `services/media-renderer/` or its deploy script changes.
+- Pull requests create Firebase Hosting preview channels through `.github/workflows/firebase-hosting-pull-request.yml` only when admin UI or hosting-related files change.
+- `main` deploys Firebase Hosting production through `.github/workflows/firebase-production.yml` only when admin UI or hosting-related files change.
+- `main` deploys the Cloud Run API through `.github/workflows/google-cloud-run.yml` only when API service files, API container files, API deploy scripts, `packages/video-assembler/`, or shared npm manifests change.
+- `main` deploys the FFmpeg renderer through `.github/workflows/google-cloud-run.yml` only when renderer service files, the renderer deploy script, or shared npm manifests change.
+- Frontend-only pushes do not trigger Cloud Run deployment, and API-only pushes do not trigger Firebase Hosting deployment.
 - Cloud Run deployments can still be run manually from `.github/workflows/google-cloud-run.yml` or local scripts when you need a selective API or renderer rollout.
 - CodeQL scans JavaScript/TypeScript through `.github/workflows/codeql.yml`.
 
