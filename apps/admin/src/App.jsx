@@ -1417,6 +1417,7 @@ export default function App({ session }) {
                 publishPlans={publishPlans}
                 setActiveView={setActiveView}
                 setSelectedJobId={setSelectedJobId}
+                users={users}
               />
             )}
 

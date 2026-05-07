@@ -28,7 +28,8 @@ export function Dashboard({
   publications = [],
   publishPlans,
   setActiveView,
-  setSelectedJobId
+  setSelectedJobId,
+  users = []
 }) {
   const activePlans = publishPlans.filter((plan) => !isArchivedPublishPlan(plan));
   const highRiskJobs = jobs.filter((job) => job.risk === "high" && isReviewableJob(job));
@@ -44,9 +45,11 @@ export function Dashboard({
   const contentFlow = buildContentFlow(jobs);
   const sourceMix = buildSourceMix(jobs);
   const platformReports = buildPlatformReports(activePublications);
+  const topVideos = buildTopPublishedVideos(activePublications).slice(0, 5);
   const activitySeries = buildActivitySeries(activePublications);
   const publishHealth = buildPublishHealth(activePlans, activeAttempts, activePublications);
   const accountStats = buildAccountStats(connectedAccounts);
+  const userReport = buildUserReport(users);
   const recentActivity = buildRecentActivity({ jobs, activePlans, publications }).slice(0, 7);
   const summaryMetrics = [
     ...metrics,
@@ -61,6 +64,12 @@ export function Dashboard({
       value: accountStats.connected,
       tone: accountStats.attention > 0 ? "amber" : "green",
       helper: accountStats.attention > 0 ? `${accountStats.attention} need attention` : "Connected"
+    },
+    {
+      label: "Signed-in users",
+      value: userReport.total,
+      tone: userReport.anonymous > 0 ? "amber" : "green",
+      helper: `${userReport.admins} admin / ${userReport.anonymous} anonymous`
     }
   ];
 
@@ -98,10 +107,16 @@ export function Dashboard({
             {publishHealth.segments.map((segment) => (
               <span
                 key={segment.label}
-                className={`dashboard-health-segment dashboard-health-${segment.tone}`}
+                aria-label={`${segment.label}: ${segment.value}`}
+                className={`dashboard-health-segment dashboard-health-${segment.tone} dashboard-hover-target`}
                 style={{ width: `${segment.percent}%` }}
+                tabIndex={0}
                 title={`${segment.label}: ${segment.value}`}
-              />
+              >
+                <em className="dashboard-chart-tooltip">
+                  {segment.label}: {segment.value} ({segment.percent}%)
+                </em>
+              </span>
             ))}
           </div>
           <div className="dashboard-health-legend">
@@ -135,12 +150,15 @@ export function Dashboard({
           </div>
           <div className="dashboard-funnel">
             {contentFlow.map((item) => (
-              <div className="dashboard-funnel-row" key={item.key}>
+              <div className="dashboard-funnel-row dashboard-hover-target" key={item.key} tabIndex={0}>
                 <span>{item.label}</span>
                 <div className="dashboard-bar-track" aria-label={`${item.label}: ${item.value}`}>
                   <i className={`dashboard-bar dashboard-bar-${item.tone}`} style={{ width: `${item.percent}%` }} />
                 </div>
                 <strong>{item.value}</strong>
+                <em className="dashboard-chart-tooltip">
+                  {item.label}: {item.value} video{item.value === 1 ? "" : "s"} ({item.percent}% of queue)
+                </em>
               </div>
             ))}
           </div>
@@ -154,15 +172,24 @@ export function Dashboard({
             </div>
           </div>
           <div className="dashboard-source-report">
-            <div className="dashboard-donut" style={{ background: sourceMix.background }} aria-label="Source mix chart">
+            <div
+              className="dashboard-donut dashboard-hover-target"
+              style={{ background: sourceMix.background }}
+              aria-label="Source mix chart"
+              tabIndex={0}
+            >
               <span>{jobs.length}</span>
+              <em className="dashboard-chart-tooltip">Total videos by source: {jobs.length}</em>
             </div>
             <div className="dashboard-legend-list">
               {sourceMix.items.map((item) => (
-                <span key={item.label}>
+                <span className="dashboard-hover-target" key={item.label} tabIndex={0}>
                   <i style={{ background: item.color }} />
                   {item.label}
                   <strong>{item.value}</strong>
+                  <em className="dashboard-chart-tooltip">
+                    {item.label}: {item.value} video{item.value === 1 ? "" : "s"}
+                  </em>
                 </span>
               ))}
             </div>
@@ -178,10 +205,13 @@ export function Dashboard({
           </div>
           <div className="dashboard-activity-chart" aria-label="Seven day publication activity">
             {activitySeries.map((item) => (
-              <div className="dashboard-activity-column" key={item.label}>
+              <div className="dashboard-activity-column dashboard-hover-target" key={item.key} tabIndex={0}>
                 <span style={{ height: `${item.percent}%` }} title={`${item.value} records on ${item.label}`} />
                 <small>{item.label}</small>
                 <strong>{item.value}</strong>
+                <em className="dashboard-chart-tooltip">
+                  {item.fullLabel}: {item.value} published record{item.value === 1 ? "" : "s"}
+                </em>
               </div>
             ))}
           </div>
@@ -204,11 +234,16 @@ export function Dashboard({
               <div className="empty-inline">No published channel records yet.</div>
             ) : (
               platformReports.map((report) => (
-                <div className="dashboard-platform-row" key={report.id}>
+                <div className="dashboard-platform-row dashboard-hover-target" key={report.id} tabIndex={0}>
                   <span>
                     <i style={{ background: report.color }} />
                     <strong>{report.label}</strong>
                     <small>{report.count} video records</small>
+                    {report.topVideo && (
+                      <small>
+                        Top: {report.topVideo.title} ({formatNumber(report.topVideo.views)} views)
+                      </small>
+                    )}
                   </span>
                   <div className="dashboard-platform-stats">
                     <strong>{formatNumber(report.views)}</strong>
@@ -218,7 +253,109 @@ export function Dashboard({
                     <strong>{formatNumber(report.likes)}</strong>
                     <small>likes</small>
                   </div>
+                  <em className="dashboard-chart-tooltip">
+                    {report.label}: {formatNumber(report.views)} views, {formatNumber(report.likes)} likes
+                    {report.topVideo ? `; top video ${report.topVideo.title}` : ""}
+                  </em>
                 </div>
+              ))
+            )}
+          </div>
+        </article>
+
+        <article className="panel dashboard-card">
+          <div className="panel-heading">
+            <div>
+              <h2>User Report</h2>
+              <span className="muted">{userReport.total} signed-in users tracked</span>
+            </div>
+            <button type="button" onClick={() => setActiveView("Users")}>
+              Manage
+            </button>
+          </div>
+          <div className="dashboard-user-summary">
+            <span className="dashboard-hover-target" tabIndex={0}>
+              <strong>{userReport.admins}</strong>
+              <small>Admins</small>
+              <em className="dashboard-chart-tooltip">Users with full admin access</em>
+            </span>
+            <span className="dashboard-hover-target" tabIndex={0}>
+              <strong>{userReport.anonymous}</strong>
+              <small>Anonymous</small>
+              <em className="dashboard-chart-tooltip">Signed-in users without admin access</em>
+            </span>
+            <span className="dashboard-hover-target" tabIndex={0}>
+              <strong>{userReport.recentSignIns}</strong>
+              <small>7-day logins</small>
+              <em className="dashboard-chart-tooltip">Users with a recorded login in the last 7 days</em>
+            </span>
+            <span className="dashboard-hover-target" tabIndex={0}>
+              <strong>{userReport.protectedUsers}</strong>
+              <small>Protected</small>
+              <em className="dashboard-chart-tooltip">Owner accounts that cannot be changed or deleted</em>
+            </span>
+          </div>
+          <div className="dashboard-user-list">
+            {userReport.recentUsers.length === 0 ? (
+              <div className="empty-inline">No signed-in users yet.</div>
+            ) : (
+              userReport.recentUsers.map((user) => (
+                <div className="dashboard-user-row" key={user.id}>
+                  <span>
+                    <strong>{userDisplayName(user)}</strong>
+                    <small>{user.email ?? user.id}</small>
+                  </span>
+                  <StatusBadge status={user.role ?? "anonymous"} />
+                  <time>{userLastSeen(user)}</time>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className="dashboard-report-grid">
+        <article className="panel dashboard-card">
+          <div className="panel-heading">
+            <div>
+              <h2>Top Videos By Views</h2>
+              <span className="muted">Highest-hit published videos across channels</span>
+            </div>
+            <button type="button" onClick={() => setActiveView("Published Videos")}>
+              Open library
+            </button>
+          </div>
+          <div className="dashboard-top-video-list">
+            {topVideos.length === 0 ? (
+              <div className="empty-inline">No view data has been synced yet.</div>
+            ) : (
+              topVideos.map((video, index) => (
+                <button
+                  className="dashboard-top-video-row dashboard-hover-target"
+                  key={video.id}
+                  type="button"
+                  onClick={() => setActiveView("Published Videos")}
+                >
+                  <span className="dashboard-rank">{index + 1}</span>
+                  <span>
+                    <strong>{video.title}</strong>
+                    <small>
+                      {video.platformLabel} - {video.status}
+                    </small>
+                  </span>
+                  <div className="dashboard-platform-stats">
+                    <strong>{formatNumber(video.views)}</strong>
+                    <small>views</small>
+                  </div>
+                  <div className="dashboard-platform-stats">
+                    <strong>{formatNumber(video.likes)}</strong>
+                    <small>likes</small>
+                  </div>
+                  <em className="dashboard-chart-tooltip">
+                    {video.title}: {formatNumber(video.views)} views and {formatNumber(video.likes)} likes on{" "}
+                    {video.platformLabel}
+                  </em>
+                </button>
               ))
             )}
           </div>
@@ -371,20 +508,41 @@ function buildPlatformReports(publications) {
   const reports = new Map();
   for (const publication of publications) {
     const id = platformId(publication.platform);
+    const views = publicationMetric(publication, "view");
+    const likes = publicationMetric(publication, "like");
     const current = reports.get(id) ?? {
       id,
       label: platformDisplayLabel(publication.platform),
       count: 0,
       views: 0,
       likes: 0,
+      topVideo: null,
       color: PLATFORM_COLORS[id] ?? PLATFORM_COLORS.unknown
     };
     current.count += 1;
-    current.views += publicationMetric(publication, "view");
-    current.likes += publicationMetric(publication, "like");
+    current.views += views;
+    current.likes += likes;
+    if (
+      views > 0 &&
+      (!current.topVideo || views > current.topVideo.views || (views === current.topVideo.views && likes > current.topVideo.likes))
+    ) {
+      current.topVideo = publicationSummary(publication, { views, likes });
+    }
     reports.set(id, current);
   }
   return [...reports.values()].sort((left, right) => right.count - left.count || right.views - left.views);
+}
+
+function buildTopPublishedVideos(publications) {
+  return publications
+    .map((publication) =>
+      publicationSummary(publication, {
+        views: publicationMetric(publication, "view"),
+        likes: publicationMetric(publication, "like")
+      })
+    )
+    .filter((publication) => publication.views > 0)
+    .sort((left, right) => right.views - left.views || right.likes - left.likes);
 }
 
 function buildActivitySeries(publications) {
@@ -395,6 +553,7 @@ function buildActivitySeries(publications) {
     return {
       key: date.toISOString().slice(0, 10),
       label: date.toLocaleDateString(undefined, { weekday: "short" }),
+      fullLabel: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
       value: 0
     };
   });
@@ -460,6 +619,23 @@ function buildAccountStats(accounts) {
   return { connected, attention };
 }
 
+function buildUserReport(users) {
+  const activeUsers = users.filter((user) => String(user.status ?? "").toLowerCase() !== "deleted");
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentUsers = [...activeUsers]
+    .sort((left, right) => parseTime(userLastSeen(right)) - parseTime(userLastSeen(left)))
+    .slice(0, 4);
+
+  return {
+    total: activeUsers.length,
+    admins: activeUsers.filter((user) => user.role === "admin").length,
+    anonymous: activeUsers.filter((user) => user.role !== "admin").length,
+    protectedUsers: activeUsers.filter((user) => user.immutable).length,
+    recentSignIns: activeUsers.filter((user) => parseTime(user.lastLoginAt) >= sevenDaysAgo).length,
+    recentUsers
+  };
+}
+
 function buildRecentActivity({ jobs, activePlans, publications }) {
   const jobItems = jobs.map((job) => ({
     type: "job",
@@ -496,6 +672,38 @@ function sourceLabel(job) {
   if (sourceType.includes("youtube")) return "YouTube imports";
   if (sourceType.includes("external")) return "Channel imports";
   return job.video?.provider ?? "Manual";
+}
+
+function publicationSummary(publication, metrics) {
+  return {
+    id: publication.id,
+    title: publicationTitle(publication),
+    platformLabel: platformDisplayLabel(publication.platform),
+    status: publication.status ?? "unknown",
+    views: metrics.views,
+    likes: metrics.likes
+  };
+}
+
+function publicationTitle(publication) {
+  const metadata = publication.metadata ?? {};
+  return (
+    publication.title ||
+    metadata.title ||
+    metadata.youtube?.response?.snippet?.title ||
+    metadata.youtube?.snippet?.title ||
+    publication.providerPostId ||
+    publication.id ||
+    "Untitled video"
+  );
+}
+
+function userDisplayName(user) {
+  return user.displayName || user.email || user.id || "Unknown user";
+}
+
+function userLastSeen(user) {
+  return user.lastLoginAt ?? user.updatedAt ?? "Not recorded";
 }
 
 function sumPublicationMetric(publications, metric) {
