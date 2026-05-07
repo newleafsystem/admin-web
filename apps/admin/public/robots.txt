@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+Disallow: /api/
+Disallow: /__/auth/
+Disallow: /users
+Disallow: /vendors
+Disallow: /audit
+
+Sitemap: https://newleaf-trading.web.app/sitemap.xml

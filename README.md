@@ -526,6 +526,15 @@ Use Published Videos to:
 - sync existing supported channel videos into the library from each platform section;
 - republish YouTube library records to connected channels with new title, description, tags, hashtags, visibility, and schedule metadata.
 
+## Search Discovery
+
+Firebase Hosting serves static crawler files from `apps/admin/public`:
+
+- `robots.txt` allows the public SPA shell while blocking `/api/`, Firebase auth internals, and sensitive admin utility routes.
+- `sitemap.xml` lists the primary console routes currently intended for discovery.
+
+The current sitemap canonical host is `https://newleaf-trading.web.app` because that Firebase Hosting domain is live. Update both files when the custom domain is fully resolving and should become canonical.
+
 ## API Highlights
 
 Jobs:
