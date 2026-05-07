@@ -406,7 +406,7 @@ Use `/api/v1` from the start so future app or partner integrations do not depend
 - `GET /api/v1/service/jobs/:jobId`
 - `GET /api/v1/service/jobs/:jobId/artifacts/:artifactId/content`
 
-The docs routes expose Swagger UI and the raw OpenAPI contract for vendors, but they are not anonymous; they require either an approved admin Firebase bearer token or valid vendor service credentials. Operational service routes are for backend-to-backend integrations. They use managed signed vendor clients or hashed local service API keys and sanitized responses, not admin Firebase credentials.
+The docs routes expose Swagger UI and the raw OpenAPI contract for vendors, but they are not anonymous; they require either an approved admin Firebase bearer token, an approved admin session cookie, or valid vendor service credentials. Browser SSO works through the `newleafsystem.com` custom-domain routes only; raw Cloud Run `run.app` URLs still require explicit bearer or vendor credentials. Operational service routes are for backend-to-backend integrations. They use managed signed vendor clients or hashed local service API keys and sanitized responses, not admin Firebase credentials.
 
 ### Webhooks
 

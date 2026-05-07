@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { fetchCurrentSession } from "./api.js";
+import { clearCurrentSessionCookie, fetchCurrentSession } from "./api.js";
 import {
   isFirebaseConfigured,
   signInWithGoogle,
@@ -100,7 +100,7 @@ export function AuthGate({ children }) {
             <span>Role: {state.session?.user?.role ?? "anonymous"}</span>
           </div>
           {state.error && <p className="form-error">{state.error}</p>}
-          <button type="button" className="ghost" onClick={() => void signOutUser()}>
+          <button type="button" className="ghost" onClick={() => void signOutEverywhere()}>
             Sign out
           </button>
         </section>
@@ -112,7 +112,7 @@ export function AuthGate({ children }) {
     <>
       <div className="auth-session-bar">
         <span>{state.session.user.email}</span>
-        <button type="button" className="ghost" onClick={() => void signOutUser()}>
+        <button type="button" className="ghost" onClick={() => void signOutEverywhere()}>
           Sign out
         </button>
       </div>
@@ -123,6 +123,11 @@ export function AuthGate({ children }) {
 
 function renderChildren(children, session) {
   return typeof children === "function" ? children(session) : children;
+}
+
+async function signOutEverywhere() {
+  await clearCurrentSessionCookie().catch(() => {});
+  await signOutUser();
 }
 
 function isInvalidProductionSession(session) {

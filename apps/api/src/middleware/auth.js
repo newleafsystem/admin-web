@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { forbidden, unauthorized } from '../lib/httpErrors.js';
 import { getFirebaseAuth } from '../lib/firebaseAdmin.js';
+import { hasAuthSessionCookie, readAuthSessionCookie, verifyAuthSessionCookie } from '../lib/sessionCookies.js';
 import { createUserAccessService, localAdminUser } from '../services/userAccessService.js';
 import { authenticateServiceApiKey } from './serviceApiAuth.js';
 
@@ -16,8 +17,9 @@ export function authenticateRequest(options = {}) {
       }
 
       const bearerToken = readBearerToken(req.get('authorization'));
-      if (!bearerToken) {
-        throw unauthorized('Missing bearer token');
+      const sessionCookie = readAuthSessionCookie(req);
+      if (!bearerToken && !sessionCookie) {
+        throw unauthorized('Missing bearer token or NewLeaf session cookie');
       }
 
       const auth = await getFirebaseAuth();
@@ -25,7 +27,12 @@ export function authenticateRequest(options = {}) {
         throw unauthorized('Firebase Auth is not configured');
       }
 
-      const decodedToken = await auth.verifyIdToken(bearerToken);
+      const decodedToken = bearerToken
+        ? await auth.verifyIdToken(bearerToken)
+        : await verifyAuthSessionCookie(sessionCookie);
+      req.authCredential = bearerToken
+        ? { mode: 'firebase-id-token', token: bearerToken }
+        : { mode: 'firebase-session-cookie' };
       const user = await userAccessService.ensureAuthenticatedUser({
         uid: decodedToken.uid,
         email: decodedToken.email ?? null,
@@ -65,7 +72,7 @@ export function authenticateUserOrService(options = {}) {
 
   return async (req, res, next) => {
     const snapshot = captureAuthState(req);
-    const hasBearer = hasBearerToken(req);
+    const hasUserCredentials = hasBearerToken(req) || hasAuthSessionCookie(req);
     const hasServiceCredentials = hasExplicitServiceCredentials(req);
     let userError = null;
     let serviceError = null;
@@ -80,7 +87,7 @@ export function authenticateUserOrService(options = {}) {
       }
     }
 
-    if (hasBearer || !hasServiceCredentials) {
+    if (hasUserCredentials || !hasServiceCredentials) {
       try {
         await runMiddleware(userAuth, req, res);
         return next();
@@ -90,11 +97,12 @@ export function authenticateUserOrService(options = {}) {
       }
     }
 
-    if (!hasBearer && !hasServiceCredentials) {
+    if (!hasUserCredentials && !hasServiceCredentials) {
       return next(
         unauthorized('Missing login or service API credentials', {
           acceptedCredentials: [
             'Authorization: Bearer <Firebase ID token>',
+            'NewLeaf admin session cookie',
             'x-newleaf-key-id + x-newleaf-timestamp + x-newleaf-signature',
             'x-newleaf-api-key',
           ],
@@ -135,6 +143,7 @@ function captureAuthState(req) {
   return {
     user: req.user,
     serviceClient: req.serviceClient,
+    authCredential: req.authCredential,
   };
 }
 
@@ -149,6 +158,12 @@ function restoreAuthState(req, snapshot) {
     delete req.serviceClient;
   } else {
     req.serviceClient = snapshot.serviceClient;
+  }
+
+  if (snapshot.authCredential === undefined) {
+    delete req.authCredential;
+  } else {
+    req.authCredential = snapshot.authCredential;
   }
 }
 

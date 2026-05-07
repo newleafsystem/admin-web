@@ -123,9 +123,9 @@ function renderSwaggerUiPage(spec) {
     </header>
     <section class="docs-note">
       <strong>Service API documentation is protected.</strong>
-      Use either an approved NewLeaf admin session or backend vendor credentials. Operational service calls require
+      Use either an approved NewLeaf admin session cookie or backend vendor credentials. Operational service calls require
       <code>x-newleaf-key-id</code>, <code>x-newleaf-timestamp</code>, and <code>x-newleaf-signature</code>.
-      Browser requests without a Firebase token or vendor credentials are rejected.
+      Browser requests without a NewLeaf admin cookie, Firebase token, or vendor credentials are rejected.
     </section>
     <main id="swagger-ui"></main>
     <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>

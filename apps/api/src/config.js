@@ -35,6 +35,12 @@ export const config = Object.freeze({
   adminBaseUrl: process.env.ADMIN_BASE_URL ?? 'http://localhost:5173',
   auth: {
     requireAuth: readBoolean('REQUIRE_AUTH', false),
+    sessionCookieName: readOptionalString('AUTH_SESSION_COOKIE_NAME') ?? 'newleaf_session',
+    sessionCookieDomain: readOptionalString('AUTH_SESSION_COOKIE_DOMAIN'),
+    sessionCookiePath: readOptionalString('AUTH_SESSION_COOKIE_PATH') ?? '/api/v1',
+    sessionCookieMaxAgeMs: readNumber('AUTH_SESSION_COOKIE_MAX_AGE_SEC', 5 * 24 * 60 * 60) * 1000,
+    sessionCookieSameSite: readOptionalString('AUTH_SESSION_COOKIE_SAME_SITE') ?? 'lax',
+    sessionCookieSecure: readBoolean('AUTH_SESSION_COOKIE_SECURE', process.env.NODE_ENV === 'production'),
   },
   serviceApi: {
     keyHashes: readStringList('SERVICE_API_KEY_HASHES', ''),

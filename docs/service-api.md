@@ -12,6 +12,14 @@ When the API is running locally, open with either an approved admin Firebase bea
 http://localhost:8080/api/v1/service/docs
 ```
 
+In production, admins should open Swagger through the Firebase Hosting custom domain after signing in:
+
+```text
+https://admin.newleafsystem.com/api/v1/service/docs
+```
+
+Admin sign-in refreshes an HTTP-only Firebase session cookie scoped to `/api/v1`. Set `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` so the same cookie can be sent by `newleafsystem.com` and `admin.newleafsystem.com` custom-domain routes. The raw Cloud Run `run.app` URL cannot participate in this browser SSO cookie, so it still requires an `Authorization` bearer token or signed vendor credentials.
+
 The raw OpenAPI contract is available at:
 
 ```text

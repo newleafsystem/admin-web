@@ -33,6 +33,18 @@ export async function fetchCurrentSession() {
   };
 }
 
+export async function clearCurrentSessionCookie() {
+  const response = await apiFetch(`${API_BASE_URL}/session/cookie`, {
+    method: "DELETE"
+  });
+  if (response.status === 204) {
+    return true;
+  }
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to clear server session");
+  return true;
+}
+
 export async function fetchJobs() {
   const response = await apiFetch(`${API_BASE_URL}/jobs`);
   const body = await readJson(response);
@@ -691,7 +703,7 @@ async function apiFetch(url, options) {
     if (token && !headers.has("authorization")) {
       headers.set("authorization", `Bearer ${token}`);
     }
-    return await fetch(url, { ...(options ?? {}), headers });
+    return await fetch(url, { ...(options ?? {}), credentials: "include", headers });
   } catch (error) {
     throw new Error(
       `Unable to reach API at ${API_BASE_URL}. Restart the API server and confirm CORS_ALLOWED_ORIGINS includes this admin origin. ${error.message}`

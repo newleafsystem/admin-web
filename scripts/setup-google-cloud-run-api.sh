@@ -13,7 +13,12 @@
 #   PUBLIC_BASE_URL=https://admin.newleafsystem.com
 #   ADMIN_BASE_URL=https://admin.newleafsystem.com
 #   SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com
-#   CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com
+#   CORS_ALLOWED_ORIGINS="https://admin.newleafsystem.com https://newleafsystem.com"
+#   AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com
+#   AUTH_SESSION_COOKIE_PATH=/api/v1
+#   AUTH_SESSION_COOKIE_MAX_AGE_SEC=432000
+#   AUTH_SESSION_COOKIE_SAME_SITE=lax
+#   AUTH_SESSION_COOKIE_SECURE=true
 #   MEDIA_RENDERER_URL=<cloud-run-renderer-url>
 #   MIN_INSTANCES=1
 #   MAX_INSTANCES=3
@@ -266,6 +271,13 @@ add_env_if_present() {
 if [[ -n "${AUTH_ADMIN_EMAILS:-}" ]]; then
   env_vars+=("AUTH_ADMIN_EMAILS=${AUTH_ADMIN_EMAILS}")
 fi
+
+add_env_if_present AUTH_SESSION_COOKIE_NAME
+add_env_if_present AUTH_SESSION_COOKIE_DOMAIN
+add_env_if_present AUTH_SESSION_COOKIE_PATH
+add_env_if_present AUTH_SESSION_COOKIE_MAX_AGE_SEC
+add_env_if_present AUTH_SESSION_COOKIE_SAME_SITE
+add_env_if_present AUTH_SESSION_COOKIE_SECURE
 
 if [[ -n "${MEDIA_RENDERER_URL:-}" ]]; then
   env_vars+=("MEDIA_RENDERER_URL=${MEDIA_RENDERER_URL}")

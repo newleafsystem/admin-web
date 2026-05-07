@@ -184,7 +184,7 @@ PUBLIC_BASE_URL=https://admin.newleafsystem.com
 ADMIN_BASE_URL=https://admin.newleafsystem.com
 VITE_API_BASE_URL=/api/v1
 SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com
-CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com
+CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com
 REPOSITORY_PROVIDER=firestore
 ```
 
@@ -258,6 +258,8 @@ names.co.uk DNS
 
 Firebase Hosting serves the Vite admin UI from `apps/admin/dist`. The hosting config rewrites `/api/**` to the `newleaf-api` Cloud Run service in `us-central1`, so the admin UI can keep using same-origin `/api/v1` calls in production.
 
+Admin sign-in also refreshes an HTTP-only Firebase session cookie for direct browser access to protected API pages such as Swagger. In production, use the custom-domain URL `https://admin.newleafsystem.com/api/v1/service/docs` or another `newleafsystem.com` Firebase Hosting domain that rewrites `/api/**`. The raw Cloud Run `run.app` URL cannot receive a `.newleafsystem.com` browser cookie, so it still requires a bearer token or vendor service credentials.
+
 Required DNS at names.co.uk:
 
 - `admin.newleafsystem.com` records provided by Firebase Hosting custom domain setup.
@@ -283,7 +285,13 @@ Required GitHub repository variables:
 - `SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com`
 - `SOCIAL_PUBLICATION_SYNC_ENABLED=true`
 - `SOCIAL_PUBLICATION_SYNC_INTERVAL_MS=3600000`
-- `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com`
+- `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com`
+- `AUTH_SESSION_COOKIE_NAME=newleaf_session`
+- `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com`
+- `AUTH_SESSION_COOKIE_PATH=/api/v1`
+- `AUTH_SESSION_COOKIE_MAX_AGE_SEC=432000`
+- `AUTH_SESSION_COOKIE_SAME_SITE=lax`
+- `AUTH_SESSION_COOKIE_SECURE=true`
 - `VITE_FIREBASE_API_KEY=<firebase-web-api-key>`
 - `VITE_FIREBASE_AUTH_DOMAIN=newleaf-trading.firebaseapp.com`
 - `VITE_FIREBASE_PROJECT_ID=newleaf-trading`
@@ -294,6 +302,7 @@ Required GitHub repository variables:
 - `YOUTUBE_CLIENT_ID=<google-oauth-web-client-id>`
 - `YOUTUBE_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/youtube/oauth/callback`
 - `YOUTUBE_SCOPES=https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl`
+- `YOUTUBE_DEFAULT_CATEGORY_ID=27`
 - `X_CLIENT_ID=<x-oauth-client-id>`
 - `X_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/x/oauth/callback`
 - `X_SCOPES=tweet.read users.read tweet.write media.write offline.access`
@@ -641,6 +650,14 @@ Protected Swagger docs:
 ```text
 http://localhost:8080/api/v1/service/docs
 ```
+
+In production, open the docs through the custom domain after signing in as an admin:
+
+```text
+https://admin.newleafsystem.com/api/v1/service/docs
+```
+
+The raw Cloud Run `run.app` service URL intentionally does not act as a browser SSO endpoint because browser cookies cannot be shared from `newleafsystem.com` to `run.app`.
 
 Protected raw OpenAPI YAML:
 
