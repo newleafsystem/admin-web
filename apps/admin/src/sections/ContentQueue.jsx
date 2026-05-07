@@ -247,39 +247,41 @@ function ContentJobDetailsModal({
           </div>
         </div>
 
-        <dl className="detail-list modal-detail-list">
-          <div>
-            <dt>Video ID</dt>
-            <dd>{job.id}</dd>
-          </div>
-          <div>
-            <dt>Source artifact</dt>
-            <dd>{job.sourceArtifact}</dd>
-          </div>
-          <div>
-            <dt>Target duration</dt>
-            <dd>{formatDuration(job.targetDurationSec)}</dd>
-          </div>
-          <div>
-            <dt>Script scenes</dt>
-            <dd>{job.script.scenes}</dd>
-          </div>
-          <div>
-            <dt>Video state</dt>
-            <dd>{job.video.status}</dd>
-          </div>
-        </dl>
+        <div className="modal-body">
+          <dl className="detail-list modal-detail-list">
+            <div>
+              <dt>Video ID</dt>
+              <dd>{job.id}</dd>
+            </div>
+            <div>
+              <dt>Source artifact</dt>
+              <dd>{job.sourceArtifact}</dd>
+            </div>
+            <div>
+              <dt>Target duration</dt>
+              <dd>{formatDuration(job.targetDurationSec)}</dd>
+            </div>
+            <div>
+              <dt>Script scenes</dt>
+              <dd>{job.script.scenes}</dd>
+            </div>
+            <div>
+              <dt>Video state</dt>
+              <dd>{job.video.status}</dd>
+            </div>
+          </dl>
 
-        <div className="modal-section">
-          <div className="section-subheading thumbnail-subheading">
-            <h3>Thumbnail</h3>
-            <span className="muted">Manage the image used for review and publishing metadata.</span>
+          <div className="modal-section">
+            <div className="section-subheading thumbnail-subheading">
+              <h3>Thumbnail</h3>
+              <span className="muted">Manage the image used for review and publishing metadata.</span>
+            </div>
+            <ThumbnailManager
+              generateThumbnail={generateThumbnail}
+              job={job}
+              uploadThumbnail={uploadThumbnail}
+            />
           </div>
-          <ThumbnailManager
-            generateThumbnail={generateThumbnail}
-            job={job}
-            uploadThumbnail={uploadThumbnail}
-          />
         </div>
 
         <div className="modal-actions">

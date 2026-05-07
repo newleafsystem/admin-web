@@ -191,9 +191,40 @@ export const initialPublishDraft = {
   description: "",
   hashtagsText: "",
   youtubeTagsText: "",
+  videoLanguage: "en",
+  shortsRemixing: "allow_video_audio",
+  titleDescriptionLanguage: "en",
+  categoryId: "27",
+  educationApplicationType: "real_life_application",
+  academicSystem: "united_states",
+  educationLevel: "professional_training",
   scheduledAt: "",
   platforms: ["youtube"],
   isGeneratingYoutubeTags: false,
   isSubmitting: false,
   error: null
 };
+
+export const youtubeMetadataDefaults = Object.freeze({
+  videoLanguage: "en",
+  shortsRemixing: "allow_video_audio",
+  titleDescriptionLanguage: "en",
+  categoryId: "27",
+  educationApplicationType: "real_life_application",
+  academicSystem: "united_states",
+  educationLevel: "professional_training"
+});
+
+export const youtubeLanguageOptions = Object.freeze([
+  { value: "en", label: "English" },
+  { value: "en-US", label: "English (United States)" },
+  { value: "hi", label: "Hindi" },
+  { value: "bn", label: "Bengali" },
+  { value: "es", label: "Spanish" }
+]);
+
+export const shortsRemixingOptions = Object.freeze([
+  { value: "allow_video_audio", label: "Allow video and audio remixing" },
+  { value: "allow_audio_only", label: "Allow audio remixing only" },
+  { value: "disallow", label: "Do not allow remixing" }
+]);

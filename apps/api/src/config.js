@@ -109,7 +109,7 @@ export const config = Object.freeze({
       .filter(Boolean),
     uploadChunkBytes: readNumber('YOUTUBE_UPLOAD_CHUNK_BYTES', 8 * 1024 * 1024),
     defaultPrivacyStatus: process.env.YOUTUBE_DEFAULT_PRIVACY_STATUS ?? 'private',
-    defaultCategoryId: process.env.YOUTUBE_DEFAULT_CATEGORY_ID ?? '22',
+    defaultCategoryId: process.env.YOUTUBE_DEFAULT_CATEGORY_ID ?? '27',
     autoResumeQueuedUploads: readBoolean('YOUTUBE_AUTO_RESUME_QUEUED_UPLOADS', true),
   },
   x: {

@@ -120,6 +120,13 @@ try {
   assert.equal(republishResponse.status, 201);
   assert.equal(republishResponse.body.plan.metadata.republishSourceAttemptId, sourceAttempt.id);
   assert.equal(republishResponse.body.plan.metadata.republishSourceProviderPostId, 'video_1');
+  assert.equal(republishResponse.body.plan.metadata.categoryId, '27');
+  assert.equal(republishResponse.body.plan.metadata.videoLanguage, 'en');
+  assert.equal(republishResponse.body.plan.metadata.titleDescriptionLanguage, 'en');
+  assert.equal(republishResponse.body.plan.metadata.shortsRemixing, 'allow_video_audio');
+  assert.equal(republishResponse.body.plan.metadata.educationApplicationType, 'real_life_application');
+  assert.equal(republishResponse.body.plan.metadata.academicSystem, 'united_states');
+  assert.equal(republishResponse.body.plan.metadata.educationLevel, 'professional_training');
   assert.deepEqual(republishResponse.body.plan.platforms, ['youtube', 'x']);
 
   const approveResponse = await fetch(`${baseUrl}/api/v1/publish-plans/${republishResponse.body.plan.id}/approve`, {
@@ -137,6 +144,10 @@ try {
     publishBody.attempts.map((attempt) => attempt.platform).sort(),
     ['x', 'youtube'],
   );
+  const youtubeAttempt = publishBody.attempts.find((attempt) => attempt.platform === 'youtube');
+  assert.equal(youtubeAttempt.metadata.categoryId, '27');
+  assert.equal(youtubeAttempt.metadata.videoLanguage, 'en');
+  assert.equal(youtubeAttempt.metadata.titleDescriptionLanguage, 'en');
   assert.equal(queuedAttempts.length, 2);
 
   console.log('Publishing republish tests passed.');

@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "./config.js";
+import { youtubeMetadataDefaults } from "./constants.js";
 import { getAuthToken } from "./firebaseClient.js";
 
 export async function fetchOperationsSnapshot() {
@@ -954,6 +955,7 @@ function normalizePublishPlan(plan) {
 
 function normalizePublication(publication) {
   const metadata = publication.metadata ?? {};
+  const youtubeSnippet = metadata.youtube?.response?.snippet ?? {};
   return {
     id: publication.id,
     planId: publication.planId,
@@ -967,6 +969,26 @@ function normalizePublication(publication) {
     tags: Array.isArray(metadata.tags) ? metadata.tags : [],
     hashtags: Array.isArray(metadata.hashtags) ? metadata.hashtags : [],
     privacyStatus: normalizePrivacyStatus(metadata),
+    categoryId: metadata.categoryId ?? youtubeSnippet.categoryId ?? youtubeMetadataDefaults.categoryId,
+    videoLanguage:
+      metadata.videoLanguage ??
+      metadata.defaultAudioLanguage ??
+      youtubeSnippet.defaultAudioLanguage ??
+      youtubeMetadataDefaults.videoLanguage,
+    defaultAudioLanguage:
+      metadata.defaultAudioLanguage ?? youtubeSnippet.defaultAudioLanguage ?? youtubeMetadataDefaults.videoLanguage,
+    shortsRemixing: metadata.shortsRemixing ?? youtubeMetadataDefaults.shortsRemixing,
+    titleDescriptionLanguage:
+      metadata.titleDescriptionLanguage ??
+      metadata.defaultLanguage ??
+      youtubeSnippet.defaultLanguage ??
+      youtubeMetadataDefaults.titleDescriptionLanguage,
+    defaultLanguage:
+      metadata.defaultLanguage ?? youtubeSnippet.defaultLanguage ?? youtubeMetadataDefaults.titleDescriptionLanguage,
+    educationApplicationType:
+      metadata.educationApplicationType ?? youtubeMetadataDefaults.educationApplicationType,
+    academicSystem: metadata.academicSystem ?? youtubeMetadataDefaults.academicSystem,
+    educationLevel: metadata.educationLevel ?? youtubeMetadataDefaults.educationLevel,
     thumbnailUrl: getPublicationThumbnailUrl(metadata),
     publishedAt: formatDate(metadata.publishedAt ?? metadata.youtube?.publishedAt ?? metadata.youtube?.response?.snippet?.publishedAt),
     viewCount: normalizeCount(metadata.statistics?.viewCount ?? metadata.youtube?.response?.statistics?.viewCount),

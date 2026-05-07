@@ -122,9 +122,11 @@ function DeleteUserDialog({ user, onCancel, onConfirm }) {
           </button>
         </div>
 
-        <p className="confirm-copy">
-          This removes the app role record. If this person signs in again, they will return as anonymous.
-        </p>
+        <div className="modal-body">
+          <p className="confirm-copy">
+            This removes the app role record. If this person signs in again, they will return as anonymous.
+          </p>
+        </div>
 
         <div className="modal-actions">
           <button type="button" onClick={onCancel}>

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ModalShell, ProgressMeter, StatusBadge, useCloseOnOutside } from "../components/common.jsx";
 import { ThumbnailManager } from "../components/ThumbnailManager.jsx";
 import { ThumbnailImage } from "../components/ThumbnailImage.jsx";
+import { shortsRemixingOptions, youtubeLanguageOptions, youtubeMetadataDefaults } from "../constants.js";
 import { isConnectedAccount, platformIdFromLabel, platformLabel } from "../utils.js";
 
 export function PublishedVideos({
@@ -84,12 +85,16 @@ export function PublishedVideos({
   }
 
   async function savePublicationMetadata(publicationId, draft) {
+    const publication = publications.find((candidate) => candidate.id === publicationId);
     const payload = {
       title: draft.title,
       description: draft.description,
       tags: parseDelimitedList(draft.tagsText),
       hashtags: parseDelimitedList(draft.hashtagsText).map((hashtag) => hashtag.replace(/^#+/, ""))
     };
+    if (platformIdFromLabel(publication?.platform) === "youtube") {
+      Object.assign(payload, youtubeMetadataFromDraft(draft));
+    }
     if (draft.privacyStatus && draft.privacyStatus !== "unknown") {
       payload.privacyStatus = draft.privacyStatus;
     }
@@ -189,6 +194,15 @@ export function PublishedVideos({
                     privacyStatus: publication.privacyStatus,
                     tagsText: publication.tags.join(", "),
                     hashtagsText: publication.hashtags?.join(", ") ?? "",
+                    videoLanguage: publication.videoLanguage ?? youtubeMetadataDefaults.videoLanguage,
+                    shortsRemixing: publication.shortsRemixing ?? youtubeMetadataDefaults.shortsRemixing,
+                    titleDescriptionLanguage:
+                      publication.titleDescriptionLanguage ?? youtubeMetadataDefaults.titleDescriptionLanguage,
+                    categoryId: publication.categoryId ?? youtubeMetadataDefaults.categoryId,
+                    educationApplicationType:
+                      publication.educationApplicationType ?? youtubeMetadataDefaults.educationApplicationType,
+                    academicSystem: publication.academicSystem ?? youtubeMetadataDefaults.academicSystem,
+                    educationLevel: publication.educationLevel ?? youtubeMetadataDefaults.educationLevel,
                     isSaving: false,
                     error: null
                   };
@@ -334,6 +348,159 @@ function parseDelimitedList(value) {
         .map((item) => item.trim().replace(/^#+/, "").replace(/\s+/g, " "))
         .filter(Boolean)
     )
+  );
+}
+
+function youtubeMetadataFromDraft(draft = {}) {
+  const videoLanguage = draft.videoLanguage || youtubeMetadataDefaults.videoLanguage;
+  const titleDescriptionLanguage =
+    draft.titleDescriptionLanguage || youtubeMetadataDefaults.titleDescriptionLanguage;
+  return {
+    categoryId: draft.categoryId || youtubeMetadataDefaults.categoryId,
+    videoLanguage,
+    defaultAudioLanguage: videoLanguage,
+    shortsRemixing: draft.shortsRemixing || youtubeMetadataDefaults.shortsRemixing,
+    titleDescriptionLanguage,
+    defaultLanguage: titleDescriptionLanguage,
+    educationApplicationType:
+      draft.educationApplicationType || youtubeMetadataDefaults.educationApplicationType,
+    academicSystem: draft.academicSystem || youtubeMetadataDefaults.academicSystem,
+    educationLevel: draft.educationLevel || youtubeMetadataDefaults.educationLevel
+  };
+}
+
+const youtubeCategoryOptions = Object.freeze([
+  { value: "27", label: "Education" },
+  { value: "22", label: "People & Blogs" },
+  { value: "28", label: "Science & Technology" },
+  { value: "26", label: "Howto & Style" }
+]);
+
+const educationApplicationTypeOptions = Object.freeze([
+  { value: "real_life_application", label: "Real life application" },
+  { value: "concept_explanation", label: "Concept explanation" },
+  { value: "case_study", label: "Case study" },
+  { value: "tutorial", label: "Tutorial" }
+]);
+
+const academicSystemOptions = Object.freeze([
+  { value: "united_states", label: "United States Academic System" },
+  { value: "india", label: "India Academic System" },
+  { value: "global", label: "Global / General" }
+]);
+
+const educationLevelOptions = Object.freeze([
+  { value: "professional_training", label: "Professional Training" },
+  { value: "higher_education", label: "Higher Education" },
+  { value: "secondary", label: "Secondary" },
+  { value: "beginner", label: "Beginner" }
+]);
+
+function YouTubeMetadataFields({ disabled, draft, onChange }) {
+  return (
+    <div className="youtube-metadata-fields">
+      <h3>YouTube metadata</h3>
+      <div className="publication-fields metadata-dialog-fields youtube-metadata-grid">
+        <label>
+          Video language
+          <select
+            value={draft.videoLanguage || youtubeMetadataDefaults.videoLanguage}
+            disabled={disabled}
+            onChange={(event) => onChange({ videoLanguage: event.target.value })}
+          >
+            {youtubeLanguageOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Title and description language
+          <select
+            value={draft.titleDescriptionLanguage || youtubeMetadataDefaults.titleDescriptionLanguage}
+            disabled={disabled}
+            onChange={(event) => onChange({ titleDescriptionLanguage: event.target.value })}
+          >
+            {youtubeLanguageOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Shorts remixing
+          <select
+            value={draft.shortsRemixing || youtubeMetadataDefaults.shortsRemixing}
+            disabled={disabled}
+            onChange={(event) => onChange({ shortsRemixing: event.target.value })}
+          >
+            {shortsRemixingOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          YouTube category
+          <select
+            value={draft.categoryId || youtubeMetadataDefaults.categoryId}
+            disabled={disabled}
+            onChange={(event) => onChange({ categoryId: event.target.value })}
+          >
+            {youtubeCategoryOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Application type
+          <select
+            value={draft.educationApplicationType || youtubeMetadataDefaults.educationApplicationType}
+            disabled={disabled}
+            onChange={(event) => onChange({ educationApplicationType: event.target.value })}
+          >
+            {educationApplicationTypeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Academic system
+          <select
+            value={draft.academicSystem || youtubeMetadataDefaults.academicSystem}
+            disabled={disabled}
+            onChange={(event) => onChange({ academicSystem: event.target.value })}
+          >
+            {academicSystemOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Training level
+          <select
+            value={draft.educationLevel || youtubeMetadataDefaults.educationLevel}
+            disabled={disabled}
+            onChange={(event) => onChange({ educationLevel: event.target.value })}
+          >
+            {educationLevelOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </div>
   );
 }
 
@@ -551,6 +718,15 @@ function RepublishDialog({ connectedAccounts = [], onCancel, onRepublish, public
       publication?.privacyStatus && publication.privacyStatus !== "unknown" ? publication.privacyStatus : "public",
     tagsText: publication?.tags?.join(", ") ?? "",
     hashtagsText: (publication?.hashtags ?? []).map((tag) => `#${String(tag).replace(/^#+/, "")}`).join(", "),
+    videoLanguage: publication?.videoLanguage ?? youtubeMetadataDefaults.videoLanguage,
+    shortsRemixing: publication?.shortsRemixing ?? youtubeMetadataDefaults.shortsRemixing,
+    titleDescriptionLanguage:
+      publication?.titleDescriptionLanguage ?? youtubeMetadataDefaults.titleDescriptionLanguage,
+    categoryId: publication?.categoryId ?? youtubeMetadataDefaults.categoryId,
+    educationApplicationType:
+      publication?.educationApplicationType ?? youtubeMetadataDefaults.educationApplicationType,
+    academicSystem: publication?.academicSystem ?? youtubeMetadataDefaults.academicSystem,
+    educationLevel: publication?.educationLevel ?? youtubeMetadataDefaults.educationLevel,
     scheduledAt: "",
     platforms: destinationPlatforms.map((platform) => platform.id),
     isSubmitting: false,
@@ -601,7 +777,8 @@ function RepublishDialog({ connectedAccounts = [], onCancel, onRepublish, public
         description: draft.description,
         privacyStatus: draft.privacyStatus,
         tags: parseDelimitedList(draft.tagsText),
-        hashtags: parseDelimitedList(draft.hashtagsText).map((hashtag) => hashtag.replace(/^#+/, ""))
+        hashtags: parseDelimitedList(draft.hashtagsText).map((hashtag) => hashtag.replace(/^#+/, "")),
+        ...youtubeMetadataFromDraft(draft)
       });
       onCancel();
     } catch (error) {
@@ -627,84 +804,94 @@ function RepublishDialog({ connectedAccounts = [], onCancel, onRepublish, public
           </button>
         </div>
 
-        <form className="republish-form" onSubmit={submit}>
-          <div className="destination-grid" aria-label="Republish destinations">
-            {destinationPlatforms.length === 0 ? (
-              <div className="empty-inline destination-empty">No connected publishing channels are available.</div>
-            ) : (
-              destinationPlatforms.map((platform) => (
-                <label className="check-row" key={platform.id}>
-                  <input
-                    checked={draft.platforms.includes(platform.id)}
-                    disabled={draft.isSubmitting}
-                    type="checkbox"
-                    onChange={() => toggleDestination(platform.id)}
-                  />
-                  <span>{platform.label}</span>
-                </label>
-              ))
+        <form className="republish-form modal-form" onSubmit={submit}>
+          <div className="modal-body">
+            <div className="destination-grid" aria-label="Republish destinations">
+              {destinationPlatforms.length === 0 ? (
+                <div className="empty-inline destination-empty">No connected publishing channels are available.</div>
+              ) : (
+                destinationPlatforms.map((platform) => (
+                  <label className="check-row" key={platform.id}>
+                    <input
+                      checked={draft.platforms.includes(platform.id)}
+                      disabled={draft.isSubmitting}
+                      type="checkbox"
+                      onChange={() => toggleDestination(platform.id)}
+                    />
+                    <span>{platform.label}</span>
+                  </label>
+                ))
+              )}
+            </div>
+
+            <div className="publication-fields metadata-dialog-fields">
+              <label>
+                Title
+                <input
+                  value={draft.title}
+                  disabled={draft.isSubmitting}
+                  onChange={(event) => updateDraft({ title: event.target.value })}
+                />
+              </label>
+              <label>
+                Visibility
+                <select
+                  value={draft.privacyStatus}
+                  disabled={draft.isSubmitting}
+                  onChange={(event) => updateDraft({ privacyStatus: event.target.value })}
+                >
+                  <option value="private">Private</option>
+                  <option value="public">Public</option>
+                  <option value="unlisted">Unlisted</option>
+                </select>
+              </label>
+              <label>
+                Tags
+                <input
+                  value={draft.tagsText}
+                  disabled={draft.isSubmitting}
+                  placeholder="tag1, tag2"
+                  onChange={(event) => updateDraft({ tagsText: event.target.value })}
+                />
+              </label>
+              <label>
+                Hashtags
+                <input
+                  value={draft.hashtagsText}
+                  disabled={draft.isSubmitting}
+                  placeholder="#newleaf, #markets"
+                  onChange={(event) => updateDraft({ hashtagsText: event.target.value })}
+                />
+              </label>
+              <label>
+                Schedule
+                <input
+                  type="datetime-local"
+                  value={draft.scheduledAt}
+                  disabled={draft.isSubmitting}
+                  onChange={(event) => updateDraft({ scheduledAt: event.target.value })}
+                />
+              </label>
+              <label className="publication-description">
+                Description
+                <textarea
+                  value={draft.description}
+                  disabled={draft.isSubmitting}
+                  onChange={(event) => updateDraft({ description: event.target.value })}
+                />
+              </label>
+            </div>
+
+            {draft.platforms.includes("youtube") && (
+              <YouTubeMetadataFields
+                disabled={draft.isSubmitting}
+                draft={draft}
+                onChange={updateDraft}
+              />
             )}
-          </div>
 
-          <div className="publication-fields metadata-dialog-fields">
-            <label>
-              Title
-              <input
-                value={draft.title}
-                disabled={draft.isSubmitting}
-                onChange={(event) => updateDraft({ title: event.target.value })}
-              />
-            </label>
-            <label>
-              Visibility
-              <select
-                value={draft.privacyStatus}
-                disabled={draft.isSubmitting}
-                onChange={(event) => updateDraft({ privacyStatus: event.target.value })}
-              >
-                <option value="private">Private</option>
-                <option value="public">Public</option>
-                <option value="unlisted">Unlisted</option>
-              </select>
-            </label>
-            <label>
-              Tags
-              <input
-                value={draft.tagsText}
-                disabled={draft.isSubmitting}
-                placeholder="tag1, tag2"
-                onChange={(event) => updateDraft({ tagsText: event.target.value })}
-              />
-            </label>
-            <label>
-              Hashtags
-              <input
-                value={draft.hashtagsText}
-                disabled={draft.isSubmitting}
-                placeholder="#newleaf, #markets"
-                onChange={(event) => updateDraft({ hashtagsText: event.target.value })}
-              />
-            </label>
-            <label>
-              Schedule
-              <input
-                type="datetime-local"
-                value={draft.scheduledAt}
-                disabled={draft.isSubmitting}
-                onChange={(event) => updateDraft({ scheduledAt: event.target.value })}
-              />
-            </label>
-            <label className="publication-description">
-              Description
-              <textarea
-                value={draft.description}
-                disabled={draft.isSubmitting}
-                onChange={(event) => updateDraft({ description: event.target.value })}
-              />
-            </label>
+            {draft.error && <p className="form-error">{draft.error}</p>}
           </div>
-
-          {draft.error && <p className="form-error">{draft.error}</p>}
 
           <div className="modal-actions">
             <button type="button" disabled={draft.isSubmitting} onClick={onCancel}>
@@ -739,11 +926,20 @@ function MetadataEditorDialog({
     privacyStatus: publication.privacyStatus,
     tagsText: publication.tags.join(", "),
     hashtagsText: publication.hashtags?.join(", ") ?? "",
+    videoLanguage: publication.videoLanguage ?? youtubeMetadataDefaults.videoLanguage,
+    shortsRemixing: publication.shortsRemixing ?? youtubeMetadataDefaults.shortsRemixing,
+    titleDescriptionLanguage: publication.titleDescriptionLanguage ?? youtubeMetadataDefaults.titleDescriptionLanguage,
+    categoryId: publication.categoryId ?? youtubeMetadataDefaults.categoryId,
+    educationApplicationType:
+      publication.educationApplicationType ?? youtubeMetadataDefaults.educationApplicationType,
+    academicSystem: publication.academicSystem ?? youtubeMetadataDefaults.academicSystem,
+    educationLevel: publication.educationLevel ?? youtubeMetadataDefaults.educationLevel,
     isSaving: false,
     error: null
   };
   const isSaving = Boolean(editorDraft.isSaving);
   const canSaveMetadata = Boolean(String(editorDraft.title ?? "").trim() && String(editorDraft.description ?? "").trim());
+  const isYouTubePublication = platformIdFromLabel(publication.platform) === "youtube";
 
   async function save() {
     await onSave(publication.id, editorDraft);
@@ -768,68 +964,78 @@ function MetadataEditorDialog({
           </button>
         </div>
 
-        <div className="publication-fields metadata-dialog-fields">
-          <label>
-            Title
-            <input
-              value={editorDraft.title ?? ""}
-              disabled={isSaving}
-              onChange={(event) => onUpdateMetadataField(publication.id, { title: event.target.value })}
-            />
-          </label>
-          <label>
-            Visibility
-            <select
-              value={editorDraft.privacyStatus || publication.privacyStatus || "unknown"}
-              disabled={isSaving}
-              onChange={(event) => onUpdateMetadataField(publication.id, { privacyStatus: event.target.value })}
-            >
-              <option value="unknown" disabled>
-                Unknown
-              </option>
-              <option value="private">Private</option>
-              <option value="public">Public</option>
-              <option value="unlisted">Unlisted</option>
-            </select>
-          </label>
-          <label>
-            Tags
-            <input
-              value={editorDraft.tagsText ?? ""}
-              disabled={isSaving}
-              placeholder="tag1, tag2"
-              onChange={(event) => onUpdateMetadataField(publication.id, { tagsText: event.target.value })}
-            />
-          </label>
-          <label>
-            Hashtags
-            <input
-              value={editorDraft.hashtagsText ?? ""}
-              disabled={isSaving}
-              placeholder="#newleaf, #trading"
-              onChange={(event) => onUpdateMetadataField(publication.id, { hashtagsText: event.target.value })}
-            />
-          </label>
-          <label className="publication-description">
-            Description
-            <textarea
-              value={editorDraft.description ?? ""}
-              disabled={isSaving}
-              onChange={(event) => onUpdateMetadataField(publication.id, { description: event.target.value })}
-            />
-          </label>
-        </div>
+        <div className="modal-body">
+          <div className="publication-fields metadata-dialog-fields">
+            <label>
+              Title
+              <input
+                value={editorDraft.title ?? ""}
+                disabled={isSaving}
+                onChange={(event) => onUpdateMetadataField(publication.id, { title: event.target.value })}
+              />
+            </label>
+            <label>
+              Visibility
+              <select
+                value={editorDraft.privacyStatus || publication.privacyStatus || "unknown"}
+                disabled={isSaving}
+                onChange={(event) => onUpdateMetadataField(publication.id, { privacyStatus: event.target.value })}
+              >
+                <option value="unknown" disabled>
+                  Unknown
+                </option>
+                <option value="private">Private</option>
+                <option value="public">Public</option>
+                <option value="unlisted">Unlisted</option>
+              </select>
+            </label>
+            <label>
+              Tags
+              <input
+                value={editorDraft.tagsText ?? ""}
+                disabled={isSaving}
+                placeholder="tag1, tag2"
+                onChange={(event) => onUpdateMetadataField(publication.id, { tagsText: event.target.value })}
+              />
+            </label>
+            <label>
+              Hashtags
+              <input
+                value={editorDraft.hashtagsText ?? ""}
+                disabled={isSaving}
+                placeholder="#newleaf, #trading"
+                onChange={(event) => onUpdateMetadataField(publication.id, { hashtagsText: event.target.value })}
+              />
+            </label>
+            <label className="publication-description">
+              Description
+              <textarea
+                value={editorDraft.description ?? ""}
+                disabled={isSaving}
+                onChange={(event) => onUpdateMetadataField(publication.id, { description: event.target.value })}
+              />
+            </label>
+          </div>
 
-        <div className="published-thumbnail-controls metadata-thumbnail-controls">
-          <ThumbnailManager
-            generateThumbnail={(jobId, atSeconds) => onGenerateThumbnail(publication, atSeconds)}
-            job={job}
-            showPreview
-            uploadThumbnail={(jobId, file) => onUploadThumbnail(publication, file)}
-          />
-        </div>
+          {isYouTubePublication && (
+            <YouTubeMetadataFields
+              disabled={isSaving}
+              draft={editorDraft}
+              onChange={(patch) => onUpdateMetadataField(publication.id, patch)}
+            />
+          )}
 
-        {editorDraft.error && <p className="form-error">{editorDraft.error}</p>}
+          <div className="published-thumbnail-controls metadata-thumbnail-controls">
+            <ThumbnailManager
+              generateThumbnail={(jobId, atSeconds) => onGenerateThumbnail(publication, atSeconds)}
+              job={job}
+              showPreview
+              uploadThumbnail={(jobId, file) => onUploadThumbnail(publication, file)}
+            />
+          </div>
+
+          {editorDraft.error && <p className="form-error">{editorDraft.error}</p>}
+        </div>
 
         <div className="modal-actions">
           <button type="button" onClick={onCancel}>
@@ -860,11 +1066,13 @@ function DeleteConfirmationDialog({ confirmation, onCancel, onConfirm }) {
           </button>
         </div>
 
-        <p className="confirm-copy">
-          {isBulkDelete
-            ? "This will remove the published video from every channel where provider deletion is available."
-            : `This will remove the published video from ${confirmation.platform}.`}
-        </p>
+        <div className="modal-body">
+          <p className="confirm-copy">
+            {isBulkDelete
+              ? "This will remove the published video from every channel where provider deletion is available."
+              : `This will remove the published video from ${confirmation.platform}.`}
+          </p>
+        </div>
 
         <div className="modal-actions">
           <button type="button" onClick={onCancel}>

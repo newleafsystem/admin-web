@@ -43,7 +43,8 @@ import {
   intakeModes,
   navItems,
   routeByView,
-  socialPlatforms
+  socialPlatforms,
+  youtubeMetadataDefaults
 } from "./constants.js";
 import {
   addAuditEvent,
@@ -768,7 +769,8 @@ export default function App({ session }) {
           tags: parseDelimitedTags(publishDraft.youtubeTagsText),
           thumbnailArtifactId: job?.thumbnail?.artifactId ?? null,
           thumbnailUrl: job?.thumbnail?.url ?? null,
-          thumbnailSource: job?.thumbnail?.source ?? null
+          thumbnailSource: job?.thumbnail?.source ?? null,
+          ...(platforms.includes("youtube") ? youtubeMetadataFromDraft(publishDraft) : {})
         }
       }));
       await withSectionLoader("Content Queue", "Approving publishing...", () => approvePublishPlan(plan.id));
@@ -800,6 +802,7 @@ export default function App({ session }) {
           scheduledAt: publishDraft.scheduledAt || "Not scheduled",
           hashtags: parseDelimitedTags(publishDraft.hashtagsText),
           tags: parseDelimitedTags(publishDraft.youtubeTagsText),
+          ...(platforms.includes("youtube") ? youtubeMetadataFromDraft(publishDraft) : {}),
           planId: plan.id,
           attempts: publishResult?.attempts?.length ?? 0
         })
@@ -940,6 +943,15 @@ export default function App({ session }) {
         privacyStatus: updatedPublication.privacyStatus,
         tagsText: updatedPublication.tags.join(", "),
         hashtagsText: updatedPublication.hashtags.join(", "),
+        videoLanguage: updatedPublication.videoLanguage ?? youtubeMetadataDefaults.videoLanguage,
+        shortsRemixing: updatedPublication.shortsRemixing ?? youtubeMetadataDefaults.shortsRemixing,
+        titleDescriptionLanguage:
+          updatedPublication.titleDescriptionLanguage ?? youtubeMetadataDefaults.titleDescriptionLanguage,
+        categoryId: updatedPublication.categoryId ?? youtubeMetadataDefaults.categoryId,
+        educationApplicationType:
+          updatedPublication.educationApplicationType ?? youtubeMetadataDefaults.educationApplicationType,
+        academicSystem: updatedPublication.academicSystem ?? youtubeMetadataDefaults.academicSystem,
+        educationLevel: updatedPublication.educationLevel ?? youtubeMetadataDefaults.educationLevel,
         isSaving: false,
         error: null
       }
@@ -966,6 +978,9 @@ export default function App({ session }) {
           };
         if (!overrides && draft.privacyStatus && draft.privacyStatus !== "unknown") {
           payload.privacyStatus = draft.privacyStatus;
+        }
+        if (!overrides) {
+          Object.assign(payload, youtubeMetadataFromDraft(draft));
         }
         auditFields = Object.keys(payload);
         return updatePublication(publicationId, payload);
@@ -1005,7 +1020,8 @@ export default function App({ session }) {
       title,
       description,
       tags: payload.tags ?? [],
-      hashtags: payload.hashtags ?? []
+      hashtags: payload.hashtags ?? [],
+      ...youtubeMetadataFromDraft(payload)
     };
     if (payload.privacyStatus && payload.privacyStatus !== "unknown") {
       metadata.privacyStatus = payload.privacyStatus;
@@ -1633,6 +1649,17 @@ function hydratePublishDraftForJobChange(current, patch, jobs) {
   next.description = isSameJob ? current.description : defaultPublishDescription(job);
   next.hashtagsText = isSameJob ? current.hashtagsText : defaultHashtagsText(job);
   next.youtubeTagsText = isSameJob ? current.youtubeTagsText : defaultYouTubeTagsText(job);
+  next.videoLanguage = isSameJob ? current.videoLanguage : youtubeMetadataDefaults.videoLanguage;
+  next.shortsRemixing = isSameJob ? current.shortsRemixing : youtubeMetadataDefaults.shortsRemixing;
+  next.titleDescriptionLanguage = isSameJob
+    ? current.titleDescriptionLanguage
+    : youtubeMetadataDefaults.titleDescriptionLanguage;
+  next.categoryId = isSameJob ? current.categoryId : youtubeMetadataDefaults.categoryId;
+  next.educationApplicationType = isSameJob
+    ? current.educationApplicationType
+    : youtubeMetadataDefaults.educationApplicationType;
+  next.academicSystem = isSameJob ? current.academicSystem : youtubeMetadataDefaults.academicSystem;
+  next.educationLevel = isSameJob ? current.educationLevel : youtubeMetadataDefaults.educationLevel;
   return next;
 }
 
@@ -1694,6 +1721,24 @@ function parseDelimitedTags(value) {
         .filter(Boolean)
     )
   );
+}
+
+function youtubeMetadataFromDraft(draft = {}) {
+  const videoLanguage = draft.videoLanguage || youtubeMetadataDefaults.videoLanguage;
+  const titleDescriptionLanguage =
+    draft.titleDescriptionLanguage || youtubeMetadataDefaults.titleDescriptionLanguage;
+  return {
+    categoryId: draft.categoryId || youtubeMetadataDefaults.categoryId,
+    videoLanguage,
+    defaultAudioLanguage: videoLanguage,
+    shortsRemixing: draft.shortsRemixing || youtubeMetadataDefaults.shortsRemixing,
+    titleDescriptionLanguage,
+    defaultLanguage: titleDescriptionLanguage,
+    educationApplicationType:
+      draft.educationApplicationType || youtubeMetadataDefaults.educationApplicationType,
+    academicSystem: draft.academicSystem || youtubeMetadataDefaults.academicSystem,
+    educationLevel: draft.educationLevel || youtubeMetadataDefaults.educationLevel
+  };
 }
 
 function isFutureSchedule(value) {

@@ -17,6 +17,18 @@ import {
 const SUPPORTED_PLATFORMS = ['youtube', 'x', 'linkedin', 'instagram', 'facebook', 'tiktok'];
 const DEFAULT_ENABLED_PUBLISH_PLATFORMS = ['youtube', 'x', 'linkedin', 'instagram', 'facebook'];
 const SYNCABLE_IMPORT_PLATFORMS = ['youtube', 'x', 'linkedin', 'instagram', 'facebook'];
+const YOUTUBE_EDUCATION_DEFAULTS = Object.freeze({
+  categoryId: '27',
+  videoLanguage: 'en',
+  defaultAudioLanguage: 'en',
+  titleDescriptionLanguage: 'en',
+  defaultLanguage: 'en',
+  shortsRemixing: 'allow_video_audio',
+  educationApplicationType: 'real_life_application',
+  academicSystem: 'united_states',
+  educationLevel: 'professional_training',
+});
+const SHORTS_REMIXING_VALUES = ['allow_video_audio', 'allow_audio_only', 'disallow'];
 
 export function createPublishingRouter({ repository, jobStateService, publisherService, videoReviewService }) {
   const router = Router();
@@ -380,6 +392,15 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
         'tags',
         'hashtags',
         'privacyStatus',
+        'categoryId',
+        'videoLanguage',
+        'defaultAudioLanguage',
+        'titleDescriptionLanguage',
+        'defaultLanguage',
+        'shortsRemixing',
+        'educationApplicationType',
+        'academicSystem',
+        'educationLevel',
         'thumbnailArtifactId',
         'thumbnailUrl',
         'thumbnailSource',
@@ -411,6 +432,64 @@ export function createPublishingRouter({ repository, jobStateService, publisherS
           'privacyStatus',
           ['private', 'public', 'unlisted'],
         );
+      }
+      if (hasOwn(body, 'categoryId')) {
+        metadata.categoryId = optionalString(body, 'categoryId', {
+          maxLength: 20,
+          defaultValue: YOUTUBE_EDUCATION_DEFAULTS.categoryId,
+        });
+      }
+      if (hasOwn(body, 'videoLanguage')) {
+        metadata.videoLanguage = optionalString(body, 'videoLanguage', {
+          maxLength: 20,
+          defaultValue: YOUTUBE_EDUCATION_DEFAULTS.videoLanguage,
+        });
+      }
+      if (hasOwn(body, 'defaultAudioLanguage')) {
+        metadata.defaultAudioLanguage = optionalString(body, 'defaultAudioLanguage', {
+          maxLength: 20,
+          defaultValue: metadata.videoLanguage ?? YOUTUBE_EDUCATION_DEFAULTS.defaultAudioLanguage,
+        });
+      }
+      if (hasOwn(body, 'titleDescriptionLanguage')) {
+        metadata.titleDescriptionLanguage = optionalString(body, 'titleDescriptionLanguage', {
+          maxLength: 20,
+          defaultValue: YOUTUBE_EDUCATION_DEFAULTS.titleDescriptionLanguage,
+        });
+      }
+      if (hasOwn(body, 'defaultLanguage')) {
+        metadata.defaultLanguage = optionalString(body, 'defaultLanguage', {
+          maxLength: 20,
+          defaultValue: metadata.titleDescriptionLanguage ?? YOUTUBE_EDUCATION_DEFAULTS.defaultLanguage,
+        });
+      }
+      if (hasOwn(body, 'shortsRemixing')) {
+        metadata.shortsRemixing = requireAllowed(
+          optionalString(body, 'shortsRemixing', {
+            maxLength: 40,
+            defaultValue: YOUTUBE_EDUCATION_DEFAULTS.shortsRemixing,
+          }),
+          'shortsRemixing',
+          SHORTS_REMIXING_VALUES,
+        );
+      }
+      if (hasOwn(body, 'educationApplicationType')) {
+        metadata.educationApplicationType = optionalString(body, 'educationApplicationType', {
+          maxLength: 80,
+          defaultValue: YOUTUBE_EDUCATION_DEFAULTS.educationApplicationType,
+        });
+      }
+      if (hasOwn(body, 'academicSystem')) {
+        metadata.academicSystem = optionalString(body, 'academicSystem', {
+          maxLength: 80,
+          defaultValue: YOUTUBE_EDUCATION_DEFAULTS.academicSystem,
+        });
+      }
+      if (hasOwn(body, 'educationLevel')) {
+        metadata.educationLevel = optionalString(body, 'educationLevel', {
+          maxLength: 80,
+          defaultValue: YOUTUBE_EDUCATION_DEFAULTS.educationLevel,
+        });
       }
       if (hasOwn(body, 'thumbnailArtifactId')) {
         metadata.thumbnailArtifactId = optionalString(body, 'thumbnailArtifactId', { maxLength: 200, defaultValue: null });
@@ -596,6 +675,15 @@ function hasPublicationMetadataChange(body) {
     'description',
     'tags',
     'hashtags',
+    'categoryId',
+    'videoLanguage',
+    'defaultAudioLanguage',
+    'titleDescriptionLanguage',
+    'defaultLanguage',
+    'shortsRemixing',
+    'educationApplicationType',
+    'academicSystem',
+    'educationLevel',
     'thumbnailArtifactId',
     'thumbnailUrl',
     'thumbnailSource',
@@ -604,12 +692,58 @@ function hasPublicationMetadataChange(body) {
 }
 
 function normalizePublishMetadata(metadata) {
-  const normalized = {
+  const withDefaults = {
+    ...YOUTUBE_EDUCATION_DEFAULTS,
     ...metadata,
-    title: requireString(metadata, 'title', { maxLength: 300 }),
-    description: requireString(metadata, 'description', { maxLength: 5000 }),
-    tags: normalizeMetadataList(metadata.tags, { maxItems: 50 }),
-    hashtags: normalizeMetadataList(metadata.hashtags, { maxItems: 30 }).map((hashtag) => hashtag.replace(/^#+/, '')),
+  };
+  const videoLanguage = optionalString(withDefaults, 'videoLanguage', {
+    maxLength: 20,
+    defaultValue: YOUTUBE_EDUCATION_DEFAULTS.videoLanguage,
+  });
+  const titleDescriptionLanguage = optionalString(withDefaults, 'titleDescriptionLanguage', {
+    maxLength: 20,
+    defaultValue: YOUTUBE_EDUCATION_DEFAULTS.titleDescriptionLanguage,
+  });
+  const normalized = {
+    ...withDefaults,
+    title: requireString(withDefaults, 'title', { maxLength: 300 }),
+    description: requireString(withDefaults, 'description', { maxLength: 5000 }),
+    tags: normalizeMetadataList(withDefaults.tags, { maxItems: 50 }),
+    hashtags: normalizeMetadataList(withDefaults.hashtags, { maxItems: 30 }).map((hashtag) => hashtag.replace(/^#+/, '')),
+    categoryId: optionalString(withDefaults, 'categoryId', {
+      maxLength: 20,
+      defaultValue: YOUTUBE_EDUCATION_DEFAULTS.categoryId,
+    }),
+    videoLanguage,
+    defaultAudioLanguage: optionalString(withDefaults, 'defaultAudioLanguage', {
+      maxLength: 20,
+      defaultValue: videoLanguage,
+    }),
+    titleDescriptionLanguage,
+    defaultLanguage: optionalString(withDefaults, 'defaultLanguage', {
+      maxLength: 20,
+      defaultValue: titleDescriptionLanguage,
+    }),
+    shortsRemixing: requireAllowed(
+      optionalString(withDefaults, 'shortsRemixing', {
+        maxLength: 40,
+        defaultValue: YOUTUBE_EDUCATION_DEFAULTS.shortsRemixing,
+      }),
+      'shortsRemixing',
+      SHORTS_REMIXING_VALUES,
+    ),
+    educationApplicationType: optionalString(withDefaults, 'educationApplicationType', {
+      maxLength: 80,
+      defaultValue: YOUTUBE_EDUCATION_DEFAULTS.educationApplicationType,
+    }),
+    academicSystem: optionalString(withDefaults, 'academicSystem', {
+      maxLength: 80,
+      defaultValue: YOUTUBE_EDUCATION_DEFAULTS.academicSystem,
+    }),
+    educationLevel: optionalString(withDefaults, 'educationLevel', {
+      maxLength: 80,
+      defaultValue: YOUTUBE_EDUCATION_DEFAULTS.educationLevel,
+    }),
   };
   return normalized;
 }
@@ -679,6 +813,19 @@ function publicationMetadataForAttempt(metadata = {}) {
     thumbnailUrl: metadata.thumbnailUrl ?? null,
     thumbnailSource: metadata.thumbnailSource ?? null,
     privacyStatus: metadata.privacyStatus,
+    categoryId: metadata.categoryId ?? YOUTUBE_EDUCATION_DEFAULTS.categoryId,
+    videoLanguage: metadata.videoLanguage ?? YOUTUBE_EDUCATION_DEFAULTS.videoLanguage,
+    defaultAudioLanguage:
+      metadata.defaultAudioLanguage ?? metadata.videoLanguage ?? YOUTUBE_EDUCATION_DEFAULTS.defaultAudioLanguage,
+    titleDescriptionLanguage:
+      metadata.titleDescriptionLanguage ?? YOUTUBE_EDUCATION_DEFAULTS.titleDescriptionLanguage,
+    defaultLanguage:
+      metadata.defaultLanguage ?? metadata.titleDescriptionLanguage ?? YOUTUBE_EDUCATION_DEFAULTS.defaultLanguage,
+    shortsRemixing: metadata.shortsRemixing ?? YOUTUBE_EDUCATION_DEFAULTS.shortsRemixing,
+    educationApplicationType:
+      metadata.educationApplicationType ?? YOUTUBE_EDUCATION_DEFAULTS.educationApplicationType,
+    academicSystem: metadata.academicSystem ?? YOUTUBE_EDUCATION_DEFAULTS.academicSystem,
+    educationLevel: metadata.educationLevel ?? YOUTUBE_EDUCATION_DEFAULTS.educationLevel,
   };
 }
 

@@ -3,7 +3,8 @@ import {
   REVIEWABLE_STATUSES,
   routeByView,
   socialPlatforms,
-  viewByRoute
+  viewByRoute,
+  youtubeMetadataDefaults
 } from "./constants.js";
 
 export function buildPublicationDrafts(publications) {
@@ -16,6 +17,15 @@ export function buildPublicationDrafts(publications) {
         privacyStatus: publication.privacyStatus,
         tagsText: publication.tags.join(", "),
         hashtagsText: publication.hashtags?.join(", ") ?? "",
+        videoLanguage: publication.videoLanguage ?? youtubeMetadataDefaults.videoLanguage,
+        shortsRemixing: publication.shortsRemixing ?? youtubeMetadataDefaults.shortsRemixing,
+        titleDescriptionLanguage:
+          publication.titleDescriptionLanguage ?? youtubeMetadataDefaults.titleDescriptionLanguage,
+        categoryId: publication.categoryId ?? youtubeMetadataDefaults.categoryId,
+        educationApplicationType:
+          publication.educationApplicationType ?? youtubeMetadataDefaults.educationApplicationType,
+        academicSystem: publication.academicSystem ?? youtubeMetadataDefaults.academicSystem,
+        educationLevel: publication.educationLevel ?? youtubeMetadataDefaults.educationLevel,
         isSaving: false,
         error: null
       }

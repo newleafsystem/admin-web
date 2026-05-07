@@ -539,11 +539,13 @@ function DeleteStudioConfirmationDialog({ confirmation, isDeleting, onCancel, on
             x
           </button>
         </div>
-        <p className="confirm-copy">
-          {confirmation.scope === "project"
-            ? "This deletes the local Video Studio project, uploaded assets, temporary render files, and output MP4."
-            : "This deletes the uploaded file from this Video Studio project and removes it from the timeline."}
-        </p>
+        <div className="modal-body">
+          <p className="confirm-copy">
+            {confirmation.scope === "project"
+              ? "This deletes the local Video Studio project, uploaded assets, temporary render files, and output MP4."
+              : "This deletes the uploaded file from this Video Studio project and removes it from the timeline."}
+          </p>
+        </div>
         <div className="modal-actions">
           <button type="button" disabled={isDeleting} onClick={onCancel}>
             Cancel

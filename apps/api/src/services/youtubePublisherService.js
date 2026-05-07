@@ -134,6 +134,21 @@ export function createYouTubePublisherService(options = {}) {
         description: metadata.snippet.description,
         tags: metadata.snippet.tags ?? [],
         hashtags: Array.isArray(context.attempt.metadata?.hashtags) ? context.attempt.metadata.hashtags : [],
+        categoryId: metadata.snippet.categoryId,
+        videoLanguage:
+          metadata.snippet.defaultAudioLanguage ?? context.attempt.metadata?.videoLanguage ?? context.plan.metadata?.videoLanguage ?? null,
+        defaultAudioLanguage: metadata.snippet.defaultAudioLanguage ?? null,
+        titleDescriptionLanguage:
+          metadata.snippet.defaultLanguage ??
+          context.attempt.metadata?.titleDescriptionLanguage ??
+          context.plan.metadata?.titleDescriptionLanguage ??
+          null,
+        defaultLanguage: metadata.snippet.defaultLanguage ?? null,
+        shortsRemixing: context.attempt.metadata?.shortsRemixing ?? context.plan.metadata?.shortsRemixing ?? null,
+        educationApplicationType:
+          context.attempt.metadata?.educationApplicationType ?? context.plan.metadata?.educationApplicationType ?? null,
+        academicSystem: context.attempt.metadata?.academicSystem ?? context.plan.metadata?.academicSystem ?? null,
+        educationLevel: context.attempt.metadata?.educationLevel ?? context.plan.metadata?.educationLevel ?? null,
         thumbnailArtifactId: context.thumbnail?.artifact.id ?? context.attempt.metadata?.thumbnailArtifactId ?? null,
         thumbnailUrl: context.attempt.metadata?.thumbnailUrl ?? context.plan.metadata?.thumbnailUrl ?? context.job.metadata?.thumbnailUrl ?? null,
         thumbnailSource: context.attempt.metadata?.thumbnailSource ?? context.plan.metadata?.thumbnailSource ?? context.job.metadata?.thumbnailSource ?? null,
@@ -293,6 +308,17 @@ export function createYouTubePublisherService(options = {}) {
         description: metadata.description ?? attempt.metadata?.description ?? '',
         tags: Array.isArray(metadata.tags) ? metadata.tags : response.snippet?.tags ?? [],
         hashtags: Array.isArray(metadata.hashtags) ? metadata.hashtags : attempt.metadata?.hashtags ?? [],
+        categoryId: response.snippet?.categoryId ?? metadata.categoryId ?? currentVideo.snippet?.categoryId ?? serviceConfig.defaultCategoryId,
+        videoLanguage:
+          response.snippet?.defaultAudioLanguage ?? metadata.videoLanguage ?? metadata.defaultAudioLanguage ?? null,
+        defaultAudioLanguage: response.snippet?.defaultAudioLanguage ?? metadata.defaultAudioLanguage ?? metadata.videoLanguage ?? null,
+        titleDescriptionLanguage:
+          response.snippet?.defaultLanguage ?? metadata.titleDescriptionLanguage ?? metadata.defaultLanguage ?? null,
+        defaultLanguage: response.snippet?.defaultLanguage ?? metadata.defaultLanguage ?? metadata.titleDescriptionLanguage ?? null,
+        shortsRemixing: metadata.shortsRemixing ?? attempt.metadata?.shortsRemixing ?? null,
+        educationApplicationType: metadata.educationApplicationType ?? attempt.metadata?.educationApplicationType ?? null,
+        academicSystem: metadata.academicSystem ?? attempt.metadata?.academicSystem ?? null,
+        educationLevel: metadata.educationLevel ?? attempt.metadata?.educationLevel ?? null,
         privacyStatus: response.status?.privacyStatus ?? metadata.privacyStatus ?? currentVideo.status?.privacyStatus,
         publisherStatus:
           thumbnailResult?.status === 'failed'
@@ -1153,12 +1179,16 @@ function buildVideoResource({ attempt, plan, job }, serviceConfig = config.youtu
   const tags = Array.isArray(metadata.tags)
     ? metadata.tags.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 50)
     : [];
+  const defaultLanguage = normalizeLanguageCode(metadata.titleDescriptionLanguage ?? metadata.defaultLanguage);
+  const defaultAudioLanguage = normalizeLanguageCode(metadata.videoLanguage ?? metadata.defaultAudioLanguage);
 
   return {
     snippet: {
       title,
       description,
       categoryId: String(metadata.categoryId ?? serviceConfig.defaultCategoryId),
+      ...(defaultLanguage ? { defaultLanguage } : {}),
+      ...(defaultAudioLanguage ? { defaultAudioLanguage } : {}),
       ...(tags.length > 0 ? { tags } : {}),
     },
     status: {
@@ -1182,13 +1212,19 @@ function buildUpdatedSnippet(currentSnippet = {}, metadata = {}, serviceConfig =
     tagSource = currentSnippet.tags;
   }
   const tags = tagSource.map((tag) => String(tag).trim()).filter(Boolean).slice(0, 50);
+  const defaultLanguage = normalizeLanguageCode(
+    metadata.titleDescriptionLanguage ?? metadata.defaultLanguage ?? currentSnippet.defaultLanguage,
+  );
+  const defaultAudioLanguage = normalizeLanguageCode(
+    metadata.videoLanguage ?? metadata.defaultAudioLanguage ?? currentSnippet.defaultAudioLanguage,
+  );
   const snippet = {
     title,
     description,
     categoryId: String(metadata.categoryId ?? currentSnippet.categoryId ?? serviceConfig.defaultCategoryId),
   };
-  if (currentSnippet.defaultLanguage) snippet.defaultLanguage = currentSnippet.defaultLanguage;
-  if (currentSnippet.defaultAudioLanguage) snippet.defaultAudioLanguage = currentSnippet.defaultAudioLanguage;
+  if (defaultLanguage) snippet.defaultLanguage = defaultLanguage;
+  if (defaultAudioLanguage) snippet.defaultAudioLanguage = defaultAudioLanguage;
   if (tags.length > 0) snippet.tags = tags;
   return snippet;
 }
@@ -1318,6 +1354,8 @@ function buildImportedPublicationMetadata({ account, videoId, video, playlistIte
   const thumbnailUrl = bestThumbnailUrl(snippet.thumbnails);
   const providerUrl = `https://www.youtube.com/watch?v=${videoId}`;
   const syncedAt = clock();
+  const defaultLanguage = normalizeLanguageCode(snippet.defaultLanguage);
+  const defaultAudioLanguage = normalizeLanguageCode(snippet.defaultAudioLanguage);
 
   return {
     externalSource: 'youtube_channel_import',
@@ -1327,6 +1365,11 @@ function buildImportedPublicationMetadata({ account, videoId, video, playlistIte
     description,
     tags,
     privacyStatus,
+    categoryId: snippet.categoryId ?? config.youtube.defaultCategoryId,
+    titleDescriptionLanguage: defaultLanguage ?? null,
+    defaultLanguage,
+    videoLanguage: defaultAudioLanguage ?? null,
+    defaultAudioLanguage,
     publishedAt,
     thumbnailUrl,
     providerUrl,
@@ -1434,6 +1477,13 @@ function normalizeHashtag(value) {
 function normalizePrivacyStatus(value) {
   const normalized = String(value ?? '').toLowerCase();
   return PRIVACY_STATUSES.has(normalized) ? normalized : 'private';
+}
+
+function normalizeLanguageCode(value) {
+  const text = String(value ?? '').trim();
+  const match = text.match(/^([a-z]{2,3})(?:-([a-z]{2}))?$/i);
+  if (!match) return null;
+  return match[2] ? `${match[1].toLowerCase()}-${match[2].toUpperCase()}` : match[1].toLowerCase();
 }
 
 function sanitizeMutableVideoStatus(status = {}) {

@@ -330,19 +330,21 @@ function DeleteReviewConfirmationDialog({ confirmation, isDeleting, onCancel, on
           </button>
         </div>
 
-        <p className="confirm-copy">
-          This removes the video from review and deletes its local video, artifact, and provider records. Published or publishing videos cannot be deleted here.
-        </p>
-        <dl className="detail-list compact-details">
-          <div>
-            <dt>Video ID</dt>
-            <dd>{confirmation.jobId}</dd>
-          </div>
-          <div>
-            <dt>Artifact</dt>
-            <dd>{confirmation.sourceArtifact}</dd>
-          </div>
-        </dl>
+        <div className="modal-body">
+          <p className="confirm-copy">
+            This removes the video from review and deletes its local video, artifact, and provider records. Published or publishing videos cannot be deleted here.
+          </p>
+          <dl className="detail-list compact-details">
+            <div>
+              <dt>Video ID</dt>
+              <dd>{confirmation.jobId}</dd>
+            </div>
+            <div>
+              <dt>Artifact</dt>
+              <dd>{confirmation.sourceArtifact}</dd>
+            </div>
+          </dl>
+        </div>
 
         <div className="modal-actions">
           <button type="button" disabled={isDeleting} onClick={onCancel}>
