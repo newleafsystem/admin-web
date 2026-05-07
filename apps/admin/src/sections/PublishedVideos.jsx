@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { ProgressMeter, StatusBadge } from "../components/common.jsx";
 import { ThumbnailManager } from "../components/ThumbnailManager.jsx";
+import { ThumbnailImage } from "../components/ThumbnailImage.jsx";
 import { platformIdFromLabel, platformLabel } from "../utils.js";
 
 export function PublishedVideos({
@@ -407,14 +408,12 @@ function ActivePublicationCard({
       </div>
 
       <div className="video-thumbnail">
-        {publication.thumbnailUrl ? (
-          <img src={publication.thumbnailUrl} alt="" loading="lazy" />
-        ) : (
+        <ThumbnailImage src={publication.thumbnailUrl} alt="">
           <div className="video-thumbnail-placeholder">
             <span>{platformLabel(publication.platform)}</span>
             <strong>{title}</strong>
           </div>
-        )}
+        </ThumbnailImage>
       </div>
 
       <div className="video-card-body">

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ThumbnailImage } from "./ThumbnailImage.jsx";
 
 export function ThumbnailManager({ job, uploadThumbnail, generateThumbnail, showPreview = true }) {
   const [workflow, setWorkflow] = useState({
@@ -71,14 +72,12 @@ export function ThumbnailManager({ job, uploadThumbnail, generateThumbnail, show
     <section className="thumbnail-manager">
       {showPreview && (
         <div className="thumbnail-preview">
-          {job.thumbnail?.url ? (
-            <img alt={`${job.title} thumbnail`} src={job.thumbnail.url} />
-          ) : (
+          <ThumbnailImage alt={`${job.title} thumbnail`} src={job.thumbnail?.url}>
             <div className="thumbnail-empty">
               <span>Thumbnail</span>
               <strong>{job.title}</strong>
             </div>
-          )}
+          </ThumbnailImage>
         </div>
       )}
 

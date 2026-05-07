@@ -64,6 +64,7 @@ import {
   updateBrowserRoute,
   validateContentDraft
 } from "./utils.js";
+import { LeafLoader } from "./components/LeafLoader.jsx";
 
 const AuditLog = lazy(() => import("./sections/AuditLog.jsx").then((module) => ({ default: module.AuditLog })));
 const ConnectedAccounts = lazy(() =>
@@ -1386,8 +1387,7 @@ export default function App({ session }) {
 
         {Object.keys(sectionLoaders).length > 0 && (
           <section className="section-loader app-loader" aria-live="polite">
-            <span className="loading-spinner" aria-hidden="true" />
-            {Object.values(sectionLoaders)[0]}
+            <LeafLoader compact label={Object.values(sectionLoaders)[0]} />
           </section>
         )}
 
@@ -1396,13 +1396,14 @@ export default function App({ session }) {
             Unable to load operations snapshot: {loadError.message}
           </section>
         ) : isLoading ? (
-          <section className="empty-state">Loading operations snapshot...</section>
+          <section className="empty-state">
+            <LeafLoader label="Loading operations snapshot" />
+          </section>
         ) : (
-          <Suspense fallback={<section className="empty-state">Loading section...</section>}>
+          <Suspense fallback={<section className="empty-state"><LeafLoader label="Loading section" /></section>}>
             {sectionLoaders[activeView] && (
               <section className="section-loader" aria-live="polite">
-                <span className="loading-spinner" aria-hidden="true" />
-                {sectionLoaders[activeView]}
+                <LeafLoader compact label={sectionLoaders[activeView]} />
               </section>
             )}
             {actionError && <section className="form-error">{actionError}</section>}

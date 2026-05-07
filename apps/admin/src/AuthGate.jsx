@@ -6,6 +6,7 @@ import {
   signOutUser,
   subscribeToAuth
 } from "./firebaseClient.js";
+import { LeafLoader } from "./components/LeafLoader.jsx";
 
 export function AuthGate({ children }) {
   const [state, setState] = useState({
@@ -52,9 +53,9 @@ export function AuthGate({ children }) {
   if (state.loading) {
     return (
       <main className="auth-screen">
-        <section className="auth-panel">
+        <section className="auth-panel auth-loading-panel">
           <p className="eyebrow">NewLeaf Admin</p>
-          <h1>Checking session</h1>
+          <LeafLoader label="Preparing NewLeaf" />
         </section>
       </main>
     );

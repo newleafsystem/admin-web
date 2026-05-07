@@ -21,3 +21,7 @@ function getConfiguredApiBaseUrl() {
 }
 
 export const API_BASE_URL = getConfiguredApiBaseUrl().replace(/\/$/, "");
+
+export const DEFAULT_THUMBNAIL_URL =
+  import.meta.env.VITE_DEFAULT_THUMBNAIL_URL?.trim() ||
+  "https://firebasestorage.googleapis.com/v0/b/newleaf-trading.firebasestorage.app/o/defaults%2Fnewleaf-default-thumbnail.svg?alt=media&token=9636151c-e7b2-457d-a691-0ae975d73fbe";

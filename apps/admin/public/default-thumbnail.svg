@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-labelledby="title desc">
+  <title id="title">NewLeaf default video thumbnail</title>
+  <desc id="desc">A NewLeaf branded default thumbnail for unavailable video artwork.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#12382c"/>
+      <stop offset="0.56" stop-color="#1f2933"/>
+      <stop offset="1" stop-color="#2364aa"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d9f0e5"/>
+      <stop offset="1" stop-color="#27745c"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#061510" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <path d="M0 620 C210 548 328 668 536 596 C728 529 874 534 1280 426 L1280 720 L0 720 Z" fill="#0f2f25" opacity="0.58"/>
+  <path d="M0 168 C210 232 363 112 560 170 C778 234 950 142 1280 74 L1280 0 L0 0 Z" fill="#ffffff" opacity="0.06"/>
+  <g filter="url(#shadow)">
+    <path d="M640 170 C524 212 464 315 486 421 C622 430 732 367 782 250 C720 238 680 205 640 170 Z" fill="url(#leaf)"/>
+    <path d="M494 418 C590 378 680 313 780 248" fill="none" stroke="#f3fff8" stroke-width="18" stroke-linecap="round" opacity="0.8"/>
+    <path d="M610 318 C582 298 552 292 522 300" fill="none" stroke="#f3fff8" stroke-width="10" stroke-linecap="round" opacity="0.46"/>
+    <path d="M672 280 C666 245 650 218 625 195" fill="none" stroke="#f3fff8" stroke-width="10" stroke-linecap="round" opacity="0.42"/>
+  </g>
+  <text x="640" y="544" fill="#ffffff" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="62" font-weight="800" text-anchor="middle">NewLeaf</text>
+  <text x="640" y="592" fill="#d9f0e5" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="26" font-weight="700" text-anchor="middle">Video Preview</text>
+</svg>
