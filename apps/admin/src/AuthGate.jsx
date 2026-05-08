@@ -46,7 +46,15 @@ export function AuthGate({ children }) {
     if (!isFirebaseConfigured) {
       return undefined;
     }
-    return subscribeToAuth(async (firebaseUser) => {
+    let authStateResolved = false;
+    const fallbackTimer = window.setTimeout(() => {
+      if (!authStateResolved) {
+        setState((current) => current.loading ? { ...current, loading: false } : current);
+      }
+    }, 6000);
+    const unsubscribe = subscribeToAuth(async (firebaseUser) => {
+      authStateResolved = true;
+      window.clearTimeout(fallbackTimer);
       if (!firebaseUser) {
         setState({ loading: false, firebaseUser: null, session: null, error: null });
         return;
@@ -62,6 +70,10 @@ export function AuthGate({ children }) {
         setState({ loading: false, firebaseUser, session: null, error: error.message });
       }
     });
+    return () => {
+      window.clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, []);
 
   const isAdmin = state.session?.roles?.includes("admin");
