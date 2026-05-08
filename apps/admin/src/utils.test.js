@@ -1,5 +1,36 @@
 import assert from 'node:assert/strict';
-import { hasActivePublishingWork, isArchivedContentQueueJob, isArchivedPublishPlan } from './utils.js';
+import {
+  getRouteStateFromPath,
+  hasActivePublishingWork,
+  isArchivedContentQueueJob,
+  isArchivedPublishPlan,
+  normalizePathname,
+} from './utils.js';
+
+assert.equal(normalizePathname('/Create/'), '/create');
+assert.equal(normalizePathname('/'), '/');
+
+assert.deepEqual(getRouteStateFromPath('/create/'), {
+  status: 'view',
+  view: 'Create Content',
+  path: '/create',
+});
+
+assert.deepEqual(getRouteStateFromPath('/404'), {
+  status: 'notFound',
+  view: null,
+  path: '/404',
+});
+
+assert.deepEqual(getRouteStateFromPath('/500'), {
+  status: 'serverError',
+  view: null,
+  path: '/500',
+});
+
+const invalidRouteState = getRouteStateFromPath('/invalid-admin-page');
+assert.equal(invalidRouteState.status, 'notFound');
+assert.equal(invalidRouteState.requestedPath, '/invalid-admin-page');
 
 assert.equal(
   isArchivedContentQueueJob({

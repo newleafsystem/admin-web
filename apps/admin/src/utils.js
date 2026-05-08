@@ -412,12 +412,46 @@ export function normalizePathname(pathname) {
   return normalized === "" ? "/" : normalized.toLowerCase();
 }
 
+export const systemRouteByStatus = Object.freeze({
+  notFound: "/404",
+  serverError: "/500"
+});
+
+export function getRouteStateFromPath(pathname) {
+  const path = normalizePathname(pathname ?? "/");
+  const view = viewByRoute.get(path);
+  if (view) {
+    return { status: "view", view, path };
+  }
+  if (path === systemRouteByStatus.notFound) {
+    return { status: "notFound", view: null, path };
+  }
+  if (path === systemRouteByStatus.serverError) {
+    return { status: "serverError", view: null, path };
+  }
+  return { status: "notFound", view: null, path, requestedPath: path };
+}
+
+export function getRouteStateFromLocation() {
+  return getRouteStateFromPath(window.location.pathname);
+}
+
 export function getViewFromLocation() {
-  return viewByRoute.get(normalizePathname(window.location.pathname)) ?? "Dashboard";
+  const routeState = getRouteStateFromLocation();
+  return routeState.status === "view" ? routeState.view : "Dashboard";
 }
 
 export function updateBrowserRoute(view, replace = false) {
   const path = routeByView[view] ?? "/";
+  if (window.location.pathname === path) {
+    return;
+  }
+  const method = replace ? "replaceState" : "pushState";
+  window.history[method]({}, "", path);
+}
+
+export function updateBrowserSystemRoute(status, replace = true) {
+  const path = systemRouteByStatus[status] ?? "/";
   if (window.location.pathname === path) {
     return;
   }

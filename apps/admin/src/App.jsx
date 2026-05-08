@@ -56,13 +56,14 @@ import {
   getIntegratedPlatforms,
   getPlatformConfig,
   getRemainingPublishPlatforms,
-  getViewFromLocation,
+  getRouteStateFromLocation,
   hasActivePublishingWork,
   isArchivedContentQueueJob,
   isArchivedPublishPlan,
   isReviewableJob,
   mergeJob,
   updateBrowserRoute,
+  updateBrowserSystemRoute,
   validateContentDraft
 } from "./utils.js";
 import { LeafLoader } from "./components/LeafLoader.jsx";
@@ -97,7 +98,7 @@ const VideoStudio = lazy(() =>
 );
 
 export default function App({ session }) {
-  const [activeView, setActiveViewState] = useState(getViewFromLocation);
+  const [routeState, setRouteState] = useState(getRouteStateFromLocation);
   const [jobs, setJobs] = useState([]);
   const [publishPlans, setPublishPlans] = useState([]);
   const [publications, setPublications] = useState([]);
@@ -129,12 +130,15 @@ export default function App({ session }) {
     error: null,
     isSubmitting: false
   });
+  const activeView = routeState.status === "view" ? routeState.view : "Dashboard";
+  const effectiveRouteStatus = routeState.status === "view" && loadError ? "serverError" : routeState.status;
+  const pageTitle = getPageTitle(effectiveRouteStatus, activeView);
 
   function setActiveView(view, options = {}) {
     const nextView = routeByView[view] ? view : "Dashboard";
     clearTransientErrors();
     updateBrowserRoute(nextView, options.replace);
-    setActiveViewState(nextView);
+    setRouteState({ status: "view", view: nextView, path: routeByView[nextView] });
   }
 
   function clearTransientErrors() {
@@ -148,10 +152,29 @@ export default function App({ session }) {
   }
 
   useEffect(() => {
-    document.title = activeView === "Dashboard"
+    document.title = pageTitle === "Dashboard"
       ? "NewLeaf System | Video Automation Console"
-      : `${activeView} | NewLeaf System`;
-  }, [activeView]);
+      : `${pageTitle} | NewLeaf System`;
+  }, [pageTitle]);
+
+  useEffect(() => {
+    if (routeState.status === "notFound" && window.location.pathname !== "/404") {
+      updateBrowserSystemRoute("notFound", true);
+      setRouteState((current) => ({
+        status: "notFound",
+        view: null,
+        path: "/404",
+        requestedPath: current.requestedPath ?? current.path
+      }));
+    }
+  }, [routeState.path, routeState.status]);
+
+  useEffect(() => {
+    if (loadError && routeState.status === "view") {
+      updateBrowserSystemRoute("serverError", true);
+      setRouteState({ status: "serverError", view: null, path: "/500" });
+    }
+  }, [loadError, routeState.status]);
 
   function setSectionLoading(view, label) {
     setSectionLoaders((current) => ({
@@ -232,7 +255,7 @@ export default function App({ session }) {
   useEffect(() => {
     const handlePopState = () => {
       clearTransientErrors();
-      setActiveViewState(getViewFromLocation());
+      setRouteState(getRouteStateFromLocation());
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -1452,7 +1475,7 @@ export default function App({ session }) {
         <nav className="nav-list" aria-label="Admin sections">
           {navItems.map((item) => (
             <button
-              className={item === activeView ? "nav-item active" : "nav-item"}
+              className={effectiveRouteStatus === "view" && item === activeView ? "nav-item active" : "nav-item"}
               key={item}
               type="button"
               onClick={() => setActiveView(item)}
@@ -1467,7 +1490,7 @@ export default function App({ session }) {
         <header className="topbar">
           <div>
             <p className="eyebrow">Operations</p>
-            <h1>{activeView}</h1>
+            <h1>{pageTitle}</h1>
           </div>
           <div className="operator-strip">
             <span>{currentActor(session)}</span>
@@ -1480,10 +1503,28 @@ export default function App({ session }) {
           </section>
         )}
 
-        {loadError ? (
-          <section className="empty-state">
-            Unable to load operations snapshot: {loadError.message}
-          </section>
+        {effectiveRouteStatus === "notFound" ? (
+          <RouteStatusPage
+            code="404"
+            eyebrow="Route not found"
+            title="Page not found"
+            message="The requested page is not a valid NewLeaf admin route."
+            detail={routeState.requestedPath ? `Requested path: ${routeState.requestedPath}` : null}
+            primaryActionLabel="Open dashboard"
+            onPrimaryAction={() => setActiveView("Dashboard", { replace: true })}
+          />
+        ) : effectiveRouteStatus === "serverError" ? (
+          <RouteStatusPage
+            code="500"
+            eyebrow="Console error"
+            title="Something went wrong"
+            message="The admin console could not load the operations data needed for this page."
+            detail={loadError?.message ?? "No additional error detail is available."}
+            primaryActionLabel="Retry"
+            onPrimaryAction={() => window.location.reload()}
+            secondaryActionLabel={loadError ? null : "Open dashboard"}
+            onSecondaryAction={() => setActiveView("Dashboard", { replace: true })}
+          />
         ) : isLoading ? (
           <section className="empty-state">
             <LeafLoader label="Loading operations snapshot" />
@@ -1629,6 +1670,52 @@ export default function App({ session }) {
       </main>
     </div>
   );
+}
+
+function RouteStatusPage({
+  code,
+  eyebrow,
+  title,
+  message,
+  detail,
+  primaryActionLabel,
+  onPrimaryAction,
+  secondaryActionLabel,
+  onSecondaryAction
+}) {
+  return (
+    <section className="route-status-card" aria-labelledby={`route-status-${code}`}>
+      <div className="route-status-code" aria-hidden="true">{code}</div>
+      <div className="route-status-copy">
+        <p className="eyebrow">{eyebrow}</p>
+        <h2 id={`route-status-${code}`}>{title}</h2>
+        <p>{message}</p>
+        {detail && <pre>{detail}</pre>}
+        <div className="route-status-actions">
+          {primaryActionLabel && (
+            <button type="button" className="primary" onClick={onPrimaryAction}>
+              {primaryActionLabel}
+            </button>
+          )}
+          {secondaryActionLabel && (
+            <button type="button" onClick={onSecondaryAction}>
+              {secondaryActionLabel}
+            </button>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function getPageTitle(routeStatus, activeView) {
+  if (routeStatus === "notFound") {
+    return "Page Not Found";
+  }
+  if (routeStatus === "serverError") {
+    return "Service Error";
+  }
+  return activeView;
 }
 
 function currentActor(session) {

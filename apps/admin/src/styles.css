@@ -1283,6 +1283,73 @@ tr.selected {
   color: var(--muted);
 }
 
+.route-status-card {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.34fr) minmax(0, 1fr);
+  min-height: 300px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.route-status-code {
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(160deg, rgba(215, 181, 109, 0.2), rgba(39, 116, 92, 0.08)),
+    #102f25;
+  color: #f6d88e;
+  font-size: clamp(54px, 8vw, 96px);
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.route-status-copy {
+  display: grid;
+  align-content: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 34px;
+}
+
+.route-status-copy h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(28px, 4vw, 42px);
+  letter-spacing: 0;
+}
+
+.route-status-copy p {
+  max-width: 54ch;
+  margin: 0;
+  color: #526257;
+  line-height: 1.6;
+}
+
+.route-status-copy pre {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0;
+  border: 1px solid #d7decd;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #f7f5ef;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace;
+  font-size: 0.86rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.route-status-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
 .panel-heading,
 .review-header,
 .queue-toolbar,
@@ -3201,6 +3268,18 @@ textarea.script-editor:focus {
   .dashboard-command-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .route-status-card {
+    grid-template-columns: 1fr;
+  }
+
+  .route-status-code {
+    min-height: 140px;
+  }
+
+  .route-status-copy {
+    padding: 24px;
   }
 
   .dashboard-command-actions {
