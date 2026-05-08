@@ -413,6 +413,33 @@ function assertNoLocalValues(envMap, allowLocalValues) {
   );
 }
 
+function assertNoPlatformHostedDomains(envMap) {
+  const namesToCheck = new Set([
+    'PUBLIC_BASE_URL',
+    'ADMIN_BASE_URL',
+    'SOCIAL_CALLBACK_BASE_URL',
+    'CORS_ALLOWED_ORIGINS',
+    'HEYGEN_CALLBACK_URL',
+    'YOUTUBE_REDIRECT_URI',
+    'X_REDIRECT_URI',
+    'LINKEDIN_REDIRECT_URI',
+    'META_REDIRECT_URI',
+    'TIKTOK_REDIRECT_URI',
+  ]);
+  const platformEntries = Object.entries(envMap).filter(
+    ([name, value]) => namesToCheck.has(name) && /(?:firebaseapp\.com|web\.app|run\.app)/i.test(String(value)),
+  );
+  if (platformEntries.length === 0) {
+    return;
+  }
+
+  const names = platformEntries.map(([name]) => name).join(', ');
+  throw new Error(
+    `Refusing to push Firebase/Google platform-hosted public domains to Cloud Run: ${names}. ` +
+    'Use admin.newleafsystem.com or another approved newleafsystem.com custom domain.',
+  );
+}
+
 function createSecretEnvSpecs(serviceName, envValues) {
   return SECRET_SPECS
     .filter((spec) => spec.services.includes(serviceName) && hasValue(envValues[spec.env]))
@@ -661,6 +688,7 @@ async function main() {
 
     assertNoLocalValues(apiEnvMap, args.allowLocalValues);
     assertNoLocalValues(rendererEnvMap, args.allowLocalValues);
+    assertNoPlatformHostedDomains(apiEnvMap);
 
     updateCloudRunService({
       projectId,

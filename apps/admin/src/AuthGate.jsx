@@ -159,7 +159,7 @@ export function AuthGate({ children }) {
               <BrandLogo className="login-brand-mark" />
               <div>
                 <strong>NewLeaf System</strong>
-                <span>Admin operations console</span>
+                <span>newleafsystem.com admin console</span>
               </div>
             </div>
 

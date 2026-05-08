@@ -1,43 +1,43 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://newleaf-trading.web.app/</loc>
+    <loc>https://admin.newleafsystem.com/</loc>
     <lastmod>2026-05-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://newleaf-trading.web.app/create</loc>
+    <loc>https://admin.newleafsystem.com/create</loc>
     <lastmod>2026-05-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://newleaf-trading.web.app/content-queue</loc>
+    <loc>https://admin.newleafsystem.com/content-queue</loc>
     <lastmod>2026-05-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://newleaf-trading.web.app/review</loc>
+    <loc>https://admin.newleafsystem.com/review</loc>
     <lastmod>2026-05-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://newleaf-trading.web.app/video-studio</loc>
+    <loc>https://admin.newleafsystem.com/video-studio</loc>
     <lastmod>2026-05-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://newleaf-trading.web.app/published-videos</loc>
+    <loc>https://admin.newleafsystem.com/published-videos</loc>
     <lastmod>2026-05-07</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://newleaf-trading.web.app/accounts</loc>
+    <loc>https://admin.newleafsystem.com/accounts</loc>
     <lastmod>2026-05-07</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.5</priority>

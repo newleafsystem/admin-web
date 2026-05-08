@@ -9,6 +9,8 @@ const env = {
   VITE_API_BASE_URL: process.env.VITE_API_BASE_URL?.trim() || '/api/v1',
 };
 
+const platformDomainPattern = /(?:firebaseapp\.com|web\.app|run\.app)/i;
+
 if (
   /localhost|127\.0\.0\.1/i.test(env.VITE_API_BASE_URL) &&
   process.env.ALLOW_LOCAL_FIREBASE_BUILD !== 'true'
@@ -16,6 +18,14 @@ if (
   console.error(
     `Refusing to build Firebase Hosting with local VITE_API_BASE_URL=${env.VITE_API_BASE_URL}. ` +
     'Unset it, use /api/v1, or set ALLOW_LOCAL_FIREBASE_BUILD=true for an intentional local test build.',
+  );
+  process.exit(1);
+}
+
+if (platformDomainPattern.test(env.VITE_API_BASE_URL)) {
+  console.error(
+    `Refusing to build Firebase Hosting with platform-hosted VITE_API_BASE_URL=${env.VITE_API_BASE_URL}. ` +
+    'Use the custom-domain /api/v1 route instead.',
   );
   process.exit(1);
 }
@@ -33,6 +43,14 @@ if (env.REQUIRE_AUTH === 'true') {
       `Refusing to build authenticated Firebase Hosting bundle. Missing: ${missingFirebaseValues.join(', ')}.`,
     );
     console.error('Set these as GitHub repository variables or use REQUIRE_AUTH=false for local-only builds.');
+    process.exit(1);
+  }
+
+  if (platformDomainPattern.test(env.VITE_FIREBASE_AUTH_DOMAIN)) {
+    console.error(
+      `Refusing to build authenticated Firebase Hosting bundle with platform-hosted ` +
+      `VITE_FIREBASE_AUTH_DOMAIN=${env.VITE_FIREBASE_AUTH_DOMAIN}. Use admin.newleafsystem.com.`,
+    );
     process.exit(1);
   }
 }

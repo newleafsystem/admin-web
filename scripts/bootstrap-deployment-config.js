@@ -171,6 +171,18 @@ function isLocalValue(value) {
   return /localhost|127\.0\.0\.1/i.test(String(value ?? ''));
 }
 
+function isPlatformHostedValue(value) {
+  return /(?:firebaseapp\.com|web\.app|run\.app)/i.test(String(value ?? ''));
+}
+
+function hostnameFromUrl(value) {
+  try {
+    return new URL(value).hostname;
+  } catch {
+    return '';
+  }
+}
+
 function parseJsonText(text) {
   const trimmed = String(text ?? '').trim();
   if (!trimmed) return null;
@@ -261,7 +273,7 @@ function buildEnvValues(fileEnv) {
   }
 
   env.VITE_FIREBASE_PROJECT_ID ||= env.FIREBASE_PROJECT_ID || env.GCP_PROJECT_ID;
-  env.VITE_FIREBASE_AUTH_DOMAIN ||= `${env.VITE_FIREBASE_PROJECT_ID}.firebaseapp.com`;
+  env.VITE_FIREBASE_AUTH_DOMAIN ||= hostnameFromUrl(env.ADMIN_BASE_URL);
   env.VITE_FIREBASE_STORAGE_BUCKET ||= env.GCS_BUCKET;
   env.YOUTUBE_REDIRECT_URI =
     !hasValue(env.YOUTUBE_REDIRECT_URI) || isLocalValue(env.YOUTUBE_REDIRECT_URI)
@@ -474,7 +486,6 @@ function resolveFirebaseWebConfig(env, args) {
   }
 
   env.VITE_FIREBASE_API_KEY ||= config.apiKey;
-  env.VITE_FIREBASE_AUTH_DOMAIN ||= config.authDomain;
   env.VITE_FIREBASE_PROJECT_ID ||= config.projectId;
   env.VITE_FIREBASE_STORAGE_BUCKET ||= config.storageBucket;
   env.VITE_FIREBASE_MESSAGING_SENDER_ID ||= config.messagingSenderId;
@@ -661,6 +672,30 @@ function assertNoLocalValues(env, allowLocalValues) {
   }
 }
 
+function assertNoPlatformHostedDomains(env) {
+  const publicDomainNames = [
+    'PUBLIC_BASE_URL',
+    'ADMIN_BASE_URL',
+    'SOCIAL_CALLBACK_BASE_URL',
+    'CORS_ALLOWED_ORIGINS',
+    'VITE_API_BASE_URL',
+    'VITE_FIREBASE_AUTH_DOMAIN',
+    'HEYGEN_CALLBACK_URL',
+    'YOUTUBE_REDIRECT_URI',
+    'X_REDIRECT_URI',
+    'LINKEDIN_REDIRECT_URI',
+    'META_REDIRECT_URI',
+    'TIKTOK_REDIRECT_URI',
+  ].filter((name) => isPlatformHostedValue(env[name]));
+
+  if (publicDomainNames.length > 0) {
+    throw new Error(
+      `Refusing to push Firebase/Google platform-hosted public domains: ${publicDomainNames.join(', ')}. ` +
+      'Use admin.newleafsystem.com or another approved newleafsystem.com custom domain.',
+    );
+  }
+}
+
 function secretHasValue(env, name) {
   return hasValue(env[name]);
 }
@@ -761,6 +796,7 @@ function main() {
   resolveDeployServiceAccount(env);
   resolveWorkloadIdentityProvider(env);
   assertNoLocalValues(env, args.allowLocalValues);
+  assertNoPlatformHostedDomains(env);
   if (!args.skipGithub) validateGithubDeploymentConfig(env);
 
   console.log(`Using env file: ${envFile}`);

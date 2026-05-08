@@ -191,6 +191,7 @@ REPOSITORY_PROVIDER=firestore
 This keeps browser API calls same-origin through Firebase Hosting.
 
 The `npm run firebase:build` command forces `VITE_API_BASE_URL=/api/v1` unless you deliberately override it, so local `.env` values cannot accidentally ship a bundle that calls `localhost:8080`.
+The Firebase Hosting build also rejects browser-facing platform domains such as `firebaseapp.com`, `web.app`, and `run.app` for the API base URL or Firebase Auth domain. Production auth and API traffic should use the NewLeaf custom domain.
 
 Firebase values are applied in two different places:
 
@@ -244,10 +245,10 @@ Use `.env` for `npm run dev:start`. Use `.env.production` only for deployment sy
 
 ## Firebase And Google Cloud Deployment
 
-Production is now intended to run without Cloudflare in the request path.
+Production domains are managed in Cloudflare DNS and mapped to Firebase Hosting custom domains.
 
 ```text
-names.co.uk DNS
+Cloudflare DNS
   -> Firebase Hosting: admin.newleafsystem.com
   -> Firebase Hosting /api rewrite
   -> Cloud Run API: newleaf-api
@@ -260,9 +261,12 @@ Firebase Hosting serves the Vite admin UI from `apps/admin/dist`. The hosting co
 
 Admin sign-in also refreshes an HTTP-only Firebase session cookie for direct browser access to protected API pages such as Swagger. In production, use the custom-domain URL `https://admin.newleafsystem.com/api/v1/service/docs` or another `newleafsystem.com` Firebase Hosting domain that rewrites `/api/**`. The raw Cloud Run `run.app` URL cannot receive a `.newleafsystem.com` browser cookie, so it still requires a bearer token or vendor service credentials.
 
-Required DNS at names.co.uk:
+Required DNS in Cloudflare:
 
-- `admin.newleafsystem.com` records provided by Firebase Hosting custom domain setup.
+- `A admin -> 199.36.158.100` mapped to the Firebase Hosting admin site.
+- `A newleafsystem.com -> 199.36.158.100` mapped to the Firebase Hosting public site.
+- `A www -> 199.36.158.100` or a Cloudflare redirect to `https://newleafsystem.com`, depending on the desired public canonical URL.
+- Keep Firebase-provided TXT and `_acme-challenge` records until verification and certificate provisioning complete.
 - Optional `api.newleafsystem.com` records if you also map a direct Cloud Run custom domain for the API.
 
 Required GitHub repository variables:
@@ -294,7 +298,7 @@ Required GitHub repository variables:
 - `AUTH_SESSION_COOKIE_SECURE=true`
 - `FIREBASE_SESSION_COOKIE_ROLE_ID=newleafFirebaseSessionCookieMinter`
 - `VITE_FIREBASE_API_KEY=<firebase-web-api-key>`
-- `VITE_FIREBASE_AUTH_DOMAIN=newleaf-trading.firebaseapp.com`
+- `VITE_FIREBASE_AUTH_DOMAIN=admin.newleafsystem.com`
 - `VITE_FIREBASE_PROJECT_ID=newleaf-trading`
 - `VITE_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>` used only by the frontend Firebase SDK; it is intentionally separate from backend `GCS_BUCKET`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID=<firebase-sender-id>`
@@ -546,7 +550,7 @@ Firebase Hosting serves static crawler files from `apps/admin/public`:
 - `sitemap.xml` lists the primary console routes currently intended for discovery.
 - `site.webmanifest` provides browser install metadata and theme colors.
 
-The current sitemap canonical host is `https://newleaf-trading.web.app` because that Firebase Hosting domain is live. Update both files when the custom domain is fully resolving and should become canonical.
+The admin sitemap and canonical metadata use `https://admin.newleafsystem.com` as the canonical admin host. Keep the public marketing site canonicalized separately at `https://newleafsystem.com`.
 
 The admin shell includes static SEO and social-preview metadata in `apps/admin/index.html`. Performance-sensitive code should keep the authenticated console lazy-loaded behind `AuthGate`, defer non-critical analytics work, and preserve Vite chunk splitting for React, Firebase, and vendor packages.
 
