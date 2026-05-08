@@ -8,11 +8,16 @@ import {
 } from "./firebaseClient.js";
 import { LeafLoader } from "./components/LeafLoader.jsx";
 
-const publicLegalPages = Object.freeze({
-  "/privacy-policy": "privacy",
-  "/privacy": "privacy",
-  "/terms-and-conditions": "terms",
-  "/terms": "terms"
+const canonicalLegalLinks = Object.freeze({
+  privacyPolicy: "https://newleafsystem.com/privacy-policy",
+  termsAndConditions: "https://newleafsystem.com/terms-and-conditions"
+});
+
+const legalRedirectByPath = Object.freeze({
+  "/privacy-policy": canonicalLegalLinks.privacyPolicy,
+  "/privacy": canonicalLegalLinks.privacyPolicy,
+  "/terms-and-conditions": canonicalLegalLinks.termsAndConditions,
+  "/terms": canonicalLegalLinks.termsAndConditions
 });
 
 const productHighlights = Object.freeze([
@@ -77,13 +82,22 @@ export function AuthGate({ children }) {
   }, []);
 
   const isAdmin = state.session?.roles?.includes("admin");
-  const publicLegalPage = getPublicLegalPage();
+  const legalRedirectUrl = getLegalRedirectUrl();
+
+  useEffect(() => {
+    if (legalRedirectUrl && typeof window !== "undefined") {
+      window.location.replace(legalRedirectUrl);
+    }
+  }, [legalRedirectUrl]);
 
   useEffect(() => {
     if (typeof window === "undefined" || state.loading) {
       return;
     }
-    if (!state.firebaseUser && !publicLegalPage && window.location.pathname !== "/") {
+    if (legalRedirectUrl) {
+      return;
+    }
+    if (!state.firebaseUser && window.location.pathname !== "/") {
       window.history.replaceState({}, "", "/");
       return;
     }
@@ -94,7 +108,7 @@ export function AuthGate({ children }) {
     if (isAdmin && window.location.pathname === "/403") {
       window.history.replaceState({}, "", "/");
     }
-  }, [isAdmin, publicLegalPage, state.firebaseUser, state.loading, state.session]);
+  }, [isAdmin, legalRedirectUrl, state.firebaseUser, state.loading, state.session]);
 
   async function handleGoogleSignIn() {
     try {
@@ -105,8 +119,15 @@ export function AuthGate({ children }) {
     }
   }
 
-  if (publicLegalPage) {
-    return <LegalPage page={publicLegalPage} />;
+  if (legalRedirectUrl) {
+    return (
+      <AuthPublicShell>
+        <section className="auth-panel auth-loading-panel">
+          <p className="eyebrow">NewLeaf System</p>
+          <LeafLoader label="Opening legal page" />
+        </section>
+      </AuthPublicShell>
+    );
   }
 
   if (!isFirebaseConfigured) {
@@ -249,38 +270,14 @@ function AuthPublicShell({ children }) {
   );
 }
 
-function LegalPage({ page }) {
-  const content = page === "terms" ? legalContent.terms : legalContent.privacy;
-  return (
-    <AuthPublicShell>
-      <article className="legal-page" aria-labelledby="legal-page-title">
-        <a className="legal-back-link" href="/">Back to sign in</a>
-        <p className="eyebrow">NewLeaf System</p>
-        <h1 id="legal-page-title">{content.title}</h1>
-        <p className="legal-updated">Last updated: May 8, 2026</p>
-        <div className="legal-content">
-          {content.sections.map((section) => (
-            <section key={section.heading}>
-              <h2>{section.heading}</h2>
-              {section.paragraphs.map((paragraph) => (
-                <p key={paragraph}>{paragraph}</p>
-              ))}
-            </section>
-          ))}
-        </div>
-      </article>
-    </AuthPublicShell>
-  );
-}
-
 function PublicFooter() {
   const year = new Date().getFullYear();
   return (
     <footer className="auth-footer">
       <span>Copyright {year} NewLeaf System. All rights reserved.</span>
       <nav aria-label="Legal links">
-        <a href="/privacy-policy">Privacy Policy</a>
-        <a href="/terms-and-conditions">Terms and Conditions</a>
+        <a href={canonicalLegalLinks.privacyPolicy}>Privacy Policy</a>
+        <a href={canonicalLegalLinks.termsAndConditions}>Terms and Conditions</a>
       </nav>
     </footer>
   );
@@ -301,91 +298,10 @@ function isInvalidProductionSession(session) {
   return /@newleaf\.invalid$/i.test(session?.user?.email ?? "");
 }
 
-function getPublicLegalPage() {
+function getLegalRedirectUrl() {
   if (typeof window === "undefined") {
     return null;
   }
   const normalized = window.location.pathname.replace(/\/+$/, "").toLowerCase() || "/";
-  return publicLegalPages[normalized] ?? null;
+  return legalRedirectByPath[normalized] ?? null;
 }
-
-const legalContent = Object.freeze({
-  privacy: {
-    title: "Privacy Policy",
-    sections: [
-      {
-        heading: "Overview",
-        paragraphs: [
-          "NewLeaf System uses account information to protect access to private administrative tools and to operate the content and publishing workflow.",
-          "This admin experience may rely on Google sign-in, session cookies, analytics, and operational logs to keep the service reliable and secure."
-        ]
-      },
-      {
-        heading: "Information We Use",
-        paragraphs: [
-          "We may process account identifiers such as name, email address, profile image, role assignment, login time, and actions taken inside the console.",
-          "We may also process operational metadata connected to content intake, reviews, video generation, publishing attempts, vendor access, and audit events."
-        ]
-      },
-      {
-        heading: "How Information Is Used",
-        paragraphs: [
-          "Information is used to authenticate approved users, enforce access controls, support publishing operations, troubleshoot errors, and maintain audit records.",
-          "We do not use the admin console to provide guaranteed investment outcomes or personal financial advice."
-        ]
-      },
-      {
-        heading: "Third-Party Services",
-        paragraphs: [
-          "The platform may integrate with services such as Google, Firebase, YouTube, HeyGen, and other publishing or infrastructure providers.",
-          "Those providers process data under their own terms and privacy practices when their services are used."
-        ]
-      },
-      {
-        heading: "Contact",
-        paragraphs: [
-          "Questions about this policy can be sent to support@newleafsystem.com."
-        ]
-      }
-    ]
-  },
-  terms: {
-    title: "Terms and Conditions",
-    sections: [
-      {
-        heading: "Use of Service",
-        paragraphs: [
-          "NewLeaf System admin tools are private operational software. You may use them only if you are approved by NewLeaf System and comply with assigned access limits.",
-          "You are responsible for keeping your account secure and for using the console in a lawful, authorized, and risk-aware manner."
-        ]
-      },
-      {
-        heading: "Educational Content",
-        paragraphs: [
-          "NewLeaf System content is educational. Options and securities involve risk, and past performance does not guarantee future results.",
-          "Published content should not state or imply that any trade, model, strategy, or outcome is guaranteed, risk-free, or certain."
-        ]
-      },
-      {
-        heading: "Operational Responsibilities",
-        paragraphs: [
-          "Admins are responsible for reviewing titles, descriptions, metadata, scheduled publish times, channel selections, and provider outputs before approval.",
-          "Vendor credentials, OAuth tokens, and provider secrets must not be shared, exposed, or stored outside approved systems."
-        ]
-      },
-      {
-        heading: "Availability and Changes",
-        paragraphs: [
-          "The service may change over time as workflows, providers, and access controls are updated.",
-          "NewLeaf System may restrict, suspend, or revoke access when needed to protect users, systems, vendors, or publishing channels."
-        ]
-      },
-      {
-        heading: "Contact",
-        paragraphs: [
-          "Questions about these terms can be sent to support@newleafsystem.com."
-        ]
-      }
-    ]
-  }
-});

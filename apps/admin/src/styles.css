@@ -3524,8 +3524,7 @@ textarea.script-editor:focus {
 }
 
 .login-panel,
-.auth-panel,
-.legal-page {
+.auth-panel {
   border: 1px solid rgba(247, 245, 239, 0.2);
   border-radius: 10px;
   background: #ffffff;
@@ -3633,62 +3632,14 @@ textarea.script-editor:focus {
   gap: 14px;
 }
 
-.auth-footer a,
-.legal-back-link {
+.auth-footer a {
   color: #f6d88e;
   font-weight: 700;
   text-decoration: none;
 }
 
-.auth-footer a:hover,
-.legal-back-link:hover {
+.auth-footer a:hover {
   text-decoration: underline;
-}
-
-.legal-page {
-  align-self: start;
-  display: grid;
-  gap: 12px;
-  max-width: 880px;
-  width: 100%;
-  margin: 24px auto 0;
-  padding: 34px;
-}
-
-.legal-page h1 {
-  margin: 0;
-  color: var(--ink);
-  font-size: clamp(34px, 5vw, 52px);
-  letter-spacing: 0;
-}
-
-.legal-updated {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.88rem;
-}
-
-.legal-content {
-  display: grid;
-  gap: 22px;
-  margin-top: 10px;
-}
-
-.legal-content section {
-  display: grid;
-  gap: 8px;
-}
-
-.legal-content h2 {
-  margin: 0;
-  color: var(--ink);
-  font-size: 1.1rem;
-}
-
-.legal-content p {
-  margin: 0;
-  color: #526257;
-  line-height: 1.7;
 }
 
 .forbidden-screen {
@@ -3854,8 +3805,7 @@ textarea.script-editor:focus {
   }
 
   .login-panel,
-  .auth-panel,
-  .legal-page {
+  .auth-panel {
     padding: 22px;
   }
 
