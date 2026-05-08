@@ -1669,8 +1669,8 @@ export default function App({ session }) {
             )}
           </Suspense>
         )}
-        <PublicFooter className="app-footer" />
       </main>
+      <PublicFooter className="app-footer" />
     </div>
   );
 }
