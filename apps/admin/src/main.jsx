@@ -15,10 +15,12 @@ createRoot(document.getElementById("root")).render(
         <Suspense
           fallback={
             <main className="auth-screen">
-              <section className="auth-panel auth-loading-panel">
-                <p className="eyebrow">NewLeaf Admin</p>
-                <LeafLoader label="Opening console" />
-              </section>
+              <div className="auth-public-shell">
+                <section className="auth-panel auth-loading-panel">
+                  <p className="eyebrow">NewLeaf Admin</p>
+                  <LeafLoader label="Opening console" />
+                </section>
+              </div>
             </main>
           }
         >
