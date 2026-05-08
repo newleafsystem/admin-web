@@ -1,7 +1,7 @@
 {
   "name": "NewLeaf System",
   "short_name": "NewLeaf",
-  "description": "Video automation and social publishing operations console.",
+  "description": "Private admin console for NewLeaf System operations.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

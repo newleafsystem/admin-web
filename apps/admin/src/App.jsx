@@ -155,7 +155,7 @@ export default function App({ session }) {
 
   useEffect(() => {
     document.title = pageTitle === "Dashboard"
-      ? "NewLeaf System | Video Automation Console"
+      ? "NewLeaf System | Admin Console"
       : `${pageTitle} | NewLeaf System`;
   }, [pageTitle]);
 

@@ -32,7 +32,7 @@ const productHighlights = Object.freeze([
   },
   {
     title: "Builder",
-    description: "Reusable strategy explainers and video assets for the NewLeaf content engine."
+    description: "Reusable strategy explainers and content assets for NewLeaf operations."
   }
 ]);
 
@@ -164,11 +164,11 @@ export function AuthGate({ children }) {
             </div>
 
             <div className="login-hero-copy">
-              <p className="eyebrow">Private publishing operations</p>
-              <h1 id="login-title">Run the content engine behind NewLeaf.</h1>
+              <p className="eyebrow">Private admin operations</p>
+              <h1 id="login-title">Manage NewLeaf System operations.</h1>
               <p>
-                Coordinate educational options content, review workflows, video generation, and social publishing from
-                one protected operations workspace.
+                Administer the workflows behind newleafsystem.com from one protected workspace. The console currently
+                covers content review, video publishing, vendors, users, and operational controls.
               </p>
             </div>
 
