@@ -3417,8 +3417,7 @@ textarea.script-editor:focus {
   background: #f7f5ef;
 }
 
-.forbidden-account span,
-.forbidden-account small {
+.forbidden-account span {
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 700;

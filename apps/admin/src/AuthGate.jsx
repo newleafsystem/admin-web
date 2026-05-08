@@ -120,7 +120,6 @@ export function AuthGate({ children }) {
             <div className="forbidden-account">
               <span>Signed in as</span>
               <strong>{state.session?.user?.email ?? state.firebaseUser.email}</strong>
-              <small>Role: {state.session?.user?.role ?? "anonymous"}</small>
             </div>
             {state.error && <p className="form-error">{state.error}</p>}
             <div className="forbidden-actions">
