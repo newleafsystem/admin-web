@@ -29,6 +29,7 @@
 #   SKIP_ENABLE_APIS=true
 #   SKIP_PROVISIONING=true
 #   CLOUD_BUILD_SUPPRESS_LOGS=true
+#   FIREBASE_SESSION_COOKIE_ROLE_ID=newleafFirebaseSessionCookieMinter
 #
 # Optional secret env values, if present locally, are copied into Secret Manager
 # and mounted into Cloud Run:
@@ -72,6 +73,7 @@ SKIP_ENABLE_APIS="${SKIP_ENABLE_APIS:-true}"
 SKIP_PROVISIONING="${SKIP_PROVISIONING:-true}"
 CLOUD_BUILD_SUPPRESS_LOGS="${CLOUD_BUILD_SUPPRESS_LOGS:-true}"
 BIND_EXISTING_SECRETS="${BIND_EXISTING_SECRETS:-true}"
+FIREBASE_SESSION_COOKIE_ROLE_ID="${FIREBASE_SESSION_COOKIE_ROLE_ID:-newleafFirebaseSessionCookieMinter}"
 
 if [[ "${REQUIRE_AUTH:-true}" != "true" && "${ALLOW_UNAUTHENTICATED_API_DEPLOY:-false}" != "true" ]]; then
   echo "ERROR: Refusing to deploy Cloud Run API with REQUIRE_AUTH=${REQUIRE_AUTH:-unset}." >&2
@@ -140,10 +142,32 @@ else
     echo "Service account already exists: ${SERVICE_ACCOUNT_EMAIL}"
   fi
 
-  for role in roles/datastore.user roles/secretmanager.secretAccessor; do
+  FIREBASE_SESSION_COOKIE_ROLE="projects/${GCP_PROJECT_ID}/roles/${FIREBASE_SESSION_COOKIE_ROLE_ID}"
+  FIREBASE_SESSION_COOKIE_PERMISSIONS="firebaseauth.users.createSession,firebaseauth.users.get,firebase.projects.get"
+  if gcloud iam roles describe "${FIREBASE_SESSION_COOKIE_ROLE_ID}" \
+    --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
+    echo "Updating custom IAM role for Firebase session cookies: ${FIREBASE_SESSION_COOKIE_ROLE}"
+    gcloud iam roles update "${FIREBASE_SESSION_COOKIE_ROLE_ID}" \
+      --project "${GCP_PROJECT_ID}" \
+      --title="NewLeaf Firebase Session Cookie Minter" \
+      --description="Mint and verify Firebase Auth session cookies for NewLeaf API browser SSO." \
+      --permissions="${FIREBASE_SESSION_COOKIE_PERMISSIONS}" \
+      --stage=GA >/dev/null
+  else
+    echo "Creating custom IAM role for Firebase session cookies: ${FIREBASE_SESSION_COOKIE_ROLE}"
+    gcloud iam roles create "${FIREBASE_SESSION_COOKIE_ROLE_ID}" \
+      --project "${GCP_PROJECT_ID}" \
+      --title="NewLeaf Firebase Session Cookie Minter" \
+      --description="Mint and verify Firebase Auth session cookies for NewLeaf API browser SSO." \
+      --permissions="${FIREBASE_SESSION_COOKIE_PERMISSIONS}" \
+      --stage=GA >/dev/null
+  fi
+
+  for role in roles/datastore.user roles/secretmanager.secretAccessor "${FIREBASE_SESSION_COOKIE_ROLE}"; do
     gcloud projects add-iam-policy-binding "${GCP_PROJECT_ID}" \
       --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
-      --role="${role}" >/dev/null
+      --role="${role}" \
+      --condition=None >/dev/null
   done
 
   echo "Granting API access to gs://${GCS_BUCKET}..."

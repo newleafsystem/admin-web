@@ -292,6 +292,7 @@ Required GitHub repository variables:
 - `AUTH_SESSION_COOKIE_MAX_AGE_SEC=432000`
 - `AUTH_SESSION_COOKIE_SAME_SITE=lax`
 - `AUTH_SESSION_COOKIE_SECURE=true`
+- `FIREBASE_SESSION_COOKIE_ROLE_ID=newleafFirebaseSessionCookieMinter`
 - `VITE_FIREBASE_API_KEY=<firebase-web-api-key>`
 - `VITE_FIREBASE_AUTH_DOMAIN=newleaf-trading.firebaseapp.com`
 - `VITE_FIREBASE_PROJECT_ID=newleaf-trading`
@@ -435,6 +436,8 @@ ENV_FILE=.env.production SKIP_ENABLE_APIS=false SKIP_PROVISIONING=false npm run 
 Both setup scripts load `.env` automatically. Existing shell variables override `.env` values when you need to temporarily change a deploy value.
 
 Production secrets should live in Google Secret Manager. Firestore stores account metadata and secret references; raw refresh tokens should not be stored as plain Firestore fields in a hardened production setup.
+
+The API Cloud Run service account needs the project custom role `newleafFirebaseSessionCookieMinter` with `firebaseauth.users.createSession`, `firebaseauth.users.get`, and `firebase.projects.get`. This lets the API mint and verify Firebase Auth session cookies after admin sign-in without granting broad Firebase Authentication Admin access.
 
 ## Common Commands
 

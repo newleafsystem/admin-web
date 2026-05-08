@@ -6,13 +6,18 @@ import { rejectUnknownFields, requireObject, requireString } from '../lib/valida
 import { USER_ROLES } from '../services/userAccessService.js';
 import { badRequest } from '../lib/httpErrors.js';
 
-export function createUsersRouter({ userAccessService }) {
+const defaultSessionCookieService = {
+  setFromIdToken: setAuthSessionCookieFromIdToken,
+  clear: clearAuthSessionCookie,
+};
+
+export function createUsersRouter({ userAccessService, sessionCookieService = defaultSessionCookieService }) {
   const router = Router();
 
   router.get(
     '/session',
     asyncHandler(async (req, res) => {
-      const cookie = await maybeRefreshSessionCookie(req, res);
+      const cookie = await maybeRefreshSessionCookie(req, res, sessionCookieService);
       res.json({
         user: req.user,
         roles: req.user?.roles ?? [],
@@ -24,7 +29,7 @@ export function createUsersRouter({ userAccessService }) {
   router.post(
     '/session/cookie',
     asyncHandler(async (req, res) => {
-      const cookie = await maybeRefreshSessionCookie(req, res);
+      const cookie = await maybeRefreshSessionCookie(req, res, sessionCookieService);
       res.status(cookie.created ? 201 : 200).json({ cookie });
     }),
   );
@@ -32,7 +37,7 @@ export function createUsersRouter({ userAccessService }) {
   router.delete(
     '/session/cookie',
     asyncHandler(async (req, res) => {
-      clearAuthSessionCookie(res);
+      sessionCookieService.clear(res);
       res.status(204).send();
     }),
   );
@@ -74,16 +79,35 @@ export function createUsersRouter({ userAccessService }) {
   return router;
 }
 
-async function maybeRefreshSessionCookie(req, res) {
+async function maybeRefreshSessionCookie(req, res, sessionCookieService) {
   if (req.authCredential?.mode !== 'firebase-id-token' || !req.authCredential.token) {
     return {
       created: false,
       mode: req.authCredential?.mode ?? req.user?.authMode ?? 'unknown',
     };
   }
-  const cookie = await setAuthSessionCookieFromIdToken(res, req.authCredential.token);
-  return {
-    created: true,
-    ...cookie,
-  };
+
+  try {
+    const cookie = await sessionCookieService.setFromIdToken(res, req.authCredential.token);
+    return {
+      created: true,
+      ...cookie,
+    };
+  } catch (error) {
+    console.warn('Session cookie refresh skipped', {
+      requestId: req.requestId,
+      uid: req.user?.uid,
+      errorCode: getErrorCode(error),
+    });
+    return {
+      created: false,
+      mode: 'firebase-id-token',
+      warning: 'session_cookie_unavailable',
+      errorCode: getErrorCode(error),
+    };
+  }
+}
+
+function getErrorCode(error) {
+  return error?.code ?? error?.errorInfo?.code ?? 'unknown';
 }
