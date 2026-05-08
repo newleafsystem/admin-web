@@ -8,6 +8,7 @@ import {
 } from "./firebaseClient.js";
 import { LeafLoader } from "./components/LeafLoader.jsx";
 import { PublicFooter, canonicalLegalLinks } from "./components/PublicFooter.jsx";
+import { BrandLogo } from "./components/BrandLogo.jsx";
 
 const legalRedirectByPath = Object.freeze({
   "/privacy-policy": canonicalLegalLinks.privacyPolicy,
@@ -155,7 +156,7 @@ export function AuthGate({ children }) {
         <section className="login-hero" aria-labelledby="login-title">
           <div className="login-brand-column">
             <div className="login-brand-lockup">
-              <span className="login-brand-mark">NL</span>
+              <BrandLogo className="login-brand-mark" />
               <div>
                 <strong>NewLeaf System</strong>
                 <span>Admin operations console</span>

@@ -452,18 +452,20 @@ tr.selected {
   min-height: 48px;
 }
 
+.brand-logo {
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
 .brand-mark {
-  display: grid;
-  place-items: center;
   width: 42px;
   height: 42px;
   border-radius: 8px;
-  background: #d9f0e5;
-  color: #1f5f49;
-  font-weight: 800;
+  filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.24));
 }
 
-.brand span:not(.brand-mark) {
+.brand span {
   display: block;
   color: #cfd5dc;
   font-size: 0.82rem;
@@ -3435,15 +3437,10 @@ textarea.script-editor:focus {
 }
 
 .login-brand-mark {
-  display: grid;
-  place-items: center;
-  width: 46px;
-  height: 46px;
-  border: 1px solid rgba(246, 216, 142, 0.45);
-  border-radius: 10px;
-  background: rgba(246, 216, 142, 0.12);
-  color: #f6d88e;
-  font-weight: 800;
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  filter: drop-shadow(0 14px 26px rgba(0, 0, 0, 0.24));
 }
 
 .login-brand-lockup strong,
@@ -3559,14 +3556,19 @@ textarea.script-editor:focus {
 }
 
 .login-google-button {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
   gap: 10px;
   min-height: 46px;
   width: 100%;
+  line-height: 1;
+  text-align: center;
 }
 
 .login-google-button span {
   display: grid;
+  flex: 0 0 auto;
   place-items: center;
   width: 24px;
   height: 24px;

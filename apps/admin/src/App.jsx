@@ -68,6 +68,7 @@ import {
 } from "./utils.js";
 import { LeafLoader } from "./components/LeafLoader.jsx";
 import { PublicFooter } from "./components/PublicFooter.jsx";
+import { BrandLogo } from "./components/BrandLogo.jsx";
 
 const AuditLog = lazy(() => import("./sections/AuditLog.jsx").then((module) => ({ default: module.AuditLog })));
 const ConnectedAccounts = lazy(() =>
@@ -1466,7 +1467,7 @@ export default function App({ session }) {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">NL</span>
+          <BrandLogo className="brand-mark" />
           <div>
             <strong>NewLeaf</strong>
             <span>Admin Console</span>
