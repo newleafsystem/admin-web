@@ -67,6 +67,7 @@ import {
   validateContentDraft
 } from "./utils.js";
 import { LeafLoader } from "./components/LeafLoader.jsx";
+import { PublicFooter } from "./components/PublicFooter.jsx";
 
 const AuditLog = lazy(() => import("./sections/AuditLog.jsx").then((module) => ({ default: module.AuditLog })));
 const ConnectedAccounts = lazy(() =>
@@ -1667,6 +1668,7 @@ export default function App({ session }) {
             )}
           </Suspense>
         )}
+        <PublicFooter className="app-footer" />
       </main>
     </div>
   );

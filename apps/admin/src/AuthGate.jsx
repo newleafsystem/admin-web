@@ -7,11 +7,7 @@ import {
   subscribeToAuth
 } from "./firebaseClient.js";
 import { LeafLoader } from "./components/LeafLoader.jsx";
-
-const canonicalLegalLinks = Object.freeze({
-  privacyPolicy: "https://newleafsystem.com/privacy-policy",
-  termsAndConditions: "https://newleafsystem.com/terms-and-conditions"
-});
+import { PublicFooter, canonicalLegalLinks } from "./components/PublicFooter.jsx";
 
 const legalRedirectByPath = Object.freeze({
   "/privacy-policy": canonicalLegalLinks.privacyPolicy,
@@ -215,29 +211,32 @@ export function AuthGate({ children }) {
   if (!isAdmin) {
     return (
       <main className="forbidden-screen">
-        <section className="forbidden-shell" aria-labelledby="forbidden-title">
-          <div className="forbidden-status" aria-hidden="true">
-            <span>403</span>
-          </div>
-          <div className="forbidden-content">
-            <p className="eyebrow">NewLeaf Admin</p>
-            <h1 id="forbidden-title">Access forbidden</h1>
-            <p>
-              This Google account is signed in, but it does not have permission to open the NewLeaf
-              operations console.
-            </p>
-            <div className="forbidden-account">
-              <span>Signed in as</span>
-              <strong>{state.session?.user?.email ?? state.firebaseUser.email}</strong>
+        <div className="auth-public-shell forbidden-public-shell">
+          <section className="forbidden-shell" aria-labelledby="forbidden-title">
+            <div className="forbidden-status" aria-hidden="true">
+              <span>403</span>
             </div>
-            {state.error && <p className="form-error">{state.error}</p>}
-            <div className="forbidden-actions">
-              <button type="button" className="primary" onClick={() => void signOutEverywhere({ redirectTo: "/" })}>
-                Sign out
-              </button>
+            <div className="forbidden-content">
+              <p className="eyebrow">NewLeaf Admin</p>
+              <h1 id="forbidden-title">Access forbidden</h1>
+              <p>
+                This Google account is signed in, but it does not have permission to open the NewLeaf
+                operations console.
+              </p>
+              <div className="forbidden-account">
+                <span>Signed in as</span>
+                <strong>{state.session?.user?.email ?? state.firebaseUser.email}</strong>
+              </div>
+              {state.error && <p className="form-error">{state.error}</p>}
+              <div className="forbidden-actions">
+                <button type="button" className="primary" onClick={() => void signOutEverywhere({ redirectTo: "/" })}>
+                  Sign out
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+          <PublicFooter />
+        </div>
       </main>
     );
   }
@@ -267,19 +266,6 @@ function AuthPublicShell({ children }) {
         <PublicFooter />
       </div>
     </main>
-  );
-}
-
-function PublicFooter() {
-  const year = new Date().getFullYear();
-  return (
-    <footer className="auth-footer">
-      <span>Copyright {year} NewLeaf System. All rights reserved.</span>
-      <nav aria-label="Legal links">
-        <a href={canonicalLegalLinks.privacyPolicy}>Privacy Policy</a>
-        <a href={canonicalLegalLinks.termsAndConditions}>Terms and Conditions</a>
-      </nav>
-    </footer>
   );
 }
 

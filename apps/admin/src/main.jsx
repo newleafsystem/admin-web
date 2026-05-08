@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import { AuthGate } from "./AuthGate.jsx";
 import { LeafLoader } from "./components/LeafLoader.jsx";
+import { PublicFooter } from "./components/PublicFooter.jsx";
 import "./styles.css";
 
 const App = lazy(() => import("./App.jsx"));
@@ -20,6 +21,7 @@ createRoot(document.getElementById("root")).render(
                   <p className="eyebrow">NewLeaf Admin</p>
                   <LeafLoader label="Opening console" />
                 </section>
+                <PublicFooter />
               </div>
             </main>
           }

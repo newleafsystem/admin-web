@@ -3642,15 +3642,26 @@ textarea.script-editor:focus {
   text-decoration: underline;
 }
 
+.app-footer {
+  border-top-color: var(--line);
+  color: var(--muted);
+}
+
+.app-footer a {
+  color: var(--accent-strong);
+}
+
 .forbidden-screen {
-  display: grid;
   min-height: 100dvh;
-  place-items: center;
   overflow-y: auto;
   padding: 24px;
   background:
     linear-gradient(135deg, rgba(11, 45, 35, 0.96), rgba(31, 41, 51, 0.9)),
     #0b2d23;
+}
+
+.forbidden-public-shell {
+  align-items: center;
 }
 
 .forbidden-shell {
