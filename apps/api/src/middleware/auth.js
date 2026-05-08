@@ -27,9 +27,7 @@ export function authenticateRequest(options = {}) {
         throw unauthorized('Firebase Auth is not configured');
       }
 
-      const decodedToken = bearerToken
-        ? await auth.verifyIdToken(bearerToken)
-        : await verifyAuthSessionCookie(sessionCookie);
+      const decodedToken = await verifyUserCredential({ auth, bearerToken, sessionCookie });
       req.authCredential = bearerToken
         ? { mode: 'firebase-id-token', token: bearerToken }
         : { mode: 'firebase-session-cookie' };
@@ -116,6 +114,37 @@ export function authenticateUserOrService(options = {}) {
 
 function hasBearerToken(req) {
   return Boolean(readBearerToken(req.get('authorization')));
+}
+
+async function verifyUserCredential({ auth, bearerToken, sessionCookie }) {
+  try {
+    return bearerToken ? await auth.verifyIdToken(bearerToken) : await verifyAuthSessionCookie(sessionCookie);
+  } catch (error) {
+    if (isInvalidFirebaseCredentialError(error)) {
+      throw unauthorized('Invalid or expired login credentials', {
+        credential: bearerToken ? 'firebase-id-token' : 'firebase-session-cookie',
+        code: getFirebaseAuthErrorCode(error),
+      });
+    }
+    throw error;
+  }
+}
+
+function isInvalidFirebaseCredentialError(error) {
+  const code = getFirebaseAuthErrorCode(error);
+  return [
+    'auth/argument-error',
+    'auth/id-token-expired',
+    'auth/id-token-revoked',
+    'auth/invalid-id-token',
+    'auth/session-cookie-expired',
+    'auth/session-cookie-revoked',
+    'auth/invalid-session-cookie',
+  ].includes(code);
+}
+
+function getFirebaseAuthErrorCode(error) {
+  return error?.code ?? error?.errorInfo?.code ?? 'unknown';
 }
 
 function hasExplicitServiceCredentials(req) {
