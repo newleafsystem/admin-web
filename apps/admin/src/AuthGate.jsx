@@ -38,6 +38,21 @@ export function AuthGate({ children }) {
     });
   }, []);
 
+  const isAdmin = state.session?.roles?.includes("admin");
+
+  useEffect(() => {
+    if (typeof window === "undefined" || state.loading) {
+      return;
+    }
+    if (state.firebaseUser && state.session && !isAdmin && window.location.pathname !== "/403") {
+      window.history.replaceState({}, "", "/403");
+      return;
+    }
+    if (isAdmin && window.location.pathname === "/403") {
+      window.history.replaceState({}, "", "/");
+    }
+  }, [isAdmin, state.firebaseUser, state.loading, state.session]);
+
   if (!isFirebaseConfigured) {
     return (
       <main className="auth-screen">
@@ -88,21 +103,32 @@ export function AuthGate({ children }) {
     );
   }
 
-  if (!state.session?.roles?.includes("admin")) {
+  if (!isAdmin) {
     return (
-      <main className="auth-screen">
-        <section className="auth-panel">
-          <p className="eyebrow">NewLeaf Admin</p>
-          <h1>Access Pending</h1>
-          <p>Your account is signed in, but an admin has not granted console access yet.</p>
-          <div className="pending-account">
-            <strong>{state.session?.user?.email ?? state.firebaseUser.email}</strong>
-            <span>Role: {state.session?.user?.role ?? "anonymous"}</span>
+      <main className="forbidden-screen">
+        <section className="forbidden-shell" aria-labelledby="forbidden-title">
+          <div className="forbidden-status" aria-hidden="true">
+            <span>403</span>
           </div>
-          {state.error && <p className="form-error">{state.error}</p>}
-          <button type="button" className="ghost" onClick={() => void signOutEverywhere()}>
-            Sign out
-          </button>
+          <div className="forbidden-content">
+            <p className="eyebrow">NewLeaf Admin</p>
+            <h1 id="forbidden-title">Access forbidden</h1>
+            <p>
+              This Google account is signed in, but it does not have permission to open the NewLeaf
+              operations console.
+            </p>
+            <div className="forbidden-account">
+              <span>Signed in as</span>
+              <strong>{state.session?.user?.email ?? state.firebaseUser.email}</strong>
+              <small>Role: {state.session?.user?.role ?? "anonymous"}</small>
+            </div>
+            {state.error && <p className="form-error">{state.error}</p>}
+            <div className="forbidden-actions">
+              <button type="button" className="primary" onClick={() => void signOutEverywhere({ redirectTo: "/" })}>
+                Sign out
+              </button>
+            </div>
+          </div>
         </section>
       </main>
     );
@@ -125,9 +151,12 @@ function renderChildren(children, session) {
   return typeof children === "function" ? children(session) : children;
 }
 
-async function signOutEverywhere() {
+async function signOutEverywhere({ redirectTo = null } = {}) {
   await clearCurrentSessionCookie().catch(() => {});
   await signOutUser();
+  if (redirectTo && typeof window !== "undefined" && window.location.pathname !== redirectTo) {
+    window.history.replaceState({}, "", redirectTo);
+  }
 }
 
 function isInvalidProductionSession(session) {
