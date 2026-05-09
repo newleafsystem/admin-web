@@ -1,6 +1,10 @@
 import { forbidden, notFound } from '../lib/httpErrors.js';
 
 export const IMMUTABLE_ADMIN_EMAIL = 'sd.nirsha@gmail.com';
+export const IMMUTABLE_ADMIN_EMAILS = Object.freeze([
+  IMMUTABLE_ADMIN_EMAIL,
+  'manish28june@gmail.com',
+]);
 export const USER_ROLES = Object.freeze(['admin', 'anonymous']);
 export const USER_APP_IDS = Object.freeze(['admin', 'invest', 'picks', 'workbench', 'quant', 'desk']);
 
@@ -49,7 +53,7 @@ export function createUserAccessService({ repository, clock = () => new Date().t
       role,
       roles: rolesForRole(role),
       appAccess,
-      status: existing?.status ?? 'active',
+      status: immutable ? 'active' : existing?.status ?? 'active',
       immutable,
       accessManagedBy: existing?.accessManagedBy ?? 'admin-web',
       accessUpdatedAt: existing?.accessUpdatedAt ?? timestamp,
@@ -141,7 +145,7 @@ export function normalizeUser(user) {
     role,
     roles: rolesForRole(role),
     appAccess: normalizeAppAccess(user?.appAccess, { role, immutable }),
-    status: user.status ?? 'active',
+    status: immutable ? 'active' : user.status ?? 'active',
     immutable,
     firstSeenAt: user.firstSeenAt ?? user.createdAt ?? null,
     lastLoginAt: user.lastLoginAt ?? null,
@@ -157,7 +161,7 @@ export function normalizeUser(user) {
 }
 
 export function isImmutableAdminEmail(email) {
-  return normalizeEmail(email) === IMMUTABLE_ADMIN_EMAIL;
+  return IMMUTABLE_ADMIN_EMAILS.includes(normalizeEmail(email));
 }
 
 function isImmutableUser(user) {

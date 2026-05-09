@@ -90,9 +90,10 @@ Rules:
 - Firestore-backed users are stored in `users/{uid}` in project `newleaf-trading`, database `newleafdb`; the API repository may keep the internal method names `listAppUsers`, `updateAppUser`, etc.
 - The stable user entitlement fields are `role`, `roles`, `status`, and `appAccess`.
 - Canonical `appAccess` keys are `admin`, `invest`, `picks`, `workbench`, `quant`, and `desk`.
+- `sd.nirsha@gmail.com` and `manish28june@gmail.com` are immutable admins. They always receive admin role and all app access in admin-web and client-web, and cannot be demoted or deleted through user management.
 - The Users section should update role and application access together through `PATCH /api/v1/users/:userId`.
 - `client-web` treats `appAccess` as the product navigation and route-access source of truth. Do not add a separate client-web-only entitlement store.
-- `VITE_ADMIN_EMAILS` in client-web is bootstrap fallback only; once `admin-web` writes explicit `appAccess`, Firestore wins.
+- `VITE_ADMIN_EMAILS` in client-web is bootstrap fallback only; once `admin-web` writes explicit `appAccess`, Firestore wins for env-only bootstrap admins.
 - Firestore rules may allow a user to create or update only their own identity and conservative default `appAccess`; only admins may grant paid/private app access.
 
 ## Job State Pattern

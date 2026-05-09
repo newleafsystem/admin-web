@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createInMemoryRepository } from '../lib/repository.js';
-import { createUserAccessService, IMMUTABLE_ADMIN_EMAIL } from './userAccessService.js';
+import { createUserAccessService, IMMUTABLE_ADMIN_EMAIL, IMMUTABLE_ADMIN_EMAILS } from './userAccessService.js';
 
 const repository = createInMemoryRepository({
   clock: (() => {
@@ -35,6 +35,33 @@ await assert.rejects(
 await assert.rejects(
   () => service.deleteUser(immutableAdmin.id),
   /primary NewLeaf admin cannot be deleted/i,
+);
+
+const secondImmutableAdmin = await service.ensureAuthenticatedUser({
+  uid: 'firebase-admin-two',
+  email: IMMUTABLE_ADMIN_EMAILS[1],
+  displayName: 'Second Primary Admin',
+});
+
+assert.equal(secondImmutableAdmin.role, 'admin');
+assert.deepEqual(secondImmutableAdmin.roles, ['admin']);
+assert.equal(secondImmutableAdmin.appAccess.admin, true);
+assert.equal(secondImmutableAdmin.appAccess.invest, true);
+assert.equal(secondImmutableAdmin.immutable, true);
+
+await assert.rejects(
+  () => service.updateUserAccess(secondImmutableAdmin.id, {
+    role: 'anonymous',
+    appAccess: {
+      admin: false,
+      invest: false,
+      picks: false,
+      workbench: false,
+      quant: false,
+      desk: false,
+    },
+  }, { actorUid: immutableAdmin.id }),
+  /primary NewLeaf admin cannot be changed/i,
 );
 
 const newUser = await service.ensureAuthenticatedUser({
@@ -73,11 +100,11 @@ assert.equal(promoted.appAccess.workbench, true);
 assert.equal(promoted.appAccess.picks, false);
 
 const users = await service.listUsers();
-assert.equal(users[0].email, IMMUTABLE_ADMIN_EMAIL);
-assert.equal(users.length, 2);
+assert.deepEqual(new Set(users.slice(0, 2).map((user) => user.email)), new Set(IMMUTABLE_ADMIN_EMAILS));
+assert.equal(users.length, 3);
 
 const deleted = await service.deleteUser(newUser.id);
 assert.equal(deleted.email, 'new.user@example.com');
-assert.equal((await service.listUsers()).length, 1);
+assert.equal((await service.listUsers()).length, 2);
 
 console.log('User access service tests passed.');
