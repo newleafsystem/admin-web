@@ -259,7 +259,9 @@ Note: the root `lint` script exists, but the current workspace package manifests
 - Do not delete user files or generated media unless explicitly asked.
 - Do not modify original uploaded videos unless explicitly asked.
 - Prefer patches that fit existing patterns.
-- Report what changed, commands run, how to test, and remaining gaps.
+- After completing and verifying requested changes, commit and push the agent's own changes with a clear title and description unless the user explicitly says not to commit or push.
+- Stage only files or hunks that belong to the current task. Do not include unrelated dirty-worktree changes, generated output, secrets, or user-local files.
+- Report what changed, what was committed and pushed, commands run, how to test, and remaining gaps.
 - If uncertain, state assumptions clearly.
 
 ## Future Roadmap
