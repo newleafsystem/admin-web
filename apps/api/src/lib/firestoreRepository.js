@@ -70,7 +70,7 @@ function defaultCollections(prefix = '') {
     secrets: `${normalizedPrefix}repositorySecrets`,
     serviceClients: `${normalizedPrefix}serviceClients`,
     smartCollections: `${normalizedPrefix}smartCollections`,
-    appUsers: `${normalizedPrefix}appUsers`,
+    appUsers: `${normalizedPrefix}users`,
   };
 }
 
@@ -606,8 +606,13 @@ export function createFirestoreRepository({
         displayName: input.displayName ?? existing?.displayName ?? null,
         photoUrl: input.photoUrl ?? existing?.photoUrl ?? null,
         role: input.role ?? existing?.role ?? 'anonymous',
+        roles: input.roles ?? existing?.roles ?? [],
+        appAccess: input.appAccess ?? existing?.appAccess ?? {},
         status: input.status ?? existing?.status ?? 'active',
         immutable: Boolean(input.immutable ?? existing?.immutable ?? false),
+        accessManagedBy: input.accessManagedBy ?? existing?.accessManagedBy ?? null,
+        accessUpdatedAt: input.accessUpdatedAt ?? existing?.accessUpdatedAt ?? null,
+        accessUpdatedBy: input.accessUpdatedBy ?? existing?.accessUpdatedBy ?? null,
         firstSeenAt: input.firstSeenAt ?? existing?.firstSeenAt ?? timestamp,
         lastLoginAt: input.lastLoginAt ?? existing?.lastLoginAt ?? null,
         roleUpdatedAt: input.roleUpdatedAt ?? existing?.roleUpdatedAt ?? null,

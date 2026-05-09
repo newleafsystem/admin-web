@@ -1417,17 +1417,18 @@ export default function App({ session }) {
     }
   }
 
-  async function changeUserRole(userId, role) {
+  async function changeUserRole(userId, role, appAccess) {
     setActionError(null);
     try {
       const updated = await withSectionLoader("Users", "Updating user access...", () =>
-        updateUserRole(userId, role)
+        updateUserRole(userId, role, appAccess)
       );
       setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
       setAuditEvents((current) =>
         addAuditEvent(current, "update_user_role", updated.email, currentActor(session), {
           userId: updated.id,
-          role: updated.role
+          role: updated.role,
+          appAccess: updated.appAccess
         })
       );
     } catch (error) {

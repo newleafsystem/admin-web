@@ -18,6 +18,14 @@ const immutableAdmin = await service.ensureAuthenticatedUser({
 
 assert.equal(immutableAdmin.role, 'admin');
 assert.deepEqual(immutableAdmin.roles, ['admin']);
+assert.deepEqual(immutableAdmin.appAccess, {
+  admin: true,
+  invest: true,
+  picks: true,
+  workbench: true,
+  quant: true,
+  desk: true,
+});
 assert.equal(immutableAdmin.immutable, true);
 
 await assert.rejects(
@@ -37,10 +45,32 @@ const newUser = await service.ensureAuthenticatedUser({
 
 assert.equal(newUser.role, 'anonymous');
 assert.deepEqual(newUser.roles, ['anonymous']);
+assert.deepEqual(newUser.appAccess, {
+  admin: false,
+  invest: false,
+  picks: false,
+  workbench: false,
+  quant: false,
+  desk: false,
+});
 
-const promoted = await service.updateUserRole(newUser.id, 'admin', { actorUid: immutableAdmin.id });
+const promoted = await service.updateUserAccess(newUser.id, {
+  role: 'admin',
+  appAccess: {
+    admin: true,
+    invest: true,
+    picks: false,
+    workbench: true,
+    quant: false,
+    desk: false,
+  },
+}, { actorUid: immutableAdmin.id });
 assert.equal(promoted.role, 'admin');
 assert.deepEqual(promoted.roles, ['admin']);
+assert.equal(promoted.appAccess.admin, true);
+assert.equal(promoted.appAccess.invest, true);
+assert.equal(promoted.appAccess.workbench, true);
+assert.equal(promoted.appAccess.picks, false);
 
 const users = await service.listUsers();
 assert.equal(users[0].email, IMMUTABLE_ADMIN_EMAIL);

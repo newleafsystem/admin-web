@@ -614,13 +614,17 @@ export async function fetchUsers() {
   return (body.users ?? []).map(normalizeAppUser);
 }
 
-export async function updateUserRole(userId, role) {
+export async function updateUserRole(userId, role, appAccess) {
+  const payload = {
+    ...(role !== undefined ? { role } : {}),
+    ...(appAccess !== undefined ? { appAccess } : {})
+  };
   const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
     method: "PATCH",
     headers: {
       "content-type": "application/json"
     },
-    body: JSON.stringify({ role })
+    body: JSON.stringify(payload)
   });
   const body = await readJson(response);
   assertOk(response, body, "Unable to update user role");
@@ -766,12 +770,25 @@ function normalizeAppUser(user = {}) {
     photoUrl: user.photoUrl ?? null,
     role: user.role ?? (user.roles?.includes("admin") ? "admin" : "anonymous"),
     roles: user.roles ?? [],
+    appAccess: normalizeAppAccess(user.appAccess),
     status: user.status ?? "active",
     immutable: Boolean(user.immutable),
     firstSeenAt: formatDate(user.firstSeenAt ?? user.createdAt),
     lastLoginAt: formatDate(user.lastLoginAt),
     updatedAt: formatDate(user.updatedAt),
+    accessUpdatedAt: formatDate(user.accessUpdatedAt),
     authMode: user.authMode ?? null
+  };
+}
+
+function normalizeAppAccess(appAccess = {}) {
+  return {
+    admin: Boolean(appAccess.admin),
+    invest: Boolean(appAccess.invest),
+    picks: Boolean(appAccess.picks),
+    workbench: Boolean(appAccess.workbench),
+    quant: Boolean(appAccess.quant),
+    desk: Boolean(appAccess.desk)
   };
 }
 

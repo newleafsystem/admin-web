@@ -2,8 +2,8 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { clearAuthSessionCookie, setAuthSessionCookieFromIdToken } from '../lib/sessionCookies.js';
-import { rejectUnknownFields, requireObject, requireString } from '../lib/validation.js';
-import { USER_ROLES } from '../services/userAccessService.js';
+import { optionalObject, rejectUnknownFields, requireObject, requireString } from '../lib/validation.js';
+import { USER_APP_IDS, USER_ROLES } from '../services/userAccessService.js';
 import { badRequest } from '../lib/httpErrors.js';
 
 const defaultSessionCookieService = {
@@ -55,12 +55,33 @@ export function createUsersRouter({ userAccessService, sessionCookieService = de
     requireRole('admin'),
     asyncHandler(async (req, res) => {
       const body = requireObject(req.body);
-      rejectUnknownFields(body, ['role']);
-      const role = requireString(body, 'role', { maxLength: 40 });
-      if (!USER_ROLES.includes(role)) {
-        throw badRequest('User role is not supported', { role, allowed: USER_ROLES });
+      rejectUnknownFields(body, ['role', 'appAccess']);
+
+      let role;
+      if (Object.prototype.hasOwnProperty.call(body, 'role')) {
+        role = requireString(body, 'role', { maxLength: 40 });
+        if (!USER_ROLES.includes(role)) {
+          throw badRequest('User role is not supported', { role, allowed: USER_ROLES });
+        }
       }
-      const user = await userAccessService.updateUserRole(req.params.userId, role, {
+
+      const appAccess = optionalObject(body, 'appAccess', { defaultValue: undefined });
+      if (appAccess !== undefined) {
+        rejectUnknownFields(appAccess, USER_APP_IDS, 'appAccess');
+        for (const [appId, enabled] of Object.entries(appAccess)) {
+          if (typeof enabled !== 'boolean') {
+            throw badRequest('appAccess values must be booleans', { appId });
+          }
+        }
+      }
+
+      if (role === undefined && appAccess === undefined) {
+        throw badRequest('At least one user access field is required', {
+          allowedFields: ['role', 'appAccess'],
+        });
+      }
+
+      const user = await userAccessService.updateUserAccess(req.params.userId, { role, appAccess }, {
         actorUid: req.user.uid,
       });
       res.json({ user });

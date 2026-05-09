@@ -2,6 +2,7 @@ import { forbidden, notFound } from '../lib/httpErrors.js';
 
 export const IMMUTABLE_ADMIN_EMAIL = 'sd.nirsha@gmail.com';
 export const USER_ROLES = Object.freeze(['admin', 'anonymous']);
+export const USER_APP_IDS = Object.freeze(['admin', 'invest', 'picks', 'workbench', 'quant', 'desk']);
 
 const LOCAL_ADMIN_USER = Object.freeze({
   id: 'local-dev',
@@ -11,6 +12,14 @@ const LOCAL_ADMIN_USER = Object.freeze({
   photoUrl: null,
   role: 'admin',
   roles: ['admin'],
+  appAccess: {
+    admin: true,
+    invest: true,
+    picks: true,
+    workbench: true,
+    quant: true,
+    desk: true,
+  },
   status: 'active',
   immutable: true,
   authMode: 'local-dev',
@@ -29,6 +38,7 @@ export function createUserAccessService({ repository, clock = () => new Date().t
     const timestamp = clock();
     const role = immutable ? 'admin' : normalizeRole(existing?.role);
     const id = existing?.id ?? uid;
+    const appAccess = normalizeAppAccess(existing?.appAccess, { role, immutable });
 
     const user = await repository.upsertAppUser({
       id,
@@ -37,8 +47,13 @@ export function createUserAccessService({ repository, clock = () => new Date().t
       displayName: displayName || existing?.displayName || normalizedEmail || uid,
       photoUrl: photoUrl ?? existing?.photoUrl ?? null,
       role,
+      roles: rolesForRole(role),
+      appAccess,
       status: existing?.status ?? 'active',
       immutable,
+      accessManagedBy: existing?.accessManagedBy ?? 'admin-web',
+      accessUpdatedAt: existing?.accessUpdatedAt ?? timestamp,
+      accessUpdatedBy: existing?.accessUpdatedBy ?? null,
       firstSeenAt: existing?.firstSeenAt ?? timestamp,
       lastLoginAt: timestamp,
       metadata: {
@@ -56,6 +71,10 @@ export function createUserAccessService({ repository, clock = () => new Date().t
   }
 
   async function updateUserRole(userId, role, { actorUid = null } = {}) {
+    return updateUserAccess(userId, { role }, { actorUid });
+  }
+
+  async function updateUserAccess(userId, { role = undefined, appAccess = undefined } = {}, { actorUid = null } = {}) {
     const existing = await repository.getAppUser(userId);
     if (!existing) {
       throw notFound('User not found', { userId });
@@ -64,10 +83,20 @@ export function createUserAccessService({ repository, clock = () => new Date().t
       throw forbidden('The primary NewLeaf admin cannot be changed', { userId, email: existing.email });
     }
 
+    const nextRole = role === undefined ? normalizeRole(existing.role) : normalizeRole(role);
+    const nextAppAccess = normalizeAppAccess(appAccess ?? existing.appAccess, { role: nextRole });
+    if (role !== undefined && appAccess === undefined) {
+      nextAppAccess.admin = nextRole === 'admin';
+    }
     const updated = await repository.updateAppUser(userId, {
-      role: normalizeRole(role),
+      role: nextRole,
+      roles: rolesForRole(nextRole),
+      appAccess: nextAppAccess,
       roleUpdatedAt: clock(),
       roleUpdatedBy: actorUid,
+      accessManagedBy: 'admin-web',
+      accessUpdatedAt: clock(),
+      accessUpdatedBy: actorUid,
     });
     return normalizeUser(updated);
   }
@@ -87,6 +116,7 @@ export function createUserAccessService({ repository, clock = () => new Date().t
     ensureAuthenticatedUser,
     listUsers,
     updateUserRole,
+    updateUserAccess,
     deleteUser,
   };
 }
@@ -101,6 +131,7 @@ export function normalizeRole(role) {
 
 export function normalizeUser(user) {
   const role = isImmutableUser(user) ? 'admin' : normalizeRole(user?.role);
+  const immutable = isImmutableUser(user);
   return {
     id: user.id,
     uid: user.uid ?? user.id,
@@ -108,13 +139,17 @@ export function normalizeUser(user) {
     displayName: user.displayName ?? user.email ?? user.uid ?? user.id,
     photoUrl: user.photoUrl ?? null,
     role,
-    roles: role === 'admin' ? ['admin'] : ['anonymous'],
+    roles: rolesForRole(role),
+    appAccess: normalizeAppAccess(user?.appAccess, { role, immutable }),
     status: user.status ?? 'active',
-    immutable: isImmutableUser(user),
+    immutable,
     firstSeenAt: user.firstSeenAt ?? user.createdAt ?? null,
     lastLoginAt: user.lastLoginAt ?? null,
     roleUpdatedAt: user.roleUpdatedAt ?? null,
     roleUpdatedBy: user.roleUpdatedBy ?? null,
+    accessManagedBy: user.accessManagedBy ?? null,
+    accessUpdatedAt: user.accessUpdatedAt ?? null,
+    accessUpdatedBy: user.accessUpdatedBy ?? null,
     createdAt: user.createdAt ?? null,
     updatedAt: user.updatedAt ?? null,
     authMode: user.authMode ?? user.metadata?.authMode ?? null,
@@ -127,6 +162,35 @@ export function isImmutableAdminEmail(email) {
 
 function isImmutableUser(user) {
   return Boolean(user?.immutable) || isImmutableAdminEmail(user?.email);
+}
+
+function rolesForRole(role) {
+  return normalizeRole(role) === 'admin' ? ['admin'] : ['anonymous'];
+}
+
+export function defaultAppAccess(role = 'anonymous', { immutable = false } = {}) {
+  const access = Object.fromEntries(USER_APP_IDS.map((appId) => [appId, false]));
+  if (immutable) {
+    return Object.fromEntries(USER_APP_IDS.map((appId) => [appId, true]));
+  }
+  if (normalizeRole(role) === 'admin') {
+    access.admin = true;
+  }
+  return access;
+}
+
+export function normalizeAppAccess(value, { role = 'anonymous', immutable = false } = {}) {
+  const fallback = defaultAppAccess(role, { immutable });
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return fallback;
+  }
+
+  return Object.fromEntries(
+    USER_APP_IDS.map((appId) => [
+      appId,
+      value[appId] === true || value[appId] === 'true' || value[appId] === 1,
+    ]),
+  );
 }
 
 function normalizeEmail(email) {

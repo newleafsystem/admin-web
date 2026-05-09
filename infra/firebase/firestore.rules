@@ -36,12 +36,68 @@ service cloud.firestore {
       return hasAnyRole(['admin', 'publisher']);
     }
 
+    function isOwnUserProfile(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
     function validString(value, maxLength) {
       return value is string && value.size() > 0 && value.size() <= maxLength;
     }
 
     function validNullableString(value, maxLength) {
       return value == null || (value is string && value.size() <= maxLength);
+    }
+
+    function validClientDefaultAppAccess(data) {
+      return data.appAccess is map &&
+        data.appAccess.keys().hasOnly(['admin', 'invest', 'picks', 'workbench', 'quant', 'desk']) &&
+        data.appAccess.admin == false &&
+        data.appAccess.invest == true &&
+        data.appAccess.picks == false &&
+        data.appAccess.workbench == false &&
+        data.appAccess.quant == false &&
+        data.appAccess.desk == false;
+    }
+
+    function canCreateOwnUserProfile(uid) {
+      let data = request.resource.data;
+      return isOwnUserProfile(uid) &&
+        data.keys().hasOnly([
+          'email',
+          'displayName',
+          'photoURL',
+          'status',
+          'roles',
+          'appAccess',
+          'accessManagedBy',
+          'createdAt',
+          'lastLogin'
+        ]) &&
+        data.keys().hasAll(['email', 'displayName', 'status', 'roles', 'appAccess', 'createdAt', 'lastLogin']) &&
+        validNullableString(data.email, 320) &&
+        validString(data.displayName, 160) &&
+        validNullableString(data.photoURL, 2000) &&
+        data.status == 'active' &&
+        data.roles is list &&
+        data.roles.hasOnly(['investor']) &&
+        data.accessManagedBy == 'admin-web' &&
+        data.createdAt is timestamp &&
+        data.lastLogin is timestamp &&
+        validClientDefaultAppAccess(data);
+    }
+
+    function canUpdateOwnUserProfile(uid) {
+      return isOwnUserProfile(uid) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'email',
+          'displayName',
+          'photoURL',
+          'lastLogin'
+        ]) &&
+        validNullableString(request.resource.data.email, 320) &&
+        validString(request.resource.data.displayName, 160) &&
+        validNullableString(request.resource.data.photoURL, 2000) &&
+        request.resource.data.lastLogin is timestamp;
     }
 
     function isValidSmartCollection(data) {
@@ -84,7 +140,9 @@ service cloud.firestore {
 
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || hasAnyRole(['admin']));
-      allow create, update, delete: if hasAnyRole(['admin']);
+      allow create: if hasAnyRole(['admin']) || canCreateOwnUserProfile(uid);
+      allow update: if hasAnyRole(['admin']) || canUpdateOwnUserProfile(uid);
+      allow delete: if hasAnyRole(['admin']);
     }
 
     match /contentJobs/{jobId} {

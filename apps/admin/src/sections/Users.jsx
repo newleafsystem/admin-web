@@ -2,6 +2,14 @@ import { useState } from "react";
 import { ModalShell, StatusBadge } from "../components/common.jsx";
 
 const ROLE_OPTIONS = ["admin", "anonymous"];
+const APP_ACCESS_OPTIONS = [
+  ["admin", "Admin app"],
+  ["invest", "Trading app"],
+  ["picks", "Picks"],
+  ["workbench", "Workbench"],
+  ["quant", "Quant"],
+  ["desk", "Desk"]
+];
 
 export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, users }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -36,6 +44,7 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
               <tr>
                 <th>User</th>
                 <th>Role</th>
+                <th>Applications</th>
                 <th>Status</th>
                 <th>Last login</th>
                 <th>Action</th>
@@ -44,7 +53,7 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
             <tbody>
               {sortedUsers.length === 0 ? (
                 <tr>
-                  <td className="table-empty" colSpan="5">
+                  <td className="table-empty" colSpan="6">
                     No users have signed in yet.
                   </td>
                 </tr>
@@ -67,7 +76,13 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
                           <select
                             aria-label={`Role for ${user.email}`}
                             value={user.role}
-                            onChange={(event) => onUpdateRole(user.id, event.target.value)}
+                            onChange={(event) => {
+                              const nextRole = event.target.value;
+                              onUpdateRole(user.id, nextRole, {
+                                ...user.appAccess,
+                                admin: nextRole === "admin"
+                              });
+                            }}
                           >
                             {ROLE_OPTIONS.map((role) => (
                               <option key={role} value={role}>
@@ -76,6 +91,26 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
                             ))}
                           </select>
                         )}
+                      </td>
+                      <td>
+                        <div className="status-stack">
+                          {APP_ACCESS_OPTIONS.map(([appId, label]) => (
+                            <label key={appId} style={{ display: "inline-flex", alignItems: "center", gap: 6, marginRight: 12 }}>
+                              <input
+                                type="checkbox"
+                                checked={Boolean(user.appAccess?.[appId])}
+                                disabled={locked}
+                                onChange={(event) =>
+                                  onUpdateRole(user.id, user.role, {
+                                    ...user.appAccess,
+                                    [appId]: event.target.checked
+                                  })
+                                }
+                              />
+                              <span>{label}</span>
+                            </label>
+                          ))}
+                        </div>
                       </td>
                       <td>
                         <div className="status-stack">
