@@ -775,6 +775,7 @@ function normalizeAppUser(user = {}) {
     immutable: Boolean(user.immutable),
     firstSeenAt: formatDate(user.firstSeenAt ?? user.createdAt),
     lastLoginAt: formatDate(user.lastLoginAt),
+    lastLoginContext: normalizeLoginContext(user.lastLoginContext),
     updatedAt: formatDate(user.updatedAt),
     accessUpdatedAt: formatDate(user.accessUpdatedAt),
     authMode: user.authMode ?? null
@@ -789,6 +790,25 @@ function normalizeAppAccess(appAccess = {}) {
     workbench: Boolean(appAccess.workbench),
     quant: Boolean(appAccess.quant),
     desk: Boolean(appAccess.desk)
+  };
+}
+
+function normalizeLoginContext(context = null) {
+  if (!context || typeof context !== "object" || Array.isArray(context)) {
+    return null;
+  }
+  return {
+    ipAddress: context.ipAddress ?? null,
+    country: context.country ?? null,
+    city: context.city ?? null,
+    region: context.region ?? null,
+    regionCode: context.regionCode ?? null,
+    continent: context.continent ?? null,
+    timezone: context.timezone ?? null,
+    latitude: context.latitude ?? null,
+    longitude: context.longitude ?? null,
+    source: context.source ?? null,
+    capturedAt: formatDate(context.capturedAt)
   };
 }
 

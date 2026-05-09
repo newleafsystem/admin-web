@@ -615,6 +615,7 @@ export function createFirestoreRepository({
         accessUpdatedBy: input.accessUpdatedBy ?? existing?.accessUpdatedBy ?? null,
         firstSeenAt: input.firstSeenAt ?? existing?.firstSeenAt ?? timestamp,
         lastLoginAt: input.lastLoginAt ?? existing?.lastLoginAt ?? null,
+        lastLoginContext: input.lastLoginContext ?? existing?.lastLoginContext ?? null,
         roleUpdatedAt: input.roleUpdatedAt ?? existing?.roleUpdatedAt ?? null,
         roleUpdatedBy: input.roleUpdatedBy ?? existing?.roleUpdatedBy ?? null,
         metadata: input.metadata ?? existing?.metadata ?? {},

@@ -37,6 +37,7 @@ export function authenticateRequest(options = {}) {
         displayName: decodedToken.name ?? null,
         photoUrl: decodedToken.picture ?? null,
         authMode: 'firebase',
+        loginContext: buildLoginContextFromRequest(req),
       });
       req.user = {
         ...user,
@@ -46,6 +47,38 @@ export function authenticateRequest(options = {}) {
     } catch (error) {
       return next(error);
     }
+  };
+}
+
+export function buildLoginContextFromRequest(req) {
+  const cfConnectingIp = cleanHeaderValue(req.get?.('cf-connecting-ip'));
+  const trueClientIp = cleanHeaderValue(req.get?.('true-client-ip'));
+  const forwardedFor = firstForwardedIp(req.get?.('x-forwarded-for'));
+  const directIp = cleanHeaderValue(req.ip ?? req.socket?.remoteAddress);
+  const hasCloudflareLocation = Boolean(
+    cfConnectingIp ||
+      req.get?.('cf-ipcountry') ||
+      req.get?.('cf-ipcity') ||
+      req.get?.('cf-region') ||
+      req.get?.('cf-iplatitude') ||
+      req.get?.('cf-iplongitude'),
+  );
+
+  return {
+    ipAddress: cfConnectingIp ?? trueClientIp ?? forwardedFor ?? directIp ?? null,
+    country: cleanHeaderValue(req.get?.('cf-ipcountry')),
+    city: cleanHeaderValue(req.get?.('cf-ipcity')),
+    region: cleanHeaderValue(req.get?.('cf-region')),
+    regionCode: cleanHeaderValue(req.get?.('cf-region-code')),
+    continent: cleanHeaderValue(req.get?.('cf-ipcontinent')),
+    timezone: cleanHeaderValue(req.get?.('cf-timezone')),
+    latitude: cleanHeaderValue(req.get?.('cf-iplatitude')),
+    longitude: cleanHeaderValue(req.get?.('cf-iplongitude')),
+    postalCode: cleanHeaderValue(req.get?.('cf-postal-code')),
+    metroCode: cleanHeaderValue(req.get?.('cf-metro-code')),
+    rayId: cleanHeaderValue(req.get?.('cf-ray')),
+    userAgent: cleanHeaderValue(req.get?.('user-agent'), { maxLength: 240 }),
+    source: hasCloudflareLocation ? 'cloudflare' : forwardedFor ? 'forwarded-for' : directIp ? 'direct' : 'unknown',
   };
 }
 
@@ -114,6 +147,18 @@ export function authenticateUserOrService(options = {}) {
 
 function hasBearerToken(req) {
   return Boolean(readBearerToken(req.get('authorization')));
+}
+
+function firstForwardedIp(value) {
+  return cleanHeaderValue(String(value ?? '').split(',')[0]);
+}
+
+function cleanHeaderValue(value, { maxLength = 120 } = {}) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed || trimmed.toLowerCase() === 'unknown') {
+    return null;
+  }
+  return trimmed.slice(0, maxLength);
 }
 
 async function verifyUserCredential({ auth, bearerToken, sessionCookie }) {

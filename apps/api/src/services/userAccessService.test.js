@@ -8,7 +8,13 @@ const repository = createInMemoryRepository({
     return () => `2026-01-01T00:00:0${index++}.000Z`;
   })(),
 });
-const service = createUserAccessService({ repository });
+const service = createUserAccessService({
+  repository,
+  clock: (() => {
+    let index = 0;
+    return () => `2026-01-01T00:00:0${index++}.000Z`;
+  })(),
+});
 
 const immutableAdmin = await service.ensureAuthenticatedUser({
   uid: 'firebase-owner',
@@ -68,6 +74,14 @@ const newUser = await service.ensureAuthenticatedUser({
   uid: 'firebase-user',
   email: 'new.user@example.com',
   displayName: 'New User',
+  loginContext: {
+    ipAddress: '203.0.113.10',
+    city: 'Mumbai',
+    region: 'Maharashtra',
+    country: 'IN',
+    timezone: 'Asia/Kolkata',
+    source: 'cloudflare',
+  },
 });
 
 assert.equal(newUser.role, 'anonymous');
@@ -79,6 +93,23 @@ assert.deepEqual(newUser.appAccess, {
   workbench: false,
   quant: false,
   desk: false,
+});
+assert.deepEqual(newUser.lastLoginContext, {
+  ipAddress: '203.0.113.10',
+  country: 'IN',
+  city: 'Mumbai',
+  region: 'Maharashtra',
+  regionCode: null,
+  continent: null,
+  timezone: 'Asia/Kolkata',
+  latitude: null,
+  longitude: null,
+  postalCode: null,
+  metroCode: null,
+  rayId: null,
+  userAgent: null,
+  source: 'cloudflare',
+  capturedAt: '2026-01-01T00:00:02.000Z',
 });
 
 const promoted = await service.updateUserAccess(newUser.id, {
@@ -97,7 +128,9 @@ assert.deepEqual(promoted.roles, ['admin']);
 assert.equal(promoted.appAccess.admin, true);
 assert.equal(promoted.appAccess.invest, true);
 assert.equal(promoted.appAccess.workbench, true);
-assert.equal(promoted.appAccess.picks, false);
+assert.equal(promoted.appAccess.picks, true);
+assert.equal(promoted.appAccess.quant, true);
+assert.equal(promoted.appAccess.desk, true);
 
 const users = await service.listUsers();
 assert.deepEqual(new Set(users.slice(0, 2).map((user) => user.email)), new Set(IMMUTABLE_ADMIN_EMAILS));

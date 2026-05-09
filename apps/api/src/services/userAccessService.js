@@ -30,7 +30,14 @@ const LOCAL_ADMIN_USER = Object.freeze({
 });
 
 export function createUserAccessService({ repository, clock = () => new Date().toISOString() } = {}) {
-  async function ensureAuthenticatedUser({ uid, email, displayName = null, photoUrl = null, authMode = 'firebase' }) {
+  async function ensureAuthenticatedUser({
+    uid,
+    email,
+    displayName = null,
+    photoUrl = null,
+    authMode = 'firebase',
+    loginContext = null,
+  }) {
     if (!repository) {
       throw new Error('userAccessService requires repository');
     }
@@ -60,6 +67,9 @@ export function createUserAccessService({ repository, clock = () => new Date().t
       accessUpdatedBy: existing?.accessUpdatedBy ?? null,
       firstSeenAt: existing?.firstSeenAt ?? timestamp,
       lastLoginAt: timestamp,
+      lastLoginContext: loginContext
+        ? normalizeLoginContext(loginContext, timestamp)
+        : existing?.lastLoginContext ?? null,
       metadata: {
         ...(existing?.metadata ?? {}),
         authMode,
@@ -149,6 +159,7 @@ export function normalizeUser(user) {
     immutable,
     firstSeenAt: user.firstSeenAt ?? user.createdAt ?? null,
     lastLoginAt: user.lastLoginAt ?? null,
+    lastLoginContext: normalizeLoginContext(user.lastLoginContext),
     roleUpdatedAt: user.roleUpdatedAt ?? null,
     roleUpdatedBy: user.roleUpdatedBy ?? null,
     accessManagedBy: user.accessManagedBy ?? null,
@@ -174,17 +185,17 @@ function rolesForRole(role) {
 
 export function defaultAppAccess(role = 'anonymous', { immutable = false } = {}) {
   const access = Object.fromEntries(USER_APP_IDS.map((appId) => [appId, false]));
-  if (immutable) {
+  if (immutable || normalizeRole(role) === 'admin') {
     return Object.fromEntries(USER_APP_IDS.map((appId) => [appId, true]));
-  }
-  if (normalizeRole(role) === 'admin') {
-    access.admin = true;
   }
   return access;
 }
 
 export function normalizeAppAccess(value, { role = 'anonymous', immutable = false } = {}) {
   const fallback = defaultAppAccess(role, { immutable });
+  if (immutable || normalizeRole(role) === 'admin') {
+    return fallback;
+  }
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return fallback;
   }
@@ -197,8 +208,53 @@ export function normalizeAppAccess(value, { role = 'anonymous', immutable = fals
   );
 }
 
+export function normalizeLoginContext(value, capturedAt = null) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return null;
+  }
+
+  const context = {
+    ipAddress: cleanString(value.ipAddress, 80),
+    country: cleanString(value.country, 16),
+    city: cleanString(value.city, 120),
+    region: cleanString(value.region, 120),
+    regionCode: cleanString(value.regionCode, 32),
+    continent: cleanString(value.continent, 32),
+    timezone: cleanString(value.timezone, 80),
+    latitude: cleanString(value.latitude, 40),
+    longitude: cleanString(value.longitude, 40),
+    postalCode: cleanString(value.postalCode, 40),
+    metroCode: cleanString(value.metroCode, 40),
+    rayId: cleanString(value.rayId, 80),
+    userAgent: cleanString(value.userAgent, 240),
+    source: cleanString(value.source, 40) ?? 'unknown',
+    capturedAt: cleanString(value.capturedAt, 40) ?? capturedAt,
+  };
+
+  if (
+    !context.ipAddress &&
+    !context.country &&
+    !context.city &&
+    !context.region &&
+    !context.timezone &&
+    !context.userAgent
+  ) {
+    return null;
+  }
+
+  return context;
+}
+
 function normalizeEmail(email) {
   return String(email ?? '').trim().toLowerCase() || null;
+}
+
+function cleanString(value, maxLength) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed || trimmed.toLowerCase() === 'unknown') {
+    return null;
+  }
+  return trimmed.slice(0, maxLength);
 }
 
 function compareUsers(left, right) {
