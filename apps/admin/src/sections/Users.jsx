@@ -48,6 +48,10 @@ const styles = {
     minHeight: 30,
     padding: "6px 10px"
   },
+  accessColumn: {
+    verticalAlign: "middle",
+    width: "34%"
+  },
   accessHelp: {
     color: "#5b6678",
     display: "block",
@@ -119,6 +123,10 @@ const styles = {
     gap: 4,
     minWidth: 170
   },
+  loginColumn: {
+    verticalAlign: "middle",
+    width: "20%"
+  },
   loginMeta: {
     color: "#4f5e75",
     fontSize: 12,
@@ -149,6 +157,10 @@ const styles = {
     background: "#dff1e9",
     color: "#0f5f48"
   },
+  roleColumn: {
+    verticalAlign: "middle",
+    width: "8%"
+  },
   sectionLabel: {
     color: "#40516b",
     fontSize: 12,
@@ -172,6 +184,22 @@ const styles = {
     display: "flex",
     flexWrap: "wrap",
     gap: 8
+  },
+  usersTable: {
+    minWidth: 1180,
+    tableLayout: "fixed"
+  },
+  statusColumn: {
+    verticalAlign: "middle",
+    width: "11%"
+  },
+  userColumn: {
+    verticalAlign: "middle",
+    width: "19%"
+  },
+  actionColumn: {
+    verticalAlign: "middle",
+    width: "8%"
   }
 };
 
@@ -258,15 +286,15 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
         </div>
 
         <div className="table-wrap users-table-wrap">
-          <table className="accounts-table users-table">
+          <table className="accounts-table users-table" style={styles.usersTable}>
             <thead>
               <tr>
-                <th>User</th>
-                <th>Role</th>
-                <th>Access</th>
-                <th>Status</th>
-                <th>Last login</th>
-                <th>Action</th>
+                <th style={styles.userColumn}>User</th>
+                <th style={styles.roleColumn}>Role</th>
+                <th style={styles.accessColumn}>Access</th>
+                <th style={styles.statusColumn}>Status</th>
+                <th style={styles.loginColumn}>Last login</th>
+                <th style={styles.actionColumn}>Action</th>
               </tr>
             </thead>
             <tbody>
@@ -281,17 +309,17 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
                   const locked = user.immutable;
                   return (
                     <tr key={user.id}>
-                      <td>
+                      <td style={styles.userColumn}>
                         <div className="user-cell">
                           <strong>{user.displayName}</strong>
                           <small>{user.email}</small>
                           {user.id === currentUserId && <small>Current session</small>}
                         </div>
                       </td>
-                      <td>
+                      <td style={styles.roleColumn}>
                         <RolePill user={user} />
                       </td>
-                      <td>
+                      <td style={styles.accessColumn}>
                         <AccessTags
                           locked={locked}
                           user={user}
@@ -300,16 +328,16 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
                           onRemoveProduct={(appId) => removeProductAccess(user, appId)}
                         />
                       </td>
-                      <td>
+                      <td style={styles.statusColumn}>
                         <div className="status-stack">
                           <StatusBadge status={user.status} />
                           {locked && <span className="locked-note">Protected owner</span>}
                         </div>
                       </td>
-                      <td>
+                      <td style={styles.loginColumn}>
                         <LastLoginCell user={user} />
                       </td>
-                      <td>
+                      <td style={styles.actionColumn}>
                         <button type="button" disabled={locked} onClick={() => setDeleteTarget(user)}>
                           Remove
                         </button>
