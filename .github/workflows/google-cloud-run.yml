@@ -52,36 +52,36 @@ jobs:
       AUTH_ADMIN_EMAILS: ${{ vars.AUTH_ADMIN_EMAILS }}
       AUTH_SESSION_COOKIE_NAME: ${{ vars.AUTH_SESSION_COOKIE_NAME || 'newleaf_session' }}
       AUTH_SESSION_COOKIE_DOMAIN: ${{ vars.AUTH_SESSION_COOKIE_DOMAIN || '.newleafsystem.com' }}
-      AUTH_SESSION_COOKIE_PATH: ${{ vars.AUTH_SESSION_COOKIE_PATH || '/api/v1' }}
+      AUTH_SESSION_COOKIE_PATH: ${{ vars.AUTH_SESSION_COOKIE_PATH || '/' }}
       AUTH_SESSION_COOKIE_MAX_AGE_SEC: ${{ vars.AUTH_SESSION_COOKIE_MAX_AGE_SEC || '432000' }}
       AUTH_SESSION_COOKIE_SAME_SITE: ${{ vars.AUTH_SESSION_COOKIE_SAME_SITE || 'lax' }}
       AUTH_SESSION_COOKIE_SECURE: ${{ vars.AUTH_SESSION_COOKIE_SECURE || 'true' }}
       FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID || 'newleafdb' }}
-      PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://admin.newleafsystem.com' }}
+      PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://api.newleafsystem.com' }}
       ADMIN_BASE_URL: ${{ vars.ADMIN_BASE_URL || 'https://admin.newleafsystem.com' }}
-      SOCIAL_CALLBACK_BASE_URL: ${{ vars.SOCIAL_CALLBACK_BASE_URL || 'https://admin.newleafsystem.com' }}
-      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || 'https://admin.newleafsystem.com https://newleafsystem.com' }}
+      SOCIAL_CALLBACK_BASE_URL: ${{ vars.SOCIAL_CALLBACK_BASE_URL || 'https://api.newleafsystem.com' }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || 'https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://newleafsystem.web.app https://newleaf-preview.web.app' }}
       MEDIA_RENDERER_URL: ${{ vars.MEDIA_RENDERER_URL }}
       MEDIA_RENDER_HMAC_SECRET: ${{ secrets.MEDIA_RENDER_HMAC_SECRET }}
       YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}
       YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-      YOUTUBE_REDIRECT_URI: ${{ vars.YOUTUBE_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/youtube/oauth/callback' }}
+      YOUTUBE_REDIRECT_URI: ${{ vars.YOUTUBE_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/youtube/oauth/callback' }}
       YOUTUBE_SCOPES: ${{ vars.YOUTUBE_SCOPES || 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl' }}
       YOUTUBE_DEFAULT_PRIVACY_STATUS: ${{ vars.YOUTUBE_DEFAULT_PRIVACY_STATUS || 'private' }}
       YOUTUBE_DEFAULT_CATEGORY_ID: ${{ vars.YOUTUBE_DEFAULT_CATEGORY_ID || '27' }}
       X_CLIENT_ID: ${{ vars.X_CLIENT_ID }}
       X_CLIENT_SECRET: ${{ secrets.X_CLIENT_SECRET }}
-      X_REDIRECT_URI: ${{ vars.X_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/x/oauth/callback' }}
+      X_REDIRECT_URI: ${{ vars.X_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/x/oauth/callback' }}
       X_SCOPES: ${{ vars.X_SCOPES || 'tweet.read users.read tweet.write media.write offline.access' }}
       X_UPLOAD_CHUNK_BYTES: ${{ vars.X_UPLOAD_CHUNK_BYTES || '4194304' }}
       LINKEDIN_CLIENT_ID: ${{ vars.LINKEDIN_CLIENT_ID }}
       LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
-      LINKEDIN_REDIRECT_URI: ${{ vars.LINKEDIN_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/linkedin/oauth/callback' }}
+      LINKEDIN_REDIRECT_URI: ${{ vars.LINKEDIN_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/linkedin/oauth/callback' }}
       LINKEDIN_SCOPES: ${{ vars.LINKEDIN_SCOPES || 'openid profile email w_member_social r_organization_social' }}
       LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202604' }}
       META_APP_ID: ${{ vars.META_APP_ID }}
       META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
-      META_REDIRECT_URI: ${{ vars.META_REDIRECT_URI || 'https://admin.newleafsystem.com/api/v1/social/meta/oauth/callback' }}
+      META_REDIRECT_URI: ${{ vars.META_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/meta/oauth/callback' }}
       META_GRAPH_VERSION: ${{ vars.META_GRAPH_VERSION || 'v21.0' }}
       META_FACEBOOK_SCOPES: ${{ vars.META_FACEBOOK_SCOPES || 'pages_show_list pages_manage_posts pages_read_engagement' }}
       META_INSTAGRAM_SCOPES: ${{ vars.META_INSTAGRAM_SCOPES || 'pages_show_list pages_read_engagement instagram_basic instagram_content_publish' }}

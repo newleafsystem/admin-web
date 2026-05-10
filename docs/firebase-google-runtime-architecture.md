@@ -8,9 +8,9 @@ NewLeaf production deployment is now Firebase/Google-first. Cloudflare should no
 names.co.uk DNS
   -> Firebase Hosting
     -> static Vite admin UI from apps/admin/dist
-    -> /api/** rewrite to Cloud Run service newleaf-api
+    -> optional /api/** rewrite to Cloud Run service newleaf-api
   -> Cloud Run API
-    -> provider OAuth, service API, admin API, publishing orchestration
+    -> api.newleafsystem.com for browser auth, provider OAuth, service API, admin API, publishing orchestration
   -> Cloud Run media renderer
     -> FFmpeg execution
   -> Firebase Storage / Google Cloud Storage
@@ -29,11 +29,24 @@ Use Firebase Hosting custom domain setup for:
 
 - `admin.newleafsystem.com`
 
-Optional direct Cloud Run domain mapping can be used for:
+Use a direct Cloud Run API custom domain for:
 
 - `api.newleafsystem.com`
 
-If Firebase Hosting rewrites `/api/**` to Cloud Run, the admin UI can use same-origin `/api/v1` calls and `api.newleafsystem.com` is not strictly required.
+Both admin-web and client-web should use `api.newleafsystem.com` for shared browser authentication. Firebase Hosting rewrites for `/api/**` may remain as a compatibility path for the admin UI, but the canonical API origin is the Cloud Run custom domain.
+
+Required browser-auth runtime values:
+
+```text
+PUBLIC_BASE_URL=https://api.newleafsystem.com
+ADMIN_BASE_URL=https://admin.newleafsystem.com
+SOCIAL_CALLBACK_BASE_URL=https://api.newleafsystem.com
+CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://newleafsystem.web.app https://newleaf-preview.web.app
+AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com
+AUTH_SESSION_COOKIE_PATH=/
+AUTH_SESSION_COOKIE_SAME_SITE=lax
+AUTH_SESSION_COOKIE_SECURE=true
+```
 
 ## Active Deploy Commands
 

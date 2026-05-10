@@ -8,7 +8,15 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_PRODUCTION_BASE_URL = 'https://admin.newleafsystem.com';
+const DEFAULT_API_BASE_URL = 'https://api.newleafsystem.com';
+const DEFAULT_ADMIN_BASE_URL = 'https://admin.newleafsystem.com';
+const DEFAULT_CORS_ALLOWED_ORIGINS = [
+  DEFAULT_ADMIN_BASE_URL,
+  'https://newleafsystem.com',
+  'https://www.newleafsystem.com',
+  'https://newleafsystem.web.app',
+  'https://newleaf-preview.web.app',
+].join(' ');
 
 const REQUIRED_REPO_VARIABLE_NAMES = [
   'GCP_PROJECT_ID',
@@ -262,14 +270,24 @@ function buildEnvValues(fileEnv) {
   env.REQUIRE_AUTH ||= 'true';
   env.FIRESTORE_DATABASE_ID ||= 'newleafdb';
   env.GCP_SERVICE_ACCOUNT ||= credentials?.client_email || '';
+  env.AUTH_SESSION_COOKIE_NAME ||= 'newleaf_session';
+  env.AUTH_SESSION_COOKIE_DOMAIN ||= '.newleafsystem.com';
+  env.AUTH_SESSION_COOKIE_PATH ||= '/';
+  env.AUTH_SESSION_COOKIE_MAX_AGE_SEC ||= '432000';
+  env.AUTH_SESSION_COOKIE_SAME_SITE ||= 'lax';
+  env.AUTH_SESSION_COOKIE_SECURE ||= 'true';
 
-  for (const name of ['PUBLIC_BASE_URL', 'ADMIN_BASE_URL', 'SOCIAL_CALLBACK_BASE_URL']) {
-    if (!hasValue(env[name]) || isLocalValue(env[name])) {
-      env[name] = DEFAULT_PRODUCTION_BASE_URL;
-    }
+  if (!hasValue(env.PUBLIC_BASE_URL) || isLocalValue(env.PUBLIC_BASE_URL)) {
+    env.PUBLIC_BASE_URL = DEFAULT_API_BASE_URL;
+  }
+  if (!hasValue(env.ADMIN_BASE_URL) || isLocalValue(env.ADMIN_BASE_URL)) {
+    env.ADMIN_BASE_URL = DEFAULT_ADMIN_BASE_URL;
+  }
+  if (!hasValue(env.SOCIAL_CALLBACK_BASE_URL) || isLocalValue(env.SOCIAL_CALLBACK_BASE_URL)) {
+    env.SOCIAL_CALLBACK_BASE_URL = env.PUBLIC_BASE_URL;
   }
   if (!hasValue(env.CORS_ALLOWED_ORIGINS) || isLocalValue(env.CORS_ALLOWED_ORIGINS)) {
-    env.CORS_ALLOWED_ORIGINS = DEFAULT_PRODUCTION_BASE_URL;
+    env.CORS_ALLOWED_ORIGINS = DEFAULT_CORS_ALLOWED_ORIGINS;
   }
 
   env.VITE_FIREBASE_PROJECT_ID ||= env.FIREBASE_PROJECT_ID || env.GCP_PROJECT_ID;
@@ -691,7 +709,7 @@ function assertNoPlatformHostedDomains(env) {
   if (publicDomainNames.length > 0) {
     throw new Error(
       `Refusing to push Firebase/Google platform-hosted public domains: ${publicDomainNames.join(', ')}. ` +
-      'Use admin.newleafsystem.com or another approved newleafsystem.com custom domain.',
+      'Use api.newleafsystem.com, admin.newleafsystem.com, or another approved newleafsystem.com custom domain.',
     );
   }
 }

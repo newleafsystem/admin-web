@@ -10,6 +10,7 @@ import { createServiceClientsRouter } from './routes/serviceClients.js';
 import { createServiceDocsRouter } from './routes/serviceDocs.js';
 import { createSmartCollectionsRouter } from './routes/smartCollections.js';
 import { createSocialAccountsRouter, createSocialOAuthCallbackRouter } from './routes/socialAccounts.js';
+import { createAuthSessionRouter } from './routes/authSession.js';
 import { createUsersRouter } from './routes/users.js';
 import { createVideoProjectsRouter } from './routes/videoProjects.js';
 import { authenticateRequest } from './middleware/auth.js';
@@ -117,6 +118,7 @@ export function createApp(options = {}) {
   app.use('/api/v1/social', createSocialOAuthCallbackRouter(services));
   app.use('/api/v1/service', createServiceDocsRouter(services));
   app.use('/api/v1/service', createServiceApiRouter(services));
+  app.use('/api/auth', createAuthSessionRouter(services));
 
   app.use(authenticateRequest({ repository, userAccessService }));
   app.use('/api/v1', createUsersRouter(services));

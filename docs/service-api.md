@@ -12,13 +12,24 @@ When the API is running locally, open with either an approved admin Firebase bea
 http://localhost:8080/api/v1/service/docs
 ```
 
-In production, admins should open Swagger through the Firebase Hosting custom domain after signing in:
+In production, admins should open Swagger through the API custom domain or the Firebase Hosting rewrite after signing in:
 
 ```text
+https://api.newleafsystem.com/api/v1/service/docs
 https://admin.newleafsystem.com/api/v1/service/docs
 ```
 
-Admin sign-in refreshes an HTTP-only Firebase session cookie scoped to `/api/v1`. Set `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` so the same cookie can be sent by `newleafsystem.com` and `admin.newleafsystem.com` custom-domain routes. The raw Cloud Run `run.app` URL cannot participate in this browser SSO cookie, so it still requires an `Authorization` bearer token or signed vendor credentials.
+Admin and client-web sign-in refresh one HTTP-only Firebase session cookie through the shared API. Set `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` and `AUTH_SESSION_COOKIE_PATH=/` so the same cookie works for both `/api/auth/*` browser auth endpoints and `/api/v1/*` protected service routes. The raw Cloud Run `run.app` URL cannot participate in this browser SSO cookie, so it still requires an `Authorization` bearer token or signed vendor credentials.
+
+Browser auth endpoints are intentionally separated from operational routes:
+
+```text
+POST   /api/auth/session       Exchange a Firebase ID token for the shared session cookie
+GET    /api/auth/session       Validate the shared session cookie and return sanitized user access
+POST   /api/auth/custom-token  Restore Firebase client state from the shared session cookie
+POST   /api/auth/logout        Clear the shared session cookie
+DELETE /api/auth/session       Clear the shared session cookie
+```
 
 The raw OpenAPI contract is available at:
 
