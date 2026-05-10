@@ -184,7 +184,7 @@ PUBLIC_BASE_URL=https://admin.newleafsystem.com
 ADMIN_BASE_URL=https://admin.newleafsystem.com
 VITE_API_BASE_URL=/api/v1
 SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com
-CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com
+CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com
 REPOSITORY_PROVIDER=firestore
 ```
 
@@ -289,7 +289,7 @@ Required GitHub repository variables:
 - `SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com`
 - `SOCIAL_PUBLICATION_SYNC_ENABLED=true`
 - `SOCIAL_PUBLICATION_SYNC_INTERVAL_MS=3600000`
-- `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com`
+- `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com`
 - `AUTH_SESSION_COOKIE_NAME=newleaf_session`
 - `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com`
 - `AUTH_SESSION_COOKIE_PATH=/api/v1`

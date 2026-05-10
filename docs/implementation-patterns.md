@@ -96,7 +96,7 @@ Rules:
 - `client-web` treats `appAccess` as the product navigation and route-access source of truth. Do not add a separate client-web-only entitlement store.
 - `api.newleafsystem.com` is the canonical shared API origin for browser authentication. Keep browser-auth endpoints under `/api/auth/*` and admin/service operations under `/api/v1/*` on the same Cloud Run API service.
 - Shared browser sessions must use `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` and `AUTH_SESSION_COOKIE_PATH=/` so the same HTTP-only Firebase session cookie can be created through `/api/auth/session` and sent to `/api/v1/*` routes.
-- CORS for the API must explicitly allow credentialed requests from `https://admin.newleafsystem.com`, `https://newleafsystem.com`, `https://www.newleafsystem.com`, `https://newleafsystem.web.app`, and `https://newleaf-preview.web.app`.
+- CORS for the API must explicitly allow credentialed requests from registered NewLeaf domains only: `https://admin.newleafsystem.com`, `https://newleafsystem.com`, `https://www.newleafsystem.com`, and `https://preview.newleafsystem.com`.
 - `VITE_ADMIN_EMAILS` in client-web is bootstrap fallback only; once `admin-web` writes explicit `appAccess`, Firestore wins for env-only bootstrap admins.
 - Firestore rules may allow a user to create or update only their own identity and conservative default `appAccess`; only admins may grant paid/private app access.
 - Authenticated API requests record best-effort `lastLoginContext` on the user record. Prefer Cloudflare `CF-Connecting-IP`, `CF-IPCountry`, and Add Visitor Location headers when present; fall back to `X-Forwarded-For` or the direct request IP without calling a client-side geolocation API.

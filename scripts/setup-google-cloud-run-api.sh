@@ -13,7 +13,7 @@
 #   PUBLIC_BASE_URL=https://api.newleafsystem.com
 #   ADMIN_BASE_URL=https://admin.newleafsystem.com
 #   SOCIAL_CALLBACK_BASE_URL=https://api.newleafsystem.com
-#   CORS_ALLOWED_ORIGINS="https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://newleafsystem.web.app https://newleaf-preview.web.app"
+#   CORS_ALLOWED_ORIGINS="https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com"
 #   AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com
 #   AUTH_SESSION_COOKIE_PATH=/
 #   AUTH_SESSION_COOKIE_MAX_AGE_SEC=432000
@@ -53,7 +53,7 @@ GCS_BUCKET="${GCS_BUCKET:-${GCP_PROJECT_ID:-}.firebasestorage.app}"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-https://api.newleafsystem.com}"
 ADMIN_BASE_URL="${ADMIN_BASE_URL:-https://admin.newleafsystem.com}"
 SOCIAL_CALLBACK_BASE_URL="${SOCIAL_CALLBACK_BASE_URL:-${PUBLIC_BASE_URL}}"
-CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-${ADMIN_BASE_URL} https://newleafsystem.com https://www.newleafsystem.com https://newleafsystem.web.app https://newleaf-preview.web.app}"
+CORS_ALLOWED_ORIGINS="${CORS_ALLOWED_ORIGINS:-${ADMIN_BASE_URL} https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com}"
 HEYGEN_CALLBACK_BASE_URL="${HEYGEN_CALLBACK_BASE_URL:-${PUBLIC_BASE_URL}}"
 HEYGEN_CALLBACK_URL="${HEYGEN_CALLBACK_URL:-${HEYGEN_CALLBACK_BASE_URL%/}/api/v1/webhooks/heygen}"
 MIN_INSTANCES="${MIN_INSTANCES:-1}"

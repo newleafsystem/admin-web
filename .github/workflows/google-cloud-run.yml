@@ -60,7 +60,7 @@ jobs:
       PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://api.newleafsystem.com' }}
       ADMIN_BASE_URL: ${{ vars.ADMIN_BASE_URL || 'https://admin.newleafsystem.com' }}
       SOCIAL_CALLBACK_BASE_URL: ${{ vars.SOCIAL_CALLBACK_BASE_URL || 'https://api.newleafsystem.com' }}
-      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || 'https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://newleafsystem.web.app https://newleaf-preview.web.app' }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || 'https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com' }}
       MEDIA_RENDERER_URL: ${{ vars.MEDIA_RENDERER_URL }}
       MEDIA_RENDER_HMAC_SECRET: ${{ secrets.MEDIA_RENDER_HMAC_SECRET }}
       YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}

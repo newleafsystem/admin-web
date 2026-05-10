@@ -14,8 +14,7 @@ const DEFAULT_CORS_ALLOWED_ORIGINS = [
   DEFAULT_ADMIN_BASE_URL,
   'https://newleafsystem.com',
   'https://www.newleafsystem.com',
-  'https://newleafsystem.web.app',
-  'https://newleaf-preview.web.app',
+  'https://preview.newleafsystem.com',
 ].join(' ');
 
 const REQUIRED_REPO_VARIABLE_NAMES = [
