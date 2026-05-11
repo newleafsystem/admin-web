@@ -16,6 +16,13 @@
       ],
       "rewrites": [
         {
+          "source": "/api/internal/scheduler/**",
+          "run": {
+            "serviceId": "newleaf-scanner-worker",
+            "region": "us-central1"
+          }
+        },
+        {
           "source": "/api/**",
           "run": {
             "serviceId": "newleaf-api",
@@ -37,6 +44,13 @@
         "**/node_modules/**"
       ],
       "rewrites": [
+        {
+          "source": "/api/internal/scheduler/**",
+          "run": {
+            "serviceId": "newleaf-scanner-worker",
+            "region": "us-central1"
+          }
+        },
         {
           "source": "/api/**",
           "run": {
