@@ -35,7 +35,8 @@
 # and mounted into Cloud Run:
 #   HEYGEN_API_KEY OPENAI_API_KEY AI_API_KEY YOUTUBE_CLIENT_SECRET
 #   X_CLIENT_SECRET LINKEDIN_CLIENT_SECRET META_APP_SECRET
-#   HEYGEN_WEBHOOK_SECRET MEDIA_RENDER_HMAC_SECRET SERVICE_API_KEY_HASHES TOKEN_ENCRYPTION_KEY
+#   HEYGEN_WEBHOOK_SECRET ALPACA_API_KEY ALPACA_SECRET_KEY
+#   MEDIA_RENDER_HMAC_SECRET SERVICE_API_KEY_HASHES TOKEN_ENCRYPTION_KEY
 
 set -euo pipefail
 
@@ -191,9 +192,7 @@ add_secret_if_present() {
   local secret_name="$2"
   local value="${!env_name:-}"
   if [[ -n "${value}" ]]; then
-    if [[ "${SKIP_PROVISIONING}" != "true" ]]; then
-      ensure_secret "${secret_name}" "${value}"
-    fi
+    ensure_secret "${secret_name}" "${value}"
     secret_specs+=("${env_name}=${secret_name}:latest")
   elif [[ "${BIND_EXISTING_SECRETS}" == "true" ]] && \
     gcloud secrets describe "${secret_name}" --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
