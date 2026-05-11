@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { notificationTopicOptions } from "../api.js";
 import { ModalShell, StatusBadge } from "../components/common.jsx";
 
 const PRODUCT_ACCESS_OPTIONS = [
@@ -50,7 +51,7 @@ const styles = {
   },
   accessColumn: {
     verticalAlign: "middle",
-    width: "34%"
+    width: "28%"
   },
   accessHelp: {
     color: "#5b6678",
@@ -125,7 +126,30 @@ const styles = {
   },
   loginColumn: {
     verticalAlign: "middle",
-    width: "20%"
+    width: "12%"
+  },
+  notificationColumn: {
+    verticalAlign: "middle",
+    width: "21%"
+  },
+  notificationStack: {
+    display: "grid",
+    gap: 8
+  },
+  notificationAddress: {
+    color: "#31425a",
+    fontSize: 12,
+    lineHeight: 1.35,
+    wordBreak: "break-word"
+  },
+  notificationActions: {
+    alignItems: "center",
+    display: "flex",
+    gap: 8
+  },
+  notificationEditButton: {
+    minHeight: 30,
+    padding: "6px 10px"
   },
   loginMeta: {
     color: "#4f5e75",
@@ -159,7 +183,7 @@ const styles = {
   },
   roleColumn: {
     verticalAlign: "middle",
-    width: "8%"
+    width: "7%"
   },
   sectionLabel: {
     color: "#40516b",
@@ -185,29 +209,96 @@ const styles = {
     flexWrap: "wrap",
     gap: 8
   },
+  topicTag: {
+    ...tagBase,
+    background: "#dff1e9",
+    color: "#0f5f48"
+  },
+  pausedTag: {
+    ...tagBase,
+    background: "#fff7ed",
+    color: "#9a5b10"
+  },
   usersTable: {
-    minWidth: 1180,
+    minWidth: 1320,
     tableLayout: "fixed"
   },
   statusColumn: {
     verticalAlign: "middle",
-    width: "11%"
+    width: "9%"
   },
   userColumn: {
     verticalAlign: "middle",
-    width: "19%"
+    width: "18%"
   },
   actionColumn: {
     verticalAlign: "middle",
-    width: "8%"
+    width: "5%"
+  },
+  formGrid: {
+    display: "grid",
+    gap: 14
+  },
+  field: {
+    display: "grid",
+    gap: 7
+  },
+  input: {
+    border: "1px solid #d6dee8",
+    borderRadius: 8,
+    font: "inherit",
+    minHeight: 42,
+    padding: "9px 11px"
+  },
+  mutedSmall: {
+    color: "#5b6678",
+    fontSize: 12,
+    lineHeight: 1.35
+  },
+  topicGrid: {
+    display: "grid",
+    gap: 10,
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))"
+  },
+  topicChoice: {
+    alignItems: "flex-start",
+    background: "#ffffff",
+    border: "1px solid #d6dee8",
+    borderRadius: 8,
+    color: "#152033",
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+    minHeight: 92,
+    padding: 14,
+    textAlign: "left",
+    width: "100%"
+  },
+  topicChoiceSelected: {
+    background: "#edf7f3",
+    borderColor: "#6ab49e",
+    boxShadow: "0 0 0 2px rgba(106, 180, 158, 0.18)"
+  },
+  switchRow: {
+    alignItems: "center",
+    display: "flex",
+    gap: 10,
+    justifyContent: "space-between"
+  },
+  switchButton: {
+    borderRadius: 999,
+    minWidth: 96
   }
 };
 
-export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, users }) {
+export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, onUpdateUserNotifications, users }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [accessTarget, setAccessTarget] = useState(null);
   const [accessSelection, setAccessSelection] = useState(null);
   const [savingAccess, setSavingAccess] = useState(false);
+  const [notificationTarget, setNotificationTarget] = useState(null);
+  const [notificationDraft, setNotificationDraft] = useState(null);
+  const [savingNotifications, setSavingNotifications] = useState(false);
   const sortedUsers = useMemo(
     () =>
       [...users].sort((left, right) => {
@@ -272,6 +363,51 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
     });
   }
 
+  function openNotificationDialog(user) {
+    setNotificationTarget(user);
+    setNotificationDraft(copyEmailPreferences(user));
+  }
+
+  function closeNotificationDialog() {
+    if (savingNotifications) return;
+    setNotificationTarget(null);
+    setNotificationDraft(null);
+  }
+
+  function updateNotificationDraft(patch) {
+    setNotificationDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function toggleNotificationTopic(topicId) {
+    setNotificationDraft((current) => ({
+      ...current,
+      topics: {
+        ...current.topics,
+        [topicId]: !current.topics[topicId]
+      }
+    }));
+  }
+
+  async function saveNotificationDialog(event) {
+    event.preventDefault();
+    if (!notificationTarget || !notificationDraft || !canSaveNotificationDraft(notificationDraft)) return;
+    setSavingNotifications(true);
+    try {
+      await onUpdateUserNotifications(notificationTarget.id, {
+        email: {
+          ...notificationDraft,
+          address: String(notificationDraft.address ?? "").trim() || null
+        }
+      });
+      setNotificationTarget(null);
+      setNotificationDraft(null);
+    } catch {
+      // App.jsx owns user-facing action errors.
+    } finally {
+      setSavingNotifications(false);
+    }
+  }
+
   return (
     <div className="view-stack">
       <section className="panel">
@@ -292,6 +428,7 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
                 <th style={styles.userColumn}>User</th>
                 <th style={styles.roleColumn}>Role</th>
                 <th style={styles.accessColumn}>Access</th>
+                <th style={styles.notificationColumn}>Notifications</th>
                 <th style={styles.statusColumn}>Status</th>
                 <th style={styles.loginColumn}>Last login</th>
                 <th style={styles.actionColumn}>Action</th>
@@ -300,7 +437,7 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
             <tbody>
               {sortedUsers.length === 0 ? (
                 <tr>
-                  <td className="table-empty" colSpan="6">
+                  <td className="table-empty" colSpan="7">
                     No users have signed in yet.
                   </td>
                 </tr>
@@ -327,6 +464,9 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
                           onRemoveAdmin={() => removeAdminAccess(user)}
                           onRemoveProduct={(appId) => removeProductAccess(user, appId)}
                         />
+                      </td>
+                      <td style={styles.notificationColumn}>
+                        <NotificationCell user={user} onEdit={() => openNotificationDialog(user)} />
                       </td>
                       <td style={styles.statusColumn}>
                         <div className="status-stack">
@@ -367,6 +507,18 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
         />
       )}
 
+      {notificationTarget && notificationDraft && (
+        <NotificationDialog
+          draft={notificationDraft}
+          saving={savingNotifications}
+          user={notificationTarget}
+          onCancel={closeNotificationDialog}
+          onSave={saveNotificationDialog}
+          onToggleTopic={toggleNotificationTopic}
+          onUpdateDraft={updateNotificationDraft}
+        />
+      )}
+
       {deleteTarget && (
         <DeleteUserDialog
           user={deleteTarget}
@@ -374,6 +526,49 @@ export function Users({ currentUserId, onDeleteUser, onRefresh, onUpdateRole, us
           onConfirm={confirmDelete}
         />
       )}
+    </div>
+  );
+}
+
+function NotificationCell({ onEdit, user }) {
+  const email = getEmailPreferences(user);
+  return (
+    <div style={styles.notificationStack}>
+      <div style={styles.notificationActions}>
+        <span style={email.enabled ? styles.topicTag : styles.pausedTag}>
+          {email.enabled ? "Email on" : email.address ? "Paused" : "No email"}
+        </span>
+        <button style={styles.notificationEditButton} type="button" onClick={onEdit}>
+          Edit
+        </button>
+      </div>
+      <span style={styles.notificationAddress}>{email.address || "No recipient email"}</span>
+      <NotificationTopicTags email={email} />
+    </div>
+  );
+}
+
+function NotificationTopicTags({ email }) {
+  if (!email.enabled) {
+    return <span style={styles.emptyAccess}>No active notification topics</span>;
+  }
+
+  const enabledTopics = notificationTopicOptions.filter((topic) => email.topics?.[topic.id]);
+  if (enabledTopics.length === 0) {
+    return <span style={styles.emptyAccess}>No topics enabled</span>;
+  }
+
+  const visibleTopics = enabledTopics.slice(0, 2);
+  const hiddenCount = enabledTopics.length - visibleTopics.length;
+
+  return (
+    <div style={styles.tagList}>
+      {visibleTopics.map((topic) => (
+        <span key={topic.id} style={styles.topicTag}>
+          {topic.label}
+        </span>
+      ))}
+      {hiddenCount > 0 && <span style={styles.tag}>+{hiddenCount} more</span>}
     </div>
   );
 }
@@ -533,6 +728,89 @@ function AccessChoice({ description, disabled = false, label, onToggle, selected
   );
 }
 
+function NotificationDialog({ draft, onCancel, onSave, onToggleTopic, onUpdateDraft, saving, user }) {
+  const valid = canSaveNotificationDraft(draft);
+
+  return (
+    <ModalShell className="confirm-dialog" labelledBy="manage-notifications-title" onClose={onCancel}>
+      <form onSubmit={onSave}>
+        <div className="modal-header">
+          <div>
+            <h2 id="manage-notifications-title">Manage Email Notifications</h2>
+            <span className="muted">{user.displayName} - {user.email}</span>
+          </div>
+          <button aria-label="Close notifications dialog" className="modal-close" disabled={saving} type="button" onClick={onCancel}>
+            x
+          </button>
+        </div>
+
+        <div className="modal-body" style={styles.formGrid}>
+          <div style={styles.switchRow}>
+            <div>
+              <strong>Email delivery</strong>
+              <p style={styles.mutedSmall}>Controls whether this user receives any configured email topic.</p>
+            </div>
+            <button
+              aria-pressed={draft.enabled}
+              className={draft.enabled ? "primary" : ""}
+              style={styles.switchButton}
+              type="button"
+              onClick={() => onUpdateDraft({ enabled: !draft.enabled })}
+            >
+              {draft.enabled ? "Enabled" : "Paused"}
+            </button>
+          </div>
+
+          <label style={styles.field}>
+            <span>Recipient email</span>
+            <input
+              disabled={saving}
+              style={styles.input}
+              type="email"
+              value={draft.address}
+              onChange={(event) => onUpdateDraft({ address: event.target.value })}
+            />
+          </label>
+
+          <div style={styles.field}>
+            <span>Topics</span>
+            <div style={styles.topicGrid}>
+              {notificationTopicOptions.map((topic) => (
+                <button
+                  aria-pressed={Boolean(draft.topics?.[topic.id])}
+                  disabled={saving}
+                  key={topic.id}
+                  style={{
+                    ...styles.topicChoice,
+                    ...(draft.topics?.[topic.id] ? styles.topicChoiceSelected : {})
+                  }}
+                  type="button"
+                  onClick={() => onToggleTopic(topic.id)}
+                >
+                  <span style={styles.choiceLabel}>
+                    {topic.label}
+                    {draft.topics?.[topic.id] && <span style={styles.choiceMark}>On</span>}
+                  </span>
+                  <span style={styles.mutedSmall}>{topic.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="modal-actions">
+          <button disabled={saving} type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="primary" disabled={saving || !valid} type="submit">
+            {saving ? "Saving..." : "Save notifications"}
+          </button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+}
+
 function DeleteUserDialog({ user, onCancel, onConfirm }) {
   return (
     <ModalShell className="confirm-dialog" labelledBy="delete-user-title" onClose={onCancel}>
@@ -607,6 +885,36 @@ function emptyAppAccess() {
     admin: false,
     ...Object.fromEntries(PRODUCT_ACCESS_OPTIONS.map((option) => [option.id, false]))
   };
+}
+
+function copyEmailPreferences(user) {
+  const email = getEmailPreferences(user);
+  return {
+    enabled: email.enabled,
+    address: email.address,
+    topics: { ...email.topics }
+  };
+}
+
+function getEmailPreferences(user) {
+  const email = user.notificationPreferences?.email ?? {};
+  return {
+    enabled: Boolean(email.address) && email.enabled !== false,
+    address: email.address ?? user.email ?? "",
+    topics: {
+      weeklyPicks: email.topics?.weeklyPicks !== false,
+      scannerAlerts: email.topics?.scannerAlerts === true,
+      publishingAlerts: email.topics?.publishingAlerts === true,
+      accountAccess: email.topics?.accountAccess !== false,
+      systemAlerts: email.topics?.systemAlerts === true
+    }
+  };
+}
+
+function canSaveNotificationDraft(draft) {
+  if (!draft) return false;
+  if (draft.enabled && !String(draft.address ?? "").trim()) return false;
+  return Object.values(draft.topics ?? {}).some(Boolean);
 }
 
 function formatLoginLocation(context) {

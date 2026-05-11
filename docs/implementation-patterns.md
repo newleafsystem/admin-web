@@ -111,7 +111,7 @@ Rules:
 - The stable preference field is `notificationPreferences.email`, with `enabled`, `address`, and `topics`.
 - Supported email topic keys are `weeklyPicks`, `scannerAlerts`, `publishingAlerts`, `accountAccess`, and `systemAlerts`.
 - Use `PATCH /api/v1/users/:userId/notifications` for recipient updates. Keep this separate from access management so changing email notifications cannot accidentally grant or revoke product access.
-- Existing users with no preference record default to weekly picks and account-access email enabled when they have an email address. Admins can pause delivery or disable individual topics from the Notifications section.
+- Existing users with no preference record default to weekly picks and account-access email enabled when they have an email address. Admins can pause delivery or disable individual topics from the Users section.
 - Pipeline and scheduler email senders must resolve recipients from `users/{uid}.notificationPreferences`; they should not email every user solely because an email field exists.
 
 ## Market Watchlist Pattern
