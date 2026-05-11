@@ -5,6 +5,8 @@ import { createAssetsRouter } from './routes/assets.js';
 import { createHeyGenWebhookRouter, createSocialWebhookRouter } from './routes/webhooks.js';
 import { createJobsRouter } from './routes/jobs.js';
 import { createPublishingRouter } from './routes/publishing.js';
+import { createMarketDataRouter } from './routes/marketData.js';
+import { createPublicAssetsRouter } from './routes/publicAssets.js';
 import { createServiceApiRouter } from './routes/serviceApi.js';
 import { createServiceClientsRouter } from './routes/serviceClients.js';
 import { createServiceDocsRouter } from './routes/serviceDocs.js';
@@ -119,11 +121,13 @@ export function createApp(options = {}) {
   app.use('/api/v1/service', createServiceDocsRouter(services));
   app.use('/api/v1/service', createServiceApiRouter(services));
   app.use('/api/auth', createAuthSessionRouter(services));
+  app.use('/api/v1/public', createPublicAssetsRouter(services));
 
   app.use(authenticateRequest({ repository, userAccessService }));
   app.use('/api/v1', createUsersRouter(services));
   app.use('/api/v1/assets', createAssetsRouter(services));
   app.use('/api/v1/jobs', createJobsRouter(services));
+  app.use('/api/v1/market', createMarketDataRouter(services));
   app.use('/api/v1', createVideoProjectsRouter(services));
   app.use('/api/v1', createPublishingRouter(services));
   app.use('/api/v1', createServiceClientsRouter(services));

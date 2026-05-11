@@ -75,6 +75,16 @@ export const config = Object.freeze({
   storage: {
     bucket: readOptionalString('GCS_BUCKET'),
   },
+  alpaca: {
+    apiKey: readOptionalString('ALPACA_API_KEY'),
+    secretKey: readOptionalString('ALPACA_SECRET_KEY'),
+    dataBaseUrl: readOptionalString('ALPACA_DATA_BASE_URL') ?? 'https://data.alpaca.markets',
+  },
+  publicAssets: {
+    dataOriginUrl: readOptionalString('PUBLIC_DATA_ORIGIN_URL') ?? readOptionalString('R2_PUBLIC_BASE_URL'),
+    mediaOriginUrl: readOptionalString('PUBLIC_MEDIA_ORIGIN_URL'),
+    cacheMaxAgeSec: readNumber('PUBLIC_ASSET_CACHE_MAX_AGE_SEC', 300),
+  },
   ai: {
     provider: readOptionalString('AI_PROVIDER') ?? (readOptionalString('OPENAI_API_KEY') ? 'openai' : null),
     apiKey: readOptionalString('AI_API_KEY') ?? readOptionalString('OPENAI_API_KEY'),

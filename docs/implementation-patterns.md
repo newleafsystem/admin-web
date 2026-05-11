@@ -97,6 +97,8 @@ Rules:
 - `api.newleafsystem.com` is the canonical shared browser auth and API origin. It is a Firebase Hosting facade that serves Firebase reserved `/__/auth/*` helper URLs and rewrites `/api/**` to Cloud Run service `newleaf-api`.
 - Client-web preview and production differ only by the static Hosting site. Do not point preview auth/session/API flows at preview-specific backends.
 - Keep browser-auth endpoints under `/api/auth/*` and admin/service operations under `/api/v1/*` on the same Cloud Run API service behind the `api.newleafsystem.com` facade.
+- Public client-web market data and media assets must be fetched through `/api/v1/public/data/*` and `/api/v1/public/media/*`. The Cloud Run API owns the provider origins via `PUBLIC_DATA_ORIGIN_URL` and `PUBLIC_MEDIA_ORIGIN_URL`; browser bundles must not expose object-storage provider hosts.
+- Live market-data provider calls must go through API routes such as `/api/v1/market/options/snapshots`; never ask the browser to store or send provider API keys directly to the provider.
 - Shared browser sessions must use `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` and `AUTH_SESSION_COOKIE_PATH=/` so the same HTTP-only Firebase session cookie can be created through `/api/auth/session` and sent to `/api/v1/*` routes.
 - CORS for the API must explicitly allow credentialed requests from registered NewLeaf domains only: `https://admin.newleafsystem.com`, `https://newleafsystem.com`, `https://www.newleafsystem.com`, and `https://preview.newleafsystem.com`.
 - `VITE_ADMIN_EMAILS` in client-web is bootstrap fallback only; once `admin-web` writes explicit `appAccess`, Firestore wins for env-only bootstrap admins.
