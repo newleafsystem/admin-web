@@ -71,6 +71,7 @@ function defaultCollections(prefix = '') {
     serviceClients: `${normalizedPrefix}serviceClients`,
     smartCollections: `${normalizedPrefix}smartCollections`,
     marketWatchlists: `${normalizedPrefix}marketWatchlists`,
+    marketUniverseSymbols: `${normalizedPrefix}marketUniverseSymbols`,
     appUsers: `${normalizedPrefix}users`,
   };
 }
@@ -591,6 +592,13 @@ export function createFirestoreRepository({
         id: watchlistId,
         createdAt: existing?.createdAt ?? input.createdAt ?? timestamp,
         updatedAt: timestamp,
+      });
+    },
+
+    async listMarketUniverseSymbols(filters = {}) {
+      return listRecords('marketUniverseSymbols', (symbol) => {
+        if (filters.market && symbol.market !== filters.market) return false;
+        return symbol.active !== false;
       });
     },
 

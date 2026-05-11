@@ -905,11 +905,13 @@ export function normalizeWatchlistConfig(config = null) {
       maxSymbolsPerRun: Number(config.limits?.maxSymbolsPerRun ?? 150),
       maxSymbolsPerMarket: Number(config.limits?.maxSymbolsPerMarket ?? 150),
       yahooBatchSize: Number(config.limits?.yahooBatchSize ?? config.limits?.maxSymbolsPerRun ?? 150),
+      yahooMaxOiExpiries: Number(config.limits?.yahooMaxOiExpiries ?? 1),
       intradayConcurrency: Number(config.limits?.intradayConcurrency ?? 5),
       dailyConcurrency: Number(config.limits?.dailyConcurrency ?? 1),
       yahooRequestDelayMs: Number(config.limits?.yahooRequestDelayMs ?? 350),
       yahooBatchDelayMs: Number(config.limits?.yahooBatchDelayMs ?? 60000)
     },
+    universeSync: normalizeUniverseSync(config.universeSync),
     notes: config.notes ?? "",
     createdAt: formatDate(config.createdAt),
     updatedAt: formatDate(config.updatedAt),
@@ -940,11 +942,41 @@ function normalizeWatchlistSymbol(symbol = {}) {
     symbol: ticker,
     market,
     name: symbol.name ?? "",
+    providerSymbol: symbol.providerSymbol ?? ticker,
+    exchange: symbol.exchange ?? "",
+    assetClass: symbol.assetClass ?? "",
+    listingSource: symbol.listingSource ?? symbol.source ?? "",
+    active: symbol.active !== false,
     group: symbol.group ?? "",
     sector: symbol.sector ?? "",
     marketCapTier: symbol.marketCapTier ?? "unknown",
     enabled: symbol.enabled !== false,
     notes: symbol.notes ?? ""
+  };
+}
+
+function normalizeUniverseSync(sync = null) {
+  if (!sync || typeof sync !== "object" || Array.isArray(sync)) {
+    return null;
+  }
+  const markets = sync.markets && typeof sync.markets === "object" && !Array.isArray(sync.markets)
+    ? sync.markets
+    : {};
+  return {
+    updatedAt: formatDate(sync.updatedAt),
+    updatedBy: sync.updatedBy ?? null,
+    cacheTtlHours: Number(sync.cacheTtlHours ?? 24),
+    yahooDailyCallLimit: Number(sync.yahooDailyCallLimit ?? 250),
+    markets: Object.fromEntries(Object.entries(markets).map(([marketId, status]) => [
+      marketId,
+      {
+        status: status?.status ?? "unknown",
+        source: status?.source ?? "",
+        syncedAt: formatDate(status?.syncedAt),
+        count: Number(status?.count ?? 0),
+        error: status?.error ?? ""
+      }
+    ]))
   };
 }
 

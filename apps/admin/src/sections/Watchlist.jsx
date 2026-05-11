@@ -335,6 +335,11 @@ export function Watchlist({ config, onRefresh, onSave }) {
           <span>
             This screen manages markets and watchlist membership. Provider batch size, request delay, and concurrency stay in backend configuration so large markets can run in consecutive batches without blocking watchlist edits.
           </span>
+          {draft.universeSync?.updatedAt && (
+            <span>
+              Listing universe last synced {draft.universeSync.updatedAt}. Yahoo live calls are capped at {draft.universeSync.yahooDailyCallLimit || 250} per day and cached by the scheduler worker.
+            </span>
+          )}
         </div>
 
         {message && <div className="form-success">{message}</div>}
@@ -353,6 +358,7 @@ export function Watchlist({ config, onRefresh, onSave }) {
           {draft.markets.map((market) => {
             const listingCount = universe.filter((symbol) => symbol.market === market.id).length;
             const symbolCount = draft.symbols.filter((symbol) => symbol.market === market.id).length;
+            const syncStatus = draft.universeSync?.markets?.[market.id];
             return (
               <button
                 key={market.id}
@@ -374,6 +380,7 @@ export function Watchlist({ config, onRefresh, onSave }) {
                   <Badge>{symbolCount} selected</Badge>
                   <Badge>{listingCount} listings</Badge>
                   <Badge>{market.scanEnabled && listingCount > 0 ? "Scheduler on" : "Scheduler off"}</Badge>
+                  {syncStatus?.syncedAt && <Badge>{syncStatus.status}: {syncStatus.syncedAt}</Badge>}
                 </span>
               </button>
             );
@@ -511,6 +518,7 @@ function SymbolCard({ onRemove, symbol }) {
       <div style={styles.symbolMeta}>
         <span>{symbol.group || "Group not set"}</span>
         <span>{symbol.sector || "Sector not set"}</span>
+        <span>{[symbol.exchange, symbol.providerSymbol].filter(Boolean).join(" / ") || "Provider symbol not set"}</span>
         {symbol.notes && <span>{symbol.notes}</span>}
       </div>
       <div style={styles.symbolActions}>
@@ -603,14 +611,14 @@ function SymbolDialog({ dialog, onCancel, onChange, onSave }) {
               <select style={styles.input} value={dialog.selectedId} onChange={(event) => onChange(event.target.value)}>
                 {dialog.candidates.map((symbol) => (
                   <option key={symbol.id} value={symbol.id}>
-                    {symbol.symbol} - {symbol.name || symbol.sector || symbol.group || "Listing"}
+                    {symbol.symbol} - {symbol.name || symbol.sector || symbol.group || symbol.exchange || "Listing"}
                   </option>
                 ))}
               </select>
             </Field>
             {selected && (
               <p style={styles.dialogCopy}>
-                {selected.name || selected.symbol} - {[selected.group, selected.sector, selected.marketCapTier].filter(Boolean).join(" / ")}
+                {selected.name || selected.symbol} - {[selected.exchange, selected.providerSymbol, selected.group, selected.sector, selected.marketCapTier].filter(Boolean).join(" / ")}
               </p>
             )}
           </>
@@ -693,7 +701,7 @@ function filterSymbols(symbols, value) {
   const query = value.trim().toLowerCase();
   if (!query) return symbols.sort(compareSymbols);
   return symbols.filter((symbol) =>
-    [symbol.symbol, symbol.name, symbol.group, symbol.sector, symbol.marketCapTier]
+    [symbol.symbol, symbol.providerSymbol, symbol.name, symbol.exchange, symbol.group, symbol.sector, symbol.marketCapTier]
       .join(" ")
       .toLowerCase()
       .includes(query)
@@ -728,6 +736,11 @@ function normalizeSymbolDraft(symbol) {
     symbol: normalizedSymbol,
     market,
     name: String(symbol.name ?? "").trim(),
+    providerSymbol: String(symbol.providerSymbol ?? normalizedSymbol).trim().toUpperCase(),
+    exchange: String(symbol.exchange ?? "").trim(),
+    assetClass: String(symbol.assetClass ?? "").trim(),
+    listingSource: String(symbol.listingSource ?? symbol.source ?? "").trim(),
+    active: symbol.active !== false,
     group: String(symbol.group ?? "").trim(),
     sector: String(symbol.sector ?? "").trim(),
     marketCapTier: String(symbol.marketCapTier ?? "unknown").trim() || "unknown",

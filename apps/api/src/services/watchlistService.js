@@ -7,6 +7,7 @@ export const DEFAULT_WATCHLIST_LIMITS = Object.freeze({
   maxSymbolsPerRun: 150,
   maxSymbolsPerMarket: 150,
   yahooBatchSize: 150,
+  yahooMaxOiExpiries: 1,
   intradayConcurrency: 5,
   dailyConcurrency: 1,
   yahooRequestDelayMs: 350,
@@ -54,19 +55,40 @@ export function createWatchlistService({ repository, clock = () => new Date().to
     throw new Error('watchlistService requires repository');
   }
 
+  async function loadExternalUniverseSymbols() {
+    if (typeof repository.listMarketUniverseSymbols !== 'function') return [];
+    const symbols = await repository.listMarketUniverseSymbols();
+    return Array.isArray(symbols) ? symbols : [];
+  }
+
+  async function attachUniverseSymbols(config) {
+    const externalUniverse = await loadExternalUniverseSymbols();
+    return externalUniverse.length
+      ? normalizeWatchlistConfig({ ...config, universeSymbols: externalUniverse })
+      : config;
+  }
+
   async function getWatchlistConfig() {
     const existing = await repository.getMarketWatchlist(WATCHLIST_CONFIG_ID);
-    return normalizeWatchlistConfig(existing ?? defaultWatchlistConfig(clock()));
+    return attachUniverseSymbols(normalizeWatchlistConfig(existing ?? defaultWatchlistConfig(clock())));
   }
 
   async function updateWatchlistConfig(input, { actorUid = null } = {}) {
+    const externalUniverse = await loadExternalUniverseSymbols();
     const normalized = normalizeWatchlistConfig({
       ...input,
       id: WATCHLIST_CONFIG_ID,
       updatedBy: actorUid,
       updatedAt: clock(),
     });
-    return normalizeWatchlistConfig(await repository.upsertMarketWatchlist(WATCHLIST_CONFIG_ID, normalized));
+    const saved = await repository.upsertMarketWatchlist(WATCHLIST_CONFIG_ID, {
+      ...normalized,
+      universeSymbols: externalUniverse.length ? [] : normalized.universeSymbols,
+    });
+    return normalizeWatchlistConfig({
+      ...saved,
+      universeSymbols: externalUniverse.length ? externalUniverse : saved.universeSymbols,
+    });
   }
 
   return {
@@ -83,6 +105,7 @@ export function defaultWatchlistConfig(timestamp = new Date().toISOString()) {
     symbols: [],
     universeSymbols: [],
     limits: { ...DEFAULT_WATCHLIST_LIMITS },
+    universeSync: null,
     notes: '',
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -115,6 +138,7 @@ export function normalizeWatchlistConfig(input = {}) {
     symbols,
     universeSymbols,
     limits,
+    universeSync: normalizeUniverseSync(input.universeSync),
     notes: cleanString(input.notes, 1000) ?? '',
     createdAt: cleanString(input.createdAt, 80) ?? null,
     updatedAt: cleanString(input.updatedAt, 80) ?? new Date().toISOString(),
@@ -132,6 +156,7 @@ function normalizeLimits(raw = {}) {
       1,
       5000,
     ),
+    yahooMaxOiExpiries: cleanNumber(raw.yahooMaxOiExpiries, DEFAULT_WATCHLIST_LIMITS.yahooMaxOiExpiries, 0, 8),
     intradayConcurrency: cleanNumber(raw.intradayConcurrency, DEFAULT_WATCHLIST_LIMITS.intradayConcurrency, 1, 10),
     dailyConcurrency: cleanNumber(raw.dailyConcurrency, DEFAULT_WATCHLIST_LIMITS.dailyConcurrency, 1, 1),
     yahooRequestDelayMs: cleanNumber(raw.yahooRequestDelayMs, DEFAULT_WATCHLIST_LIMITS.yahooRequestDelayMs, 0, 5000),
@@ -186,6 +211,28 @@ function normalizeUniverseSymbols(rawUniverse, marketIds, currentSymbols) {
   return universe.sort((left, right) => `${left.market}:${left.symbol}`.localeCompare(`${right.market}:${right.symbol}`));
 }
 
+function normalizeUniverseSync(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const markets = {};
+  for (const [marketId, status] of Object.entries(value.markets ?? {})) {
+    if (!status || typeof status !== 'object' || Array.isArray(status)) continue;
+    markets[normalizeMarketId(marketId)] = {
+      status: cleanString(status.status, 40) ?? 'unknown',
+      source: cleanString(status.source, 160) ?? '',
+      syncedAt: cleanString(status.syncedAt, 80) ?? null,
+      count: cleanNumber(status.count, 0, 0, 100000),
+      error: cleanString(status.error, 500) ?? '',
+    };
+  }
+  return {
+    updatedAt: cleanString(value.updatedAt, 80) ?? null,
+    updatedBy: cleanString(value.updatedBy, 120) ?? null,
+    cacheTtlHours: cleanNumber(value.cacheTtlHours, 24, 1, 168),
+    yahooDailyCallLimit: cleanNumber(value.yahooDailyCallLimit, DEFAULT_WATCHLIST_LIMITS.yahooBatchSize, 1, 100000),
+    markets,
+  };
+}
+
 function normalizeSymbol(raw, marketIds) {
   const symbol = String(raw?.symbol ?? '').trim().toUpperCase();
   if (!/^[A-Z0-9^][A-Z0-9.\-^=]{0,23}$/.test(symbol)) {
@@ -200,6 +247,11 @@ function normalizeSymbol(raw, marketIds) {
     symbol,
     market,
     name: cleanString(raw?.name, 120) ?? '',
+    providerSymbol: cleanString(raw?.providerSymbol, 40) ?? symbol,
+    exchange: cleanString(raw?.exchange, 80) ?? '',
+    assetClass: cleanString(raw?.assetClass, 40) ?? '',
+    listingSource: cleanString(raw?.listingSource ?? raw?.source, 160) ?? '',
+    active: raw?.active !== false,
     group: cleanString(raw?.group, 80) ?? '',
     sector: cleanString(raw?.sector, 80) ?? '',
     marketCapTier: cleanString(raw?.marketCapTier, 40) ?? 'unknown',

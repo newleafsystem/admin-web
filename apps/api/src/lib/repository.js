@@ -45,6 +45,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
   const serviceClients = new Map();
   const smartCollections = new Map();
   const marketWatchlists = new Map();
+  const marketUniverseSymbols = new Map();
   const appUsers = new Map();
   let hydrated = false;
 
@@ -66,6 +67,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       serviceClients: [],
       smartCollections: [],
       marketWatchlists: [],
+      marketUniverseSymbols: [],
       appUsers: [],
     });
     loadCollection(jobs, persisted.jobs);
@@ -79,6 +81,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
     loadCollection(serviceClients, persisted.serviceClients);
     loadCollection(smartCollections, persisted.smartCollections);
     loadCollection(marketWatchlists, persisted.marketWatchlists);
+    loadCollection(marketUniverseSymbols, persisted.marketUniverseSymbols);
     loadCollection(appUsers, persisted.appUsers);
     hydrated = true;
   }
@@ -100,6 +103,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       serviceClients: Array.from(serviceClients.values()),
       smartCollections: Array.from(smartCollections.values()),
       marketWatchlists: Array.from(marketWatchlists.values()),
+      marketUniverseSymbols: Array.from(marketUniverseSymbols.values()),
       appUsers: Array.from(appUsers.values()),
     });
   }
@@ -662,6 +666,14 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       marketWatchlists.set(watchlistId, watchlist);
       await persist();
       return copy(watchlist);
+    },
+
+    async listMarketUniverseSymbols(filters = {}) {
+      await hydrate();
+      return listFromMap(marketUniverseSymbols, (symbol) => {
+        if (filters.market && symbol.market !== filters.market) return false;
+        return symbol.active !== false;
+      });
     },
 
     async listAppUsers() {
