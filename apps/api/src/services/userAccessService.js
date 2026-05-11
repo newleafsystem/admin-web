@@ -7,6 +7,21 @@ export const IMMUTABLE_ADMIN_EMAILS = Object.freeze([
 ]);
 export const USER_ROLES = Object.freeze(['admin', 'anonymous']);
 export const USER_APP_IDS = Object.freeze(['admin', 'invest', 'picks', 'workbench', 'quant', 'desk']);
+export const USER_NOTIFICATION_TOPIC_IDS = Object.freeze([
+  'weeklyPicks',
+  'scannerAlerts',
+  'publishingAlerts',
+  'accountAccess',
+  'systemAlerts',
+]);
+
+const DEFAULT_NOTIFICATION_TOPICS = Object.freeze({
+  weeklyPicks: true,
+  scannerAlerts: false,
+  publishingAlerts: false,
+  accountAccess: true,
+  systemAlerts: false,
+});
 
 const LOCAL_ADMIN_USER = Object.freeze({
   id: 'local-dev',
@@ -27,6 +42,21 @@ const LOCAL_ADMIN_USER = Object.freeze({
   status: 'active',
   immutable: true,
   authMode: 'local-dev',
+  notificationPreferences: {
+    email: {
+      enabled: true,
+      address: 'local-dev@newleaf.invalid',
+      topics: {
+        weeklyPicks: true,
+        scannerAlerts: false,
+        publishingAlerts: false,
+        accountAccess: true,
+        systemAlerts: false,
+      },
+      updatedAt: null,
+      updatedBy: null,
+    },
+  },
 });
 
 export function createUserAccessService({ repository, clock = () => new Date().toISOString() } = {}) {
@@ -74,6 +104,7 @@ export function createUserAccessService({ repository, clock = () => new Date().t
         ...(existing?.metadata ?? {}),
         authMode,
       },
+      notificationPreferences: existing?.notificationPreferences,
     });
 
     return normalizeUser(user);
@@ -115,6 +146,42 @@ export function createUserAccessService({ repository, clock = () => new Date().t
     return normalizeUser(updated);
   }
 
+  async function updateUserNotifications(userId, { email = undefined } = {}, { actorUid = null } = {}) {
+    const existing = await repository.getAppUser(userId);
+    if (!existing) {
+      throw notFound('User not found', { userId });
+    }
+
+    const current = normalizeNotificationPreferences(existing.notificationPreferences, existing);
+    const next = normalizeNotificationPreferences(
+      {
+        ...current,
+        ...(email !== undefined
+          ? {
+              email: {
+                ...current.email,
+                ...email,
+                topics: {
+                  ...current.email.topics,
+                  ...(email.topics ?? {}),
+                },
+                updatedAt: clock(),
+                updatedBy: actorUid,
+              },
+            }
+          : {}),
+      },
+      existing,
+    );
+
+    const updated = await repository.updateAppUser(userId, {
+      notificationPreferences: next,
+      notificationsUpdatedAt: clock(),
+      notificationsUpdatedBy: actorUid,
+    });
+    return normalizeUser(updated);
+  }
+
   async function deleteUser(userId) {
     const existing = await repository.getAppUser(userId);
     if (!existing) {
@@ -131,6 +198,7 @@ export function createUserAccessService({ repository, clock = () => new Date().t
     listUsers,
     updateUserRole,
     updateUserAccess,
+    updateUserNotifications,
     deleteUser,
   };
 }
@@ -165,6 +233,9 @@ export function normalizeUser(user) {
     accessManagedBy: user.accessManagedBy ?? null,
     accessUpdatedAt: user.accessUpdatedAt ?? null,
     accessUpdatedBy: user.accessUpdatedBy ?? null,
+    notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences, user),
+    notificationsUpdatedAt: user.notificationsUpdatedAt ?? null,
+    notificationsUpdatedBy: user.notificationsUpdatedBy ?? null,
     createdAt: user.createdAt ?? null,
     updatedAt: user.updatedAt ?? null,
     authMode: user.authMode ?? user.metadata?.authMode ?? null,
@@ -204,6 +275,35 @@ export function normalizeAppAccess(value, { role = 'anonymous', immutable = fals
     USER_APP_IDS.map((appId) => [
       appId,
       value[appId] === true || value[appId] === 'true' || value[appId] === 1,
+    ]),
+  );
+}
+
+export function normalizeNotificationPreferences(value, user = {}) {
+  const email = value?.email && typeof value.email === 'object' && !Array.isArray(value.email)
+    ? value.email
+    : {};
+  const address = normalizeEmail(email.address ?? user.communicationEmail ?? user.email);
+  const enabled = address ? email.enabled !== false : false;
+  return {
+    email: {
+      enabled,
+      address,
+      topics: normalizeNotificationTopics(email.topics),
+      updatedAt: cleanString(email.updatedAt, 40),
+      updatedBy: cleanString(email.updatedBy, 120),
+    },
+  };
+}
+
+function normalizeNotificationTopics(value) {
+  const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return Object.fromEntries(
+    USER_NOTIFICATION_TOPIC_IDS.map((topicId) => [
+      topicId,
+      Object.prototype.hasOwnProperty.call(source, topicId)
+        ? source[topicId] === true
+        : DEFAULT_NOTIFICATION_TOPICS[topicId] === true,
     ]),
   );
 }

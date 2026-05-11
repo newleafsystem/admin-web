@@ -7,6 +7,7 @@ export const navItems = [
   "Published Videos",
   "Accounts",
   "Users",
+  "Notifications",
   "Watchlist",
   "Vendors",
   "Audit"
@@ -21,6 +22,7 @@ export const routeByView = Object.freeze({
   "Published Videos": "/published-videos",
   Accounts: "/accounts",
   Users: "/users",
+  Notifications: "/notifications",
   Watchlist: "/watchlist",
   Vendors: "/vendors",
   Audit: "/audit"

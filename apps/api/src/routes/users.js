@@ -3,7 +3,7 @@ import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { clearAuthSessionCookie, setAuthSessionCookieFromIdToken } from '../lib/sessionCookies.js';
 import { optionalObject, rejectUnknownFields, requireObject, requireString } from '../lib/validation.js';
-import { USER_APP_IDS, USER_ROLES } from '../services/userAccessService.js';
+import { USER_APP_IDS, USER_NOTIFICATION_TOPIC_IDS, USER_ROLES } from '../services/userAccessService.js';
 import { badRequest } from '../lib/httpErrors.js';
 
 const defaultSessionCookieService = {
@@ -82,6 +82,45 @@ export function createUsersRouter({ userAccessService, sessionCookieService = de
       }
 
       const user = await userAccessService.updateUserAccess(req.params.userId, { role, appAccess }, {
+        actorUid: req.user.uid,
+      });
+      res.json({ user });
+    }),
+  );
+
+  router.patch(
+    '/users/:userId/notifications',
+    requireRole('admin'),
+    asyncHandler(async (req, res) => {
+      const body = requireObject(req.body);
+      rejectUnknownFields(body, ['email']);
+
+      const email = optionalObject(body, 'email', { defaultValue: undefined });
+      if (email === undefined) {
+        throw badRequest('At least one notification field is required', {
+          allowedFields: ['email'],
+        });
+      }
+
+      rejectUnknownFields(email, ['enabled', 'address', 'topics'], 'email');
+      if (Object.prototype.hasOwnProperty.call(email, 'enabled') && typeof email.enabled !== 'boolean') {
+        throw badRequest('email.enabled must be a boolean');
+      }
+      if (Object.prototype.hasOwnProperty.call(email, 'address') && email.address !== null) {
+        requireString(email, 'address', { minLength: 3, maxLength: 254 });
+      }
+
+      const topics = optionalObject(email, 'topics', { defaultValue: undefined });
+      if (topics !== undefined) {
+        rejectUnknownFields(topics, USER_NOTIFICATION_TOPIC_IDS, 'email.topics');
+        for (const [topicId, enabled] of Object.entries(topics)) {
+          if (typeof enabled !== 'boolean') {
+            throw badRequest('email.topics values must be booleans', { topicId });
+          }
+        }
+      }
+
+      const user = await userAccessService.updateUserNotifications(req.params.userId, { email }, {
         actorUid: req.user.uid,
       });
       res.json({ user });

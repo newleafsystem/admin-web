@@ -105,6 +105,15 @@ Rules:
 - Firestore rules may allow a user to create or update only their own identity and conservative default `appAccess`; only admins may grant paid/private app access.
 - Authenticated API requests record best-effort `lastLoginContext` on the user record. Prefer Cloudflare `CF-Connecting-IP`, `CF-IPCountry`, and Add Visitor Location headers when present; fall back to `X-Forwarded-For` or the direct request IP without calling a client-side geolocation API.
 
+## Email Notification Recipient Pattern
+
+- `admin-web` manages notification recipients from the same `users/{uid}` records as role and app access.
+- The stable preference field is `notificationPreferences.email`, with `enabled`, `address`, and `topics`.
+- Supported email topic keys are `weeklyPicks`, `scannerAlerts`, `publishingAlerts`, `accountAccess`, and `systemAlerts`.
+- Use `PATCH /api/v1/users/:userId/notifications` for recipient updates. Keep this separate from access management so changing email notifications cannot accidentally grant or revoke product access.
+- Existing users with no preference record default to weekly picks and account-access email enabled when they have an email address. Admins can pause delivery or disable individual topics from the Notifications section.
+- Pipeline and scheduler email senders must resolve recipients from `users/{uid}.notificationPreferences`; they should not email every user solely because an email field exists.
+
 ## Market Watchlist Pattern
 
 - `admin-web` owns scanner watchlist edits through `GET/PUT /api/v1/watchlists/default`; the browser never writes Firestore directly.

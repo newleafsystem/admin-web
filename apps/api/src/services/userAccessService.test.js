@@ -86,6 +86,13 @@ const newUser = await service.ensureAuthenticatedUser({
 
 assert.equal(newUser.role, 'anonymous');
 assert.deepEqual(newUser.roles, ['anonymous']);
+assert.deepEqual(newUser.notificationPreferences.email.topics, {
+  weeklyPicks: true,
+  scannerAlerts: false,
+  publishingAlerts: false,
+  accountAccess: true,
+  systemAlerts: false,
+});
 assert.deepEqual(newUser.appAccess, {
   admin: false,
   invest: false,
@@ -135,6 +142,23 @@ assert.equal(promoted.appAccess.desk, true);
 const users = await service.listUsers();
 assert.deepEqual(new Set(users.slice(0, 2).map((user) => user.email)), new Set(IMMUTABLE_ADMIN_EMAILS));
 assert.equal(users.length, 3);
+
+const notificationUpdated = await service.updateUserNotifications(newUser.id, {
+  email: {
+    enabled: true,
+    address: 'alerts@example.com',
+    topics: {
+      weeklyPicks: false,
+      scannerAlerts: true,
+    },
+  },
+}, { actorUid: immutableAdmin.id });
+assert.equal(notificationUpdated.notificationPreferences.email.address, 'alerts@example.com');
+assert.equal(notificationUpdated.notificationPreferences.email.enabled, true);
+assert.equal(notificationUpdated.notificationPreferences.email.topics.weeklyPicks, false);
+assert.equal(notificationUpdated.notificationPreferences.email.topics.scannerAlerts, true);
+assert.equal(notificationUpdated.notificationPreferences.email.topics.accountAccess, true);
+assert.equal(notificationUpdated.notificationPreferences.email.updatedBy, immutableAdmin.id);
 
 const deleted = await service.deleteUser(newUser.id);
 assert.equal(deleted.email, 'new.user@example.com');

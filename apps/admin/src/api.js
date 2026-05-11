@@ -633,6 +633,19 @@ export async function updateUserRole(userId, role, appAccess) {
   return normalizeAppUser(body.user);
 }
 
+export async function updateUserNotifications(userId, notificationPreferences) {
+  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}/notifications`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(notificationPreferences)
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to update user notifications");
+  return normalizeAppUser(body.user);
+}
+
 export async function deleteUser(userId) {
   const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
     method: "DELETE"
@@ -800,6 +813,8 @@ function normalizeAppUser(user = {}) {
     lastLoginContext: normalizeLoginContext(user.lastLoginContext),
     updatedAt: formatDate(user.updatedAt),
     accessUpdatedAt: formatDate(user.accessUpdatedAt),
+    notificationPreferences: normalizeNotificationPreferences(user.notificationPreferences, user),
+    notificationsUpdatedAt: formatDate(user.notificationsUpdatedAt),
     authMode: user.authMode ?? null
   };
 }
@@ -813,6 +828,64 @@ function normalizeAppAccess(appAccess = {}) {
     quant: Boolean(appAccess.quant),
     desk: Boolean(appAccess.desk)
   };
+}
+
+export const notificationTopicOptions = Object.freeze([
+  {
+    id: "weeklyPicks",
+    label: "Weekly picks",
+    description: "Weekly picks newsletter and recommendation summaries."
+  },
+  {
+    id: "scannerAlerts",
+    label: "Scanner alerts",
+    description: "Scanner, watchlist, and market-data pipeline notices."
+  },
+  {
+    id: "publishingAlerts",
+    label: "Publishing alerts",
+    description: "Publishing workflow success, retry, and failure notices."
+  },
+  {
+    id: "accountAccess",
+    label: "Account access",
+    description: "Sign-in, role, and application access changes."
+  },
+  {
+    id: "systemAlerts",
+    label: "System alerts",
+    description: "Service health and operational incident notices."
+  }
+]);
+
+function normalizeNotificationPreferences(preferences = {}, user = {}) {
+  const email = preferences?.email && typeof preferences.email === "object" ? preferences.email : {};
+  const address = email.address ?? user.communicationEmail ?? user.email ?? "";
+  return {
+    email: {
+      enabled: Boolean(address) && email.enabled !== false,
+      address,
+      topics: normalizeNotificationTopics(email.topics),
+      updatedAt: formatDate(email.updatedAt),
+      updatedBy: email.updatedBy ?? null
+    }
+  };
+}
+
+function normalizeNotificationTopics(topics = {}) {
+  const defaults = {
+    weeklyPicks: true,
+    scannerAlerts: false,
+    publishingAlerts: false,
+    accountAccess: true,
+    systemAlerts: false
+  };
+  return Object.fromEntries(
+    notificationTopicOptions.map((topic) => [
+      topic.id,
+      Object.prototype.hasOwnProperty.call(topics, topic.id) ? Boolean(topics[topic.id]) : defaults[topic.id]
+    ])
+  );
 }
 
 export function normalizeWatchlistConfig(config = null) {

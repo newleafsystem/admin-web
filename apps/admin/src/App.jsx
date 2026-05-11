@@ -33,6 +33,7 @@ import {
   startSocialOAuth,
   updateContentJob,
   updateWatchlistConfig,
+  updateUserNotifications,
   updateUserRole,
   updatePublication,
   uploadLocalVideo,
@@ -90,6 +91,9 @@ const PublishedVideos = lazy(() =>
 );
 const Users = lazy(() =>
   import("./sections/Users.jsx").then((module) => ({ default: module.Users }))
+);
+const Notifications = lazy(() =>
+  import("./sections/Notifications.jsx").then((module) => ({ default: module.Notifications }))
 );
 const Watchlist = lazy(() =>
   import("./sections/Watchlist.jsx").then((module) => ({ default: module.Watchlist }))
@@ -1471,6 +1475,37 @@ export default function App({ session }) {
     }
   }
 
+  async function changeUserNotifications(userId, notificationPreferences) {
+    setActionError(null);
+    try {
+      const updated = await withSectionLoader("Notifications", "Updating notification recipients...", () =>
+        updateUserNotifications(userId, notificationPreferences)
+      );
+      setUsers((current) => current.map((user) => (user.id === updated.id ? updated : user)));
+      setAuditEvents((current) =>
+        addAuditEvent(current, "update_user_notifications", updated.email, currentActor(session), {
+          userId: updated.id,
+          emailEnabled: updated.notificationPreferences?.email?.enabled === true,
+          topics: updated.notificationPreferences?.email?.topics ?? {}
+        })
+      );
+      return updated;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
+  async function refreshNotificationUsers() {
+    setActionError(null);
+    try {
+      const refreshed = await withSectionLoader("Notifications", "Refreshing notification recipients...", fetchUsers);
+      setUsers(refreshed);
+    } catch (error) {
+      setActionError(error.message);
+    }
+  }
+
   async function saveWatchlist(nextConfig) {
     setActionError(null);
     try {
@@ -1691,6 +1726,14 @@ export default function App({ session }) {
                 onDeleteUser={removeUser}
                 onRefresh={refreshUsers}
                 onUpdateRole={changeUserRole}
+                users={users}
+              />
+            )}
+
+            {activeView === "Notifications" && (
+              <Notifications
+                onRefresh={refreshNotificationUsers}
+                onUpdateUserNotifications={changeUserNotifications}
                 users={users}
               />
             )}
