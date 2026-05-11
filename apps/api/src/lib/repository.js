@@ -44,6 +44,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
   const secrets = new Map();
   const serviceClients = new Map();
   const smartCollections = new Map();
+  const marketWatchlists = new Map();
   const appUsers = new Map();
   let hydrated = false;
 
@@ -64,6 +65,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       secrets: [],
       serviceClients: [],
       smartCollections: [],
+      marketWatchlists: [],
       appUsers: [],
     });
     loadCollection(jobs, persisted.jobs);
@@ -76,6 +78,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
     loadCollection(secrets, persisted.secrets);
     loadCollection(serviceClients, persisted.serviceClients);
     loadCollection(smartCollections, persisted.smartCollections);
+    loadCollection(marketWatchlists, persisted.marketWatchlists);
     loadCollection(appUsers, persisted.appUsers);
     hydrated = true;
   }
@@ -96,6 +99,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       secrets: Array.from(secrets.values()),
       serviceClients: Array.from(serviceClients.values()),
       smartCollections: Array.from(smartCollections.values()),
+      marketWatchlists: Array.from(marketWatchlists.values()),
       appUsers: Array.from(appUsers.values()),
     });
   }
@@ -638,6 +642,26 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       smartCollections.delete(collectionId);
       await persist();
       return copy(existing);
+    },
+
+    async getMarketWatchlist(watchlistId) {
+      await hydrate();
+      return copy(marketWatchlists.get(watchlistId));
+    },
+
+    async upsertMarketWatchlist(watchlistId, input) {
+      await hydrate();
+      const timestamp = clock();
+      const existing = marketWatchlists.get(watchlistId);
+      const watchlist = {
+        ...input,
+        id: watchlistId,
+        createdAt: existing?.createdAt ?? input.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      };
+      marketWatchlists.set(watchlistId, watchlist);
+      await persist();
+      return copy(watchlist);
     },
 
     async listAppUsers() {

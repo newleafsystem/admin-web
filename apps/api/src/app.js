@@ -15,6 +15,7 @@ import { createSocialAccountsRouter, createSocialOAuthCallbackRouter } from './r
 import { createAuthSessionRouter } from './routes/authSession.js';
 import { createUsersRouter } from './routes/users.js';
 import { createVideoProjectsRouter } from './routes/videoProjects.js';
+import { createWatchlistsRouter } from './routes/watchlists.js';
 import { authenticateRequest } from './middleware/auth.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
@@ -33,6 +34,7 @@ import { createVideoAssemblyService } from './services/videoAssemblyService.js';
 import { createVideoReviewService } from './services/videoReviewService.js';
 import { createVideoStudioService } from './services/videoStudioService.js';
 import { createVideoThumbnailService } from './services/videoThumbnailService.js';
+import { createWatchlistService } from './services/watchlistService.js';
 
 export function createApp(options = {}) {
   const repository = options.repository ?? createRepository();
@@ -49,6 +51,7 @@ export function createApp(options = {}) {
   const youtubeOAuthService = options.youtubeOAuthService ?? createYouTubeOAuthService();
   const videoReviewService = options.videoReviewService ?? createVideoReviewService();
   const videoStudioService = options.videoStudioService ?? createVideoStudioService();
+  const watchlistService = options.watchlistService ?? createWatchlistService({ repository });
   const youtubePublisherService =
     options.youtubePublisherService ??
     createYouTubePublisherService({ repository, jobStateService, youtubeOAuthService });
@@ -75,6 +78,7 @@ export function createApp(options = {}) {
     videoReviewService,
     videoStudioService,
     videoThumbnailService,
+    watchlistService,
   };
 
   const app = express();
@@ -125,6 +129,7 @@ export function createApp(options = {}) {
 
   app.use(authenticateRequest({ repository, userAccessService }));
   app.use('/api/v1', createUsersRouter(services));
+  app.use('/api/v1', createWatchlistsRouter(services));
   app.use('/api/v1/assets', createAssetsRouter(services));
   app.use('/api/v1/jobs', createJobsRouter(services));
   app.use('/api/v1/market', createMarketDataRouter(services));

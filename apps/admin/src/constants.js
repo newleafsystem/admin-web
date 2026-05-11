@@ -7,6 +7,7 @@ export const navItems = [
   "Published Videos",
   "Accounts",
   "Users",
+  "Watchlist",
   "Vendors",
   "Audit"
 ];
@@ -20,6 +21,7 @@ export const routeByView = Object.freeze({
   "Published Videos": "/published-videos",
   Accounts: "/accounts",
   Users: "/users",
+  Watchlist: "/watchlist",
   Vendors: "/vendors",
   Audit: "/audit"
 });

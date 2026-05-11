@@ -105,6 +105,15 @@ Rules:
 - Firestore rules may allow a user to create or update only their own identity and conservative default `appAccess`; only admins may grant paid/private app access.
 - Authenticated API requests record best-effort `lastLoginContext` on the user record. Prefer Cloudflare `CF-Connecting-IP`, `CF-IPCountry`, and Add Visitor Location headers when present; fall back to `X-Forwarded-For` or the direct request IP without calling a client-side geolocation API.
 
+## Market Watchlist Pattern
+
+- `admin-web` owns scanner watchlist edits through `GET/PUT /api/v1/watchlists/default`; the browser never writes Firestore directly.
+- The production document is `marketWatchlists/default` in `newleafdb`. It stores `markets`, `symbols`, and `limits`.
+- Markets can be created ahead of provider support, but the scanner only processes symbols where the symbol is enabled and its market is both enabled and `scanEnabled`.
+- Keep non-US markets such as India or China scan-disabled until the scanner has a provider adapter that can produce compatible price, options, and OI data for that market.
+- Rate-limit controls live with the watchlist: `maxSymbolsPerRun`, `maxSymbolsPerMarket`, `intradayConcurrency`, `dailyConcurrency`, and `yahooRequestDelayMs`.
+- Daily Yahoo OI runs must remain conservative. Current backend validation keeps `dailyConcurrency` at `1`, and scheduler workers apply the configured Yahoo request delay before provider calls.
+
 ## Job State Pattern
 
 Use `jobStateService` for meaningful workflow transitions. Avoid route-level status rewrites unless a status is local-only or explicitly harmless.

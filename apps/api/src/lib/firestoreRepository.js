@@ -70,6 +70,7 @@ function defaultCollections(prefix = '') {
     secrets: `${normalizedPrefix}repositorySecrets`,
     serviceClients: `${normalizedPrefix}serviceClients`,
     smartCollections: `${normalizedPrefix}smartCollections`,
+    marketWatchlists: `${normalizedPrefix}marketWatchlists`,
     appUsers: `${normalizedPrefix}users`,
   };
 }
@@ -576,6 +577,21 @@ export function createFirestoreRepository({
 
     async deleteSmartCollection(collectionId) {
       return deleteRecord('smartCollections', collectionId);
+    },
+
+    async getMarketWatchlist(watchlistId) {
+      return getRecord('marketWatchlists', watchlistId);
+    },
+
+    async upsertMarketWatchlist(watchlistId, input) {
+      const timestamp = clock();
+      const existing = await getRecord('marketWatchlists', watchlistId);
+      return setRecord('marketWatchlists', watchlistId, {
+        ...input,
+        id: watchlistId,
+        createdAt: existing?.createdAt ?? input.createdAt ?? timestamp,
+        updatedAt: timestamp,
+      });
     },
 
     async listAppUsers() {

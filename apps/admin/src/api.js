@@ -3,13 +3,14 @@ import { youtubeMetadataDefaults } from "./constants.js";
 import { getAuthToken } from "./firebaseClient.js";
 
 export async function fetchOperationsSnapshot() {
-  const [jobs, publishPlans, connectedAccounts, publications, serviceClients, users] = await Promise.all([
+  const [jobs, publishPlans, connectedAccounts, publications, serviceClients, users, watchlistConfig] = await Promise.all([
     fetchJobs(),
     fetchPublishPlans(),
     fetchSocialAccounts(),
     fetchPublications(),
     fetchServiceClients().catch(() => []),
-    fetchUsers().catch(() => [])
+    fetchUsers().catch(() => []),
+    fetchWatchlistConfig().catch(() => null)
   ]);
 
   return {
@@ -19,6 +20,7 @@ export async function fetchOperationsSnapshot() {
     publications,
     serviceClients,
     users,
+    watchlistConfig,
     auditEvents: []
   };
 }
@@ -640,6 +642,26 @@ export async function deleteUser(userId) {
   return normalizeAppUser(body.user);
 }
 
+export async function fetchWatchlistConfig() {
+  const response = await apiFetch(`${API_BASE_URL}/watchlists/default`);
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to load watchlist");
+  return normalizeWatchlistConfig(body.watchlist);
+}
+
+export async function updateWatchlistConfig(config) {
+  const response = await apiFetch(`${API_BASE_URL}/watchlists/default`, {
+    method: "PUT",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(config)
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to update watchlist");
+  return normalizeWatchlistConfig(body.watchlist);
+}
+
 async function requestVideoGenerationWithRecovery({ jobId, path, body, fallbackMessage }) {
   try {
     const response = await apiFetch(path, {
@@ -790,6 +812,60 @@ function normalizeAppAccess(appAccess = {}) {
     workbench: Boolean(appAccess.workbench),
     quant: Boolean(appAccess.quant),
     desk: Boolean(appAccess.desk)
+  };
+}
+
+export function normalizeWatchlistConfig(config = null) {
+  if (!config) return null;
+  const markets = Array.isArray(config.markets) ? config.markets.map(normalizeWatchlistMarket) : [];
+  const symbols = Array.isArray(config.symbols) ? config.symbols.map(normalizeWatchlistSymbol) : [];
+  return {
+    id: config.id ?? "default",
+    version: Number(config.version ?? 1),
+    markets,
+    symbols,
+    limits: {
+      maxSymbolsPerRun: Number(config.limits?.maxSymbolsPerRun ?? 150),
+      maxSymbolsPerMarket: Number(config.limits?.maxSymbolsPerMarket ?? 150),
+      intradayConcurrency: Number(config.limits?.intradayConcurrency ?? 5),
+      dailyConcurrency: Number(config.limits?.dailyConcurrency ?? 1),
+      yahooRequestDelayMs: Number(config.limits?.yahooRequestDelayMs ?? 350)
+    },
+    notes: config.notes ?? "",
+    createdAt: formatDate(config.createdAt),
+    updatedAt: formatDate(config.updatedAt),
+    updatedBy: config.updatedBy ?? null
+  };
+}
+
+function normalizeWatchlistMarket(market = {}) {
+  return {
+    id: String(market.id ?? "").toUpperCase(),
+    label: market.label ?? market.id ?? "",
+    country: market.country ?? "",
+    timezone: market.timezone ?? "",
+    currency: market.currency ?? "",
+    provider: market.provider ?? "manual",
+    enabled: market.enabled !== false,
+    scanEnabled: market.scanEnabled === true,
+    maxSymbolsPerRun: Number(market.maxSymbolsPerRun ?? 150),
+    notes: market.notes ?? ""
+  };
+}
+
+function normalizeWatchlistSymbol(symbol = {}) {
+  const market = String(symbol.market ?? "US").toUpperCase();
+  const ticker = String(symbol.symbol ?? "").toUpperCase();
+  return {
+    id: symbol.id ?? `${market}:${ticker}`,
+    symbol: ticker,
+    market,
+    name: symbol.name ?? "",
+    group: symbol.group ?? "",
+    sector: symbol.sector ?? "",
+    marketCapTier: symbol.marketCapTier ?? "unknown",
+    enabled: symbol.enabled !== false,
+    notes: symbol.notes ?? ""
   };
 }
 

@@ -14,6 +14,7 @@ import {
   fetchOperationsSnapshot,
   fetchPublishPlans,
   fetchPublications,
+  fetchWatchlistConfig,
   fetchUsers,
   generateJobScript,
   generateJobThumbnail,
@@ -31,6 +32,7 @@ import {
   retryPublishAttempt,
   startSocialOAuth,
   updateContentJob,
+  updateWatchlistConfig,
   updateUserRole,
   updatePublication,
   uploadLocalVideo,
@@ -89,6 +91,9 @@ const PublishedVideos = lazy(() =>
 const Users = lazy(() =>
   import("./sections/Users.jsx").then((module) => ({ default: module.Users }))
 );
+const Watchlist = lazy(() =>
+  import("./sections/Watchlist.jsx").then((module) => ({ default: module.Watchlist }))
+);
 const ReviewWorkspace = lazy(() =>
   import("./sections/ReviewWorkspace.jsx").then((module) => ({ default: module.ReviewWorkspace }))
 );
@@ -106,6 +111,7 @@ export default function App({ session }) {
   const [publications, setPublications] = useState([]);
   const [serviceClients, setServiceClients] = useState([]);
   const [users, setUsers] = useState([]);
+  const [watchlistConfig, setWatchlistConfig] = useState(null);
   const [publicationDrafts, setPublicationDrafts] = useState({});
   const [connectedAccounts, setConnectedAccounts] = useState([]);
   const [auditEvents, setAuditEvents] = useState([]);
@@ -223,6 +229,7 @@ export default function App({ session }) {
         setPublications(snapshot.publications);
         setServiceClients(snapshot.serviceClients);
         setUsers(snapshot.users);
+        setWatchlistConfig(snapshot.watchlistConfig);
         setPublicationDrafts(buildPublicationDrafts(snapshot.publications));
         setConnectedAccounts(snapshot.connectedAccounts);
         setAuditEvents(snapshot.auditEvents);
@@ -1464,6 +1471,39 @@ export default function App({ session }) {
     }
   }
 
+  async function saveWatchlist(nextConfig) {
+    setActionError(null);
+    try {
+      const updated = await withSectionLoader("Watchlist", "Saving watchlist...", () =>
+        updateWatchlistConfig(nextConfig)
+      );
+      setWatchlistConfig(updated);
+      setAuditEvents((current) =>
+        addAuditEvent(current, "update_watchlist", "default", currentActor(session), {
+          markets: updated.markets.length,
+          symbols: updated.symbols.length,
+          activeScanSymbols: countActiveScanSymbols(updated)
+        })
+      );
+      return updated;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
+  async function refreshWatchlist() {
+    setActionError(null);
+    try {
+      const refreshed = await withSectionLoader("Watchlist", "Refreshing watchlist...", fetchWatchlistConfig);
+      setWatchlistConfig(refreshed);
+      return refreshed;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1655,6 +1695,14 @@ export default function App({ session }) {
               />
             )}
 
+            {activeView === "Watchlist" && (
+              <Watchlist
+                config={watchlistConfig}
+                onRefresh={refreshWatchlist}
+                onSave={saveWatchlist}
+              />
+            )}
+
             {activeView === "Vendors" && (
               <Vendors
                 createVendorClient={createVendorClient}
@@ -1724,6 +1772,14 @@ function getPageTitle(routeStatus, activeView) {
 
 function currentActor(session) {
   return session?.user?.email ?? session?.user?.displayName ?? session?.user?.uid ?? "Unknown operator";
+}
+
+function countActiveScanSymbols(config) {
+  const marketById = new Map((config?.markets ?? []).map((market) => [market.id, market]));
+  return (config?.symbols ?? []).filter((symbol) => {
+    const market = marketById.get(symbol.market);
+    return symbol.enabled && market?.enabled && market.scanEnabled;
+  }).length;
 }
 
 function hydratePublishDraftForJobChange(current, patch, jobs) {

@@ -3012,6 +3012,143 @@ textarea.script-editor:focus {
   color: #3d4650;
 }
 
+.button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.form-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.compact-grid {
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+}
+
+.form-grid label {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.form-grid label span {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
+  width: 100%;
+  min-height: 40px;
+}
+
+.form-grid .check-row {
+  display: flex;
+}
+
+.wide-dialog {
+  width: min(760px, calc(100vw - 32px));
+}
+
+.watchlist-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.watchlist-notice {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  border: 1px solid rgba(39, 116, 92, 0.2);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #f3faf7;
+  color: #39524a;
+}
+
+.watchlist-notice strong {
+  color: var(--green);
+}
+
+.market-tabs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+}
+
+.market-tab {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-height: 76px;
+  border-color: var(--line);
+  background: #fbfcfd;
+  text-align: left;
+}
+
+.market-tab.active {
+  border-color: rgba(39, 116, 92, 0.5);
+  background: #edf7f3;
+  box-shadow: 0 0 0 2px rgba(39, 116, 92, 0.12);
+}
+
+.market-tab span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.market-detail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfcfd;
+}
+
+.market-detail h3,
+.market-detail p {
+  margin: 0;
+}
+
+.market-detail p {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.watchlist-table {
+  min-width: 980px;
+}
+
+.watchlist-table th:nth-child(1) {
+  width: 12%;
+}
+
+.watchlist-table th:nth-child(2) {
+  width: 22%;
+}
+
+.watchlist-table th:nth-child(3),
+.watchlist-table th:nth-child(4) {
+  width: 16%;
+}
+
+.watchlist-table th:nth-child(5),
+.watchlist-table th:nth-child(6) {
+  width: 10%;
+}
 .status-queued,
 .status-unlisted {
   background: var(--blue-bg);
