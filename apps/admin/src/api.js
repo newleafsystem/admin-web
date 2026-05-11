@@ -892,17 +892,23 @@ export function normalizeWatchlistConfig(config = null) {
   if (!config) return null;
   const markets = Array.isArray(config.markets) ? config.markets.map(normalizeWatchlistMarket) : [];
   const symbols = Array.isArray(config.symbols) ? config.symbols.map(normalizeWatchlistSymbol) : [];
+  const universeSymbols = Array.isArray(config.universeSymbols)
+    ? config.universeSymbols.map(normalizeWatchlistSymbol)
+    : symbols;
   return {
     id: config.id ?? "default",
     version: Number(config.version ?? 1),
     markets,
     symbols,
+    universeSymbols,
     limits: {
       maxSymbolsPerRun: Number(config.limits?.maxSymbolsPerRun ?? 150),
       maxSymbolsPerMarket: Number(config.limits?.maxSymbolsPerMarket ?? 150),
+      yahooBatchSize: Number(config.limits?.yahooBatchSize ?? config.limits?.maxSymbolsPerRun ?? 150),
       intradayConcurrency: Number(config.limits?.intradayConcurrency ?? 5),
       dailyConcurrency: Number(config.limits?.dailyConcurrency ?? 1),
-      yahooRequestDelayMs: Number(config.limits?.yahooRequestDelayMs ?? 350)
+      yahooRequestDelayMs: Number(config.limits?.yahooRequestDelayMs ?? 350),
+      yahooBatchDelayMs: Number(config.limits?.yahooBatchDelayMs ?? 60000)
     },
     notes: config.notes ?? "",
     createdAt: formatDate(config.createdAt),

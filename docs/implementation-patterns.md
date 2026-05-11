@@ -117,11 +117,12 @@ Rules:
 ## Market Watchlist Pattern
 
 - `admin-web` owns scanner watchlist edits through `GET/PUT /api/v1/watchlists/default`; the browser never writes Firestore directly.
-- The production document is `marketWatchlists/default` in `newleafdb`. It stores `markets`, `symbols`, and `limits`.
+- The production document is `marketWatchlists/default` in `newleafdb`. It stores `markets`, selected `symbols`, a lookup-only `universeSymbols` listing universe, and scheduler `limits`.
 - Markets can be created ahead of provider support, but the scanner only processes symbols where the symbol is enabled and its market is both enabled and `scanEnabled`.
 - Keep non-US markets such as India or China scan-disabled until the scanner has a provider adapter that can produce compatible price, options, and OI data for that market.
-- Rate-limit controls live with the watchlist: `maxSymbolsPerRun`, `maxSymbolsPerMarket`, `intradayConcurrency`, `dailyConcurrency`, and `yahooRequestDelayMs`.
-- Daily Yahoo OI runs must remain conservative. Current backend validation keeps `dailyConcurrency` at `1`, and scheduler workers apply the configured Yahoo request delay before provider calls.
+- Admin-web should not expose provider rate-limit controls on the watchlist page. Rate and batching values are configuration owned by backend/runtime setup.
+- The watchlist UI adds stocks from `universeSymbols`; it should not ask admins to manually enter ticker metadata during normal operations.
+- Daily Yahoo OI runs must remain conservative. Current backend validation keeps `dailyConcurrency` at `1`, scheduler workers apply the configured Yahoo request delay before provider calls, and large watchlists run in consecutive provider batches instead of rejecting active lists over 150 symbols.
 
 ## Job State Pattern
 

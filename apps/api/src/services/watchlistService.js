@@ -6,9 +6,11 @@ export const MARKET_PROVIDER_IDS = Object.freeze(['alpaca', 'yahoo', 'manual']);
 export const DEFAULT_WATCHLIST_LIMITS = Object.freeze({
   maxSymbolsPerRun: 150,
   maxSymbolsPerMarket: 150,
+  yahooBatchSize: 150,
   intradayConcurrency: 5,
   dailyConcurrency: 1,
   yahooRequestDelayMs: 350,
+  yahooBatchDelayMs: 60000,
 });
 
 const DEFAULT_MARKETS = Object.freeze([
@@ -64,7 +66,6 @@ export function createWatchlistService({ repository, clock = () => new Date().to
       updatedBy: actorUid,
       updatedAt: clock(),
     });
-    validateScanLimits(normalized);
     return normalizeWatchlistConfig(await repository.upsertMarketWatchlist(WATCHLIST_CONFIG_ID, normalized));
   }
 
@@ -80,6 +81,7 @@ export function defaultWatchlistConfig(timestamp = new Date().toISOString()) {
     version: 1,
     markets: DEFAULT_MARKETS.map((market) => ({ ...market })),
     symbols: [],
+    universeSymbols: [],
     limits: { ...DEFAULT_WATCHLIST_LIMITS },
     notes: '',
     createdAt: timestamp,
@@ -104,12 +106,14 @@ export function normalizeWatchlistConfig(input = {}) {
     seenSymbols.add(key);
     symbols.push(symbol);
   }
+  const universeSymbols = normalizeUniverseSymbols(input.universeSymbols, marketIds, symbols);
 
   return {
     id: WATCHLIST_CONFIG_ID,
     version: 1,
     markets,
     symbols,
+    universeSymbols,
     limits,
     notes: cleanString(input.notes, 1000) ?? '',
     createdAt: cleanString(input.createdAt, 80) ?? null,
@@ -120,11 +124,18 @@ export function normalizeWatchlistConfig(input = {}) {
 
 function normalizeLimits(raw = {}) {
   return {
-    maxSymbolsPerRun: cleanNumber(raw.maxSymbolsPerRun, DEFAULT_WATCHLIST_LIMITS.maxSymbolsPerRun, 1, 500),
-    maxSymbolsPerMarket: cleanNumber(raw.maxSymbolsPerMarket, DEFAULT_WATCHLIST_LIMITS.maxSymbolsPerMarket, 1, 500),
+    maxSymbolsPerRun: cleanNumber(raw.maxSymbolsPerRun, DEFAULT_WATCHLIST_LIMITS.maxSymbolsPerRun, 1, 5000),
+    maxSymbolsPerMarket: cleanNumber(raw.maxSymbolsPerMarket, DEFAULT_WATCHLIST_LIMITS.maxSymbolsPerMarket, 1, 5000),
+    yahooBatchSize: cleanNumber(
+      raw.yahooBatchSize ?? raw.maxSymbolsPerRun,
+      DEFAULT_WATCHLIST_LIMITS.yahooBatchSize,
+      1,
+      5000,
+    ),
     intradayConcurrency: cleanNumber(raw.intradayConcurrency, DEFAULT_WATCHLIST_LIMITS.intradayConcurrency, 1, 10),
     dailyConcurrency: cleanNumber(raw.dailyConcurrency, DEFAULT_WATCHLIST_LIMITS.dailyConcurrency, 1, 1),
     yahooRequestDelayMs: cleanNumber(raw.yahooRequestDelayMs, DEFAULT_WATCHLIST_LIMITS.yahooRequestDelayMs, 0, 5000),
+    yahooBatchDelayMs: cleanNumber(raw.yahooBatchDelayMs, DEFAULT_WATCHLIST_LIMITS.yahooBatchDelayMs, 0, 600000),
   };
 }
 
@@ -152,12 +163,27 @@ function normalizeMarkets(rawMarkets = []) {
       provider,
       enabled: raw?.enabled !== false,
       scanEnabled: raw?.scanEnabled === true,
-      maxSymbolsPerRun: cleanNumber(raw?.maxSymbolsPerRun, DEFAULT_WATCHLIST_LIMITS.maxSymbolsPerMarket, 1, 500),
+      maxSymbolsPerRun: cleanNumber(raw?.maxSymbolsPerRun, DEFAULT_WATCHLIST_LIMITS.maxSymbolsPerMarket, 1, 5000),
       notes: cleanString(raw?.notes, 500) ?? '',
     });
   }
 
   return markets;
+}
+
+function normalizeUniverseSymbols(rawUniverse, marketIds, currentSymbols) {
+  const incoming = Array.isArray(rawUniverse) && rawUniverse.length > 0 ? rawUniverse : currentSymbols;
+  const seen = new Set();
+  const universe = [];
+  for (const raw of incoming) {
+    const symbol = normalizeSymbol({ ...raw, enabled: true }, marketIds);
+    const key = `${symbol.market}:${symbol.symbol}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const { enabled, ...withoutEnabled } = symbol;
+    universe.push(withoutEnabled);
+  }
+  return universe.sort((left, right) => `${left.market}:${left.symbol}`.localeCompare(`${right.market}:${right.symbol}`));
 }
 
 function normalizeSymbol(raw, marketIds) {
@@ -180,38 +206,6 @@ function normalizeSymbol(raw, marketIds) {
     enabled: raw?.enabled !== false,
     notes: cleanString(raw?.notes, 500) ?? '',
   };
-}
-
-function validateScanLimits(config) {
-  const marketById = new Map(config.markets.map((market) => [market.id, market]));
-  const activeByMarket = new Map();
-  let activeScanCount = 0;
-
-  for (const symbol of config.symbols) {
-    const market = marketById.get(symbol.market);
-    if (!symbol.enabled || !market?.enabled || !market.scanEnabled) continue;
-    activeScanCount += 1;
-    activeByMarket.set(symbol.market, (activeByMarket.get(symbol.market) ?? 0) + 1);
-  }
-
-  if (activeScanCount > config.limits.maxSymbolsPerRun) {
-    throw badRequest('Active scan watchlist exceeds the configured run limit', {
-      activeScanCount,
-      maxSymbolsPerRun: config.limits.maxSymbolsPerRun,
-    });
-  }
-
-  for (const market of config.markets) {
-    const count = activeByMarket.get(market.id) ?? 0;
-    const max = Math.min(market.maxSymbolsPerRun, config.limits.maxSymbolsPerMarket);
-    if (count > max) {
-      throw badRequest('Active market watchlist exceeds the configured market limit', {
-        market: market.id,
-        activeScanCount: count,
-        maxSymbolsPerMarket: max,
-      });
-    }
-  }
 }
 
 function normalizeMarketId(value) {
