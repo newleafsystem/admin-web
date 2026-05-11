@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "newleaf-trading"
+  },
+  "targets": {
+    "newleaf-trading": {
+      "hosting": {
+        "newleaf-trading": [
+          "newleaf-trading"
+        ],
+        "newleaf-api": [
+          "newleaf-api"
+        ]
+      }
+    }
   }
 }

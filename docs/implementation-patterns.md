@@ -94,7 +94,9 @@ Rules:
 - `sd.nirsha@gmail.com` and `manish28june@gmail.com` are immutable admins. They always receive admin role and all app access in admin-web and client-web, and cannot be demoted or deleted through user management.
 - The Users section should show access as removable tags, not checkbox grids. Add or change access through a modal that writes role and application access together through `PATCH /api/v1/users/:userId`.
 - `client-web` treats `appAccess` as the product navigation and route-access source of truth. Do not add a separate client-web-only entitlement store.
-- `api.newleafsystem.com` is the canonical shared API origin for browser authentication. Keep browser-auth endpoints under `/api/auth/*` and admin/service operations under `/api/v1/*` on the same Cloud Run API service.
+- `api.newleafsystem.com` is the canonical shared browser auth and API origin. It is a Firebase Hosting facade that serves Firebase reserved `/__/auth/*` helper URLs and rewrites `/api/**` to Cloud Run service `newleaf-api`.
+- Client-web preview and production differ only by the static Hosting site. Do not point preview auth/session/API flows at preview-specific backends.
+- Keep browser-auth endpoints under `/api/auth/*` and admin/service operations under `/api/v1/*` on the same Cloud Run API service behind the `api.newleafsystem.com` facade.
 - Shared browser sessions must use `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` and `AUTH_SESSION_COOKIE_PATH=/` so the same HTTP-only Firebase session cookie can be created through `/api/auth/session` and sent to `/api/v1/*` routes.
 - CORS for the API must explicitly allow credentialed requests from registered NewLeaf domains only: `https://admin.newleafsystem.com`, `https://newleafsystem.com`, `https://www.newleafsystem.com`, and `https://preview.newleafsystem.com`.
 - `VITE_ADMIN_EMAILS` in client-web is bootstrap fallback only; once `admin-web` writes explicit `appAccess`, Firestore wins for env-only bootstrap admins.

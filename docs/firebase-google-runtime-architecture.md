@@ -8,7 +8,7 @@ NewLeaf production deployment is now Firebase/Google-first. Cloudflare should no
 names.co.uk DNS
   -> Firebase Hosting
     -> static Vite admin UI from apps/admin/dist
-    -> optional /api/** rewrite to Cloud Run service newleaf-api
+    -> api.newleafsystem.com facade for Firebase Auth helpers and /api/** rewrite
   -> Cloud Run API
     -> api.newleafsystem.com for browser auth, provider OAuth, service API, admin API, publishing orchestration
   -> Cloud Run media renderer
@@ -28,12 +28,14 @@ Keep authoritative DNS at names.co.uk.
 Use Firebase Hosting custom domain setup for:
 
 - `admin.newleafsystem.com`
-
-Use a direct Cloud Run API custom domain for:
-
 - `api.newleafsystem.com`
 
-Both admin-web and client-web should use `api.newleafsystem.com` for shared browser authentication. Firebase Hosting rewrites for `/api/**` may remain as a compatibility path for the admin UI, but the canonical API origin is the Cloud Run custom domain.
+Use `api.newleafsystem.com` as a Firebase Hosting facade, not as a direct Cloud Run-only domain:
+
+- Firebase reserved `/__/auth/*` and `/__/firebase/*` URLs are served by Firebase Hosting.
+- `/api/**` rewrites to Cloud Run service `newleaf-api`.
+
+Both admin-web and client-web should use `api.newleafsystem.com` for shared browser authentication and API calls. Firebase Hosting rewrites `/api/**` on that host to the Cloud Run API service; raw Cloud Run URLs are not browser-facing production origins.
 
 Required browser-auth runtime values:
 

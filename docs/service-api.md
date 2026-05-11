@@ -16,7 +16,6 @@ In production, admins should open Swagger through the API custom domain or the F
 
 ```text
 https://api.newleafsystem.com/api/v1/service/docs
-https://admin.newleafsystem.com/api/v1/service/docs
 ```
 
 Admin and client-web sign-in refresh one HTTP-only Firebase session cookie through the shared API. Set `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` and `AUTH_SESSION_COOKIE_PATH=/` so the same cookie works for both `/api/auth/*` browser auth endpoints and `/api/v1/*` protected service routes. The raw Cloud Run `run.app` URL cannot participate in this browser SSO cookie, so it still requires an `Authorization` bearer token or signed vendor credentials.

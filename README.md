@@ -180,17 +180,17 @@ npm run dev:start
 In production, the browser should not call `localhost:8080`. Firebase Hosting serves the admin app and rewrites `/api/**` to Cloud Run:
 
 ```env
-PUBLIC_BASE_URL=https://admin.newleafsystem.com
+PUBLIC_BASE_URL=https://api.newleafsystem.com
 ADMIN_BASE_URL=https://admin.newleafsystem.com
-VITE_API_BASE_URL=/api/v1
-SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com
+VITE_API_BASE_URL=https://api.newleafsystem.com/api/v1
+SOCIAL_CALLBACK_BASE_URL=https://api.newleafsystem.com
 CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com
 REPOSITORY_PROVIDER=firestore
 ```
 
-This keeps browser API calls same-origin through Firebase Hosting.
+This sends browser API calls, shared browser auth, and provider callbacks through the `api.newleafsystem.com` Firebase Hosting facade.
 
-The `npm run firebase:build` command forces `VITE_API_BASE_URL=/api/v1` unless you deliberately override it, so local `.env` values cannot accidentally ship a bundle that calls `localhost:8080`.
+The `npm run firebase:build` command forces `VITE_API_BASE_URL=https://api.newleafsystem.com/api/v1` unless you deliberately override it, so local `.env` values cannot accidentally ship a bundle that calls `localhost:8080`.
 The Firebase Hosting build also rejects browser-facing platform domains such as `firebaseapp.com`, `web.app`, and `run.app` for the API base URL or Firebase Auth domain. Production auth and API traffic should use the NewLeaf custom domain.
 
 Firebase values are applied in two different places:
@@ -207,7 +207,7 @@ This is possible for smoke testing, but it should not be the default because it 
 Use it only when you intentionally want your local Vite UI to call the deployed API:
 
 ```env
-VITE_API_BASE_URL=https://admin.newleafsystem.com/api/v1
+VITE_API_BASE_URL=https://api.newleafsystem.com/api/v1
 ```
 
 For this to work, the deployed API must allow the local Vite origin in `CORS_ALLOWED_ORIGINS`, and production auth must be configured correctly. Do not use this mode for destructive publishing, OAuth reconnects, or delete flows unless you are deliberately testing production.
@@ -250,24 +250,25 @@ Production domains are managed in Cloudflare DNS and mapped to Firebase Hosting 
 ```text
 Cloudflare DNS
   -> Firebase Hosting: admin.newleafsystem.com
-  -> Firebase Hosting /api rewrite
+  -> Firebase Hosting: api.newleafsystem.com for auth helpers and /api rewrite
   -> Cloud Run API: newleaf-api
   -> Cloud Run FFmpeg renderer: newleaf-ffmpeg-renderer
   -> Firebase Storage / Google Cloud Storage for media
   -> Google Secret Manager for secrets
 ```
 
-Firebase Hosting serves the Vite admin UI from `apps/admin/dist`. The hosting config rewrites `/api/**` to the `newleaf-api` Cloud Run service in `us-central1`, so the admin UI can keep using same-origin `/api/v1` calls in production.
+Firebase Hosting serves the Vite admin UI from `apps/admin/dist`. The dedicated API facade Hosting site serves `api.newleafsystem.com`, provides Firebase reserved auth helper URLs under `/__/auth/*`, and rewrites `/api/**` to the `newleaf-api` Cloud Run service in `us-central1`.
 
-Admin sign-in also refreshes an HTTP-only Firebase session cookie for direct browser access to protected API pages such as Swagger. In production, use the custom-domain URL `https://admin.newleafsystem.com/api/v1/service/docs` or another `newleafsystem.com` Firebase Hosting domain that rewrites `/api/**`. The raw Cloud Run `run.app` URL cannot receive a `.newleafsystem.com` browser cookie, so it still requires a bearer token or vendor service credentials.
+Admin sign-in also refreshes an HTTP-only Firebase session cookie for direct browser access to protected API pages such as Swagger. In production, use the custom-domain URL `https://api.newleafsystem.com/api/v1/service/docs`. The raw Cloud Run `run.app` URL cannot receive a `.newleafsystem.com` browser cookie, so it still requires a bearer token or vendor service credentials.
 
 Required DNS in Cloudflare:
 
 - `A admin -> 199.36.158.100` mapped to the Firebase Hosting admin site.
+- `CNAME api -> newleaf-api.web.app` or the Firebase-provided target, DNS only, mapped to the Firebase Hosting API facade site.
 - `A newleafsystem.com -> 199.36.158.100` mapped to the Firebase Hosting public site.
 - `A www -> 199.36.158.100` or a Cloudflare redirect to `https://newleafsystem.com`, depending on the desired public canonical URL.
 - Keep Firebase-provided TXT and `_acme-challenge` records until verification and certificate provisioning complete.
-- Optional `api.newleafsystem.com` records if you also map a direct Cloud Run custom domain for the API.
+- Keep `api.newleafsystem.com` on Firebase Hosting, not direct Cloud Run, so Firebase Auth reserved `/__/auth/*` URLs and `/api/**` rewrites work on the same canonical API host.
 
 Required GitHub repository variables:
 
@@ -284,32 +285,33 @@ Required GitHub repository variables:
 - `REQUIRE_AUTH=true`
 - Initial admin access is hardcoded to `sd.nirsha@gmail.com`; subsequent users are managed from the admin Users screen.
 - `FIRESTORE_DATABASE_ID=newleafdb`
-- `PUBLIC_BASE_URL=https://admin.newleafsystem.com`
+- `PUBLIC_BASE_URL=https://api.newleafsystem.com`
 - `ADMIN_BASE_URL=https://admin.newleafsystem.com`
-- `SOCIAL_CALLBACK_BASE_URL=https://admin.newleafsystem.com`
+- `SOCIAL_CALLBACK_BASE_URL=https://api.newleafsystem.com`
 - `SOCIAL_PUBLICATION_SYNC_ENABLED=true`
 - `SOCIAL_PUBLICATION_SYNC_INTERVAL_MS=3600000`
 - `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com`
 - `AUTH_SESSION_COOKIE_NAME=newleaf_session`
 - `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com`
-- `AUTH_SESSION_COOKIE_PATH=/api/v1`
+- `AUTH_SESSION_COOKIE_PATH=/`
 - `AUTH_SESSION_COOKIE_MAX_AGE_SEC=432000`
 - `AUTH_SESSION_COOKIE_SAME_SITE=lax`
 - `AUTH_SESSION_COOKIE_SECURE=true`
 - `FIREBASE_SESSION_COOKIE_ROLE_ID=newleafFirebaseSessionCookieMinter`
 - `VITE_FIREBASE_API_KEY=<firebase-web-api-key>`
-- `VITE_FIREBASE_AUTH_DOMAIN=admin.newleafsystem.com`
+- `VITE_API_BASE_URL=https://api.newleafsystem.com/api/v1`
+- `VITE_FIREBASE_AUTH_DOMAIN=api.newleafsystem.com`
 - `VITE_FIREBASE_PROJECT_ID=newleaf-trading`
 - `VITE_FIREBASE_STORAGE_BUCKET=<firebase-storage-bucket>` used only by the frontend Firebase SDK; it is intentionally separate from backend `GCS_BUCKET`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID=<firebase-sender-id>`
 - `VITE_FIREBASE_APP_ID=<firebase-web-app-id>`
 - `VITE_FIREBASE_MEASUREMENT_ID=<firebase-measurement-id>`
 - `YOUTUBE_CLIENT_ID=<google-oauth-web-client-id>`
-- `YOUTUBE_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/youtube/oauth/callback`
+- `YOUTUBE_REDIRECT_URI=https://api.newleafsystem.com/api/v1/social/youtube/oauth/callback`
 - `YOUTUBE_SCOPES=https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl`
 - `YOUTUBE_DEFAULT_CATEGORY_ID=27`
 - `X_CLIENT_ID=<x-oauth-client-id>`
-- `X_REDIRECT_URI=https://admin.newleafsystem.com/api/v1/social/x/oauth/callback`
+- `X_REDIRECT_URI=https://api.newleafsystem.com/api/v1/social/x/oauth/callback`
 - `X_SCOPES=tweet.read users.read tweet.write media.write offline.access`
 - `X_UPLOAD_CHUNK_BYTES=4194304`
 
@@ -661,7 +663,7 @@ http://localhost:8080/api/v1/service/docs
 In production, open the docs through the custom domain after signing in as an admin:
 
 ```text
-https://admin.newleafsystem.com/api/v1/service/docs
+https://api.newleafsystem.com/api/v1/service/docs
 ```
 
 The raw Cloud Run `run.app` service URL intentionally does not act as a browser SSO endpoint because browser cookies cannot be shared from `newleafsystem.com` to `run.app`.

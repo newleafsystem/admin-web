@@ -1,0 +1,46 @@
+name: Firebase API Facade
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - '.firebaserc'
+      - 'firebase.json'
+      - 'public-api/**'
+      - '.github/workflows/firebase-api-facade.yml'
+
+concurrency:
+  group: firebase-api-facade
+  cancel-in-progress: false
+
+jobs:
+  deploy-api-facade:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'newleaf-trading' }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Validate Firebase auth config
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING }}
+        run: |
+          if [[ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING repository secret is required for Firebase Hosting deploy." >&2
+            exit 1
+          fi
+
+      - name: Deploy API facade hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING }}
+          channelId: live
+          projectId: ${{ env.GCP_PROJECT_ID }}
+          target: newleaf-api

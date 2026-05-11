@@ -290,7 +290,8 @@ function buildEnvValues(fileEnv) {
   }
 
   env.VITE_FIREBASE_PROJECT_ID ||= env.FIREBASE_PROJECT_ID || env.GCP_PROJECT_ID;
-  env.VITE_FIREBASE_AUTH_DOMAIN ||= hostnameFromUrl(env.ADMIN_BASE_URL);
+  env.VITE_API_BASE_URL ||= `${DEFAULT_API_BASE_URL}/api/v1`;
+  env.VITE_FIREBASE_AUTH_DOMAIN ||= hostnameFromUrl(env.PUBLIC_BASE_URL);
   env.VITE_FIREBASE_STORAGE_BUCKET ||= env.GCS_BUCKET;
   env.YOUTUBE_REDIRECT_URI =
     !hasValue(env.YOUTUBE_REDIRECT_URI) || isLocalValue(env.YOUTUBE_REDIRECT_URI)

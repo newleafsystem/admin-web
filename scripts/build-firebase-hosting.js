@@ -6,7 +6,7 @@ import process from 'node:process';
 const env = {
   ...process.env,
   REQUIRE_AUTH: process.env.REQUIRE_AUTH?.trim() || 'true',
-  VITE_API_BASE_URL: process.env.VITE_API_BASE_URL?.trim() || '/api/v1',
+  VITE_API_BASE_URL: process.env.VITE_API_BASE_URL?.trim() || 'https://api.newleafsystem.com/api/v1',
 };
 
 const platformDomainPattern = /(?:firebaseapp\.com|web\.app|run\.app)/i;
@@ -49,7 +49,7 @@ if (env.REQUIRE_AUTH === 'true') {
   if (platformDomainPattern.test(env.VITE_FIREBASE_AUTH_DOMAIN)) {
     console.error(
       `Refusing to build authenticated Firebase Hosting bundle with platform-hosted ` +
-      `VITE_FIREBASE_AUTH_DOMAIN=${env.VITE_FIREBASE_AUTH_DOMAIN}. Use admin.newleafsystem.com.`,
+      `VITE_FIREBASE_AUTH_DOMAIN=${env.VITE_FIREBASE_AUTH_DOMAIN}. Use api.newleafsystem.com.`,
     );
     process.exit(1);
   }
