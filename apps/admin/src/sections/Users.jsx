@@ -51,7 +51,7 @@ const styles = {
   },
   accessColumn: {
     verticalAlign: "middle",
-    width: "28%"
+    width: "27%"
   },
   accessHelp: {
     color: "#5b6678",
@@ -130,7 +130,7 @@ const styles = {
   },
   notificationColumn: {
     verticalAlign: "middle",
-    width: "21%"
+    width: "20%"
   },
   notificationStack: {
     display: "grid",
@@ -225,7 +225,7 @@ const styles = {
   },
   statusColumn: {
     verticalAlign: "middle",
-    width: "9%"
+    width: "8%"
   },
   userColumn: {
     verticalAlign: "middle",
@@ -233,7 +233,8 @@ const styles = {
   },
   actionColumn: {
     verticalAlign: "middle",
-    width: "5%"
+    whiteSpace: "nowrap",
+    width: "8%"
   },
   formGrid: {
     display: "grid",
