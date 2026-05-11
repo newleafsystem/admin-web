@@ -733,7 +733,7 @@ function NotificationDialog({ draft, onCancel, onSave, onToggleTopic, onUpdateDr
 
   return (
     <ModalShell className="confirm-dialog" labelledBy="manage-notifications-title" onClose={onCancel}>
-      <form onSubmit={onSave}>
+      <form className="modal-form" onSubmit={onSave}>
         <div className="modal-header">
           <div>
             <h2 id="manage-notifications-title">Manage Email Notifications</h2>
