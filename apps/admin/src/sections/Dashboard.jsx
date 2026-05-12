@@ -10,7 +10,7 @@ const FLOW_STATUSES = [
   { key: "failed", label: "Failed", tone: "red" }
 ];
 
-const SOURCE_COLORS = ["#27745c", "#2364aa", "#9a6700", "#6f7a85", "#b42318"];
+const SOURCE_COLORS = ["#155a42", "#c8a85a", "#7d561d", "#667085", "#b42318"];
 const PLATFORM_COLORS = {
   youtube: "#ff0033",
   linkedin: "#0a66c2",

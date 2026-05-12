@@ -460,28 +460,44 @@ Buttons use a simple two-level hierarchy unless a provider-specific or destructi
 Primary buttons:
 
 - Use only for the main commit action in a focused area: create job, create plan, authorize account, approve, publish, save.
-- Use the NewLeaf admin accent tokens:
-  - background: `--button-primary-bg` / `--accent` (`#2364aa`)
-  - hover background: `--button-primary-hover-bg` / `--accent-strong` (`#164a82`)
-  - text: `--button-primary-text` (`#ffffff`)
+- Use the shared NewLeaf muted-gold button tokens, matching `client-web`:
+  - background: `--button-primary-bg` / `--brand-gold-muted` (`#c8a85a`)
+  - hover background: `--button-primary-hover-bg` (`#d8bb79`)
+  - text: `--button-primary-text` / `--brand-forest-dark` (`#061c15`)
 - Apply with `className="primary"`.
 
 Secondary buttons:
 
 - Use for navigation, cancel, open details, filters, retry, and supporting actions.
 - Default `button` styling is the secondary style. `className="secondary"` is optional and only needed for clarity.
-- Use the neutral tokens:
-  - background: `--button-secondary-bg` / `--surface` (`#ffffff`)
-  - border: `--button-secondary-border` / `--line` (`#d8dee4`)
-  - text: `--button-secondary-text` / `--ink` (`#1f2933`)
-  - hover background: `--button-secondary-hover-bg` / `--surface-alt` (`#eef4f2`)
-  - hover text: `--button-secondary-hover-text` / `--accent-strong` (`#164a82`)
+- Use the warm NewLeaf secondary tokens:
+  - background: `--button-secondary-bg` / `--brand-cream` (`#f7f5ef`)
+  - border: `--button-secondary-border` / muted gold border
+  - text: `--button-secondary-text` / `--brand-forest` (`#0b2d23`)
+  - hover background: `--button-secondary-hover-bg` (`#ede4d1`)
+  - hover text: `--button-secondary-hover-text` / `--brand-forest`
 
 Destructive buttons use `button.danger`. Provider-specific sync buttons may use brand color, but only inside provider-local sections.
 
 ## Brand Color Pattern
 
-Use brand color only where it helps admins understand provider-specific context.
+Admin-web shares the same core NewLeaf brand system as client-web.
+
+Typography:
+
+- Load and use Inter for dense operational UI text.
+- Use Playfair Display only for page-scale display headings such as the topbar title, auth marketing heading, and route status heading.
+- Use Space Mono for large counters and status codes where tabular scanning helps.
+
+Shared brand tokens:
+
+- Forest: `--brand-forest-dark`, `--brand-forest`, and `--brand-evergreen`.
+- Gold: `--brand-gold`, `--brand-gold-muted`, and `--brand-gold-strong`.
+- Surfaces: `--brand-cream`, `--brand-ivory`, `--brand-gradient`, `--brand-gradient-deep`, and `--brand-gradient-soft`.
+
+Use the official forest/gold gradients only for global shell surfaces such as the sidebar, topbar, login shell, footer, and media placeholders. Large operational panels should remain white or warm ivory so the console stays scan-friendly.
+
+Use provider brand color only where it helps admins understand provider-specific context.
 
 Good uses:
 

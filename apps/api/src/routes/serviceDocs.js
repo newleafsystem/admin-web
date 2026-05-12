@@ -74,10 +74,10 @@ function renderSwaggerUiPage(spec) {
 
       .docs-header a {
         min-height: 36px;
-        border: 1px solid #d8dee4;
-        border-radius: 6px;
+        border: 1px solid rgba(215, 181, 109, 0.55);
+        border-radius: 10px;
         padding: 8px 12px;
-        color: #164a82;
+        color: #0b2d23;
         text-decoration: none;
         white-space: nowrap;
       }
@@ -85,11 +85,11 @@ function renderSwaggerUiPage(spec) {
       .docs-note {
         max-width: 1280px;
         margin: 16px auto 0;
-        border: 1px solid #d8dee4;
-        border-left: 4px solid #2364aa;
+        border: 1px solid #d7ded7;
+        border-left: 4px solid #b8862d;
         border-radius: 8px;
         padding: 14px 16px;
-        background: #ffffff;
+        background: linear-gradient(180deg, #ffffff 0%, #fbfaf6 100%);
         color: #1f2933;
         font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         line-height: 1.5;
