@@ -1,0 +1,280 @@
+name: Selected Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      deployment_target:
+        description: What should be deployed?
+        required: true
+        default: full-stack
+        type: choice
+        options:
+          - full-stack
+          - admin
+          - api-facade
+          - api
+          - renderer
+          - api-renderer
+      run_checks:
+        description: Run checks and tests before deployment
+        required: true
+        default: true
+        type: boolean
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checks disabled
+        if: ${{ !inputs.run_checks }}
+        run: echo "Preflight checks were disabled for this manual deployment."
+
+      - name: Check out code
+        if: ${{ inputs.run_checks }}
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: ${{ inputs.run_checks }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ inputs.run_checks }}
+        run: npm ci
+
+      - name: Run checks
+        if: ${{ inputs.run_checks }}
+        run: npm run check
+
+      - name: Run tests
+        if: ${{ inputs.run_checks }}
+        run: npm test
+        env:
+          REQUIRE_AUTH: 'false'
+
+  deploy-firebase-hosting:
+    needs: preflight
+    if: ${{ inputs.deployment_target == 'full-stack' || inputs.deployment_target == 'admin' || inputs.deployment_target == 'api-facade' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: firebase-hosting-selected
+      cancel-in-progress: false
+    permissions:
+      contents: read
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'newleaf-trading' }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        if: ${{ inputs.deployment_target == 'full-stack' || inputs.deployment_target == 'admin' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: ${{ inputs.deployment_target == 'full-stack' || inputs.deployment_target == 'admin' }}
+        run: npm ci
+
+      - name: Build admin UI
+        if: ${{ inputs.deployment_target == 'full-stack' || inputs.deployment_target == 'admin' }}
+        run: npm run firebase:build
+        env:
+          REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL || 'https://api.newleafsystem.com/api/v1' }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ vars.VITE_FIREBASE_AUTH_DOMAIN || 'api.newleafsystem.com' }}
+          VITE_FIREBASE_PROJECT_ID: ${{ vars.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ vars.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ vars.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_MEASUREMENT_ID: ${{ vars.VITE_FIREBASE_MEASUREMENT_ID }}
+
+      - name: Validate Firebase auth config
+        shell: bash
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING }}
+        run: |
+          if [[ -z "${FIREBASE_SERVICE_ACCOUNT_JSON:-}" ]]; then
+            echo "FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING repository secret is required for Firebase Hosting deploy." >&2
+            exit 1
+          fi
+
+      - name: Deploy admin Firebase Hosting
+        if: ${{ inputs.deployment_target == 'full-stack' || inputs.deployment_target == 'admin' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING }}
+          channelId: live
+          projectId: ${{ env.GCP_PROJECT_ID }}
+          target: newleaf-trading
+
+      - name: Deploy API facade Firebase Hosting
+        if: ${{ inputs.deployment_target == 'full-stack' || inputs.deployment_target == 'api-facade' }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_NEWLEAF_TRADING }}
+          channelId: live
+          projectId: ${{ env.GCP_PROJECT_ID }}
+          target: newleaf-api
+
+  deploy-cloud-run:
+    needs: preflight
+    if: ${{ inputs.deployment_target == 'full-stack' || inputs.deployment_target == 'api' || inputs.deployment_target == 'renderer' || inputs.deployment_target == 'api-renderer' }}
+    runs-on: ubuntu-latest
+    concurrency:
+      group: google-cloud-run-services
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'newleaf-trading' }}
+      GCP_REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+      GCP_WORKLOAD_IDENTITY_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+      GCP_SERVICE_ACCOUNT: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+      GCS_BUCKET: ${{ vars.GCS_BUCKET }}
+      PUBLIC_DATA_ORIGIN_URL: ${{ secrets.PUBLIC_DATA_ORIGIN_URL || vars.PUBLIC_DATA_ORIGIN_URL || vars.R2_PUBLIC_BASE_URL }}
+      PUBLIC_MEDIA_ORIGIN_URL: ${{ secrets.PUBLIC_MEDIA_ORIGIN_URL || vars.PUBLIC_MEDIA_ORIGIN_URL }}
+      PUBLIC_ASSET_CACHE_MAX_AGE_SEC: ${{ vars.PUBLIC_ASSET_CACHE_MAX_AGE_SEC || '300' }}
+      ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+      ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+      ALPACA_DATA_BASE_URL: ${{ vars.ALPACA_DATA_BASE_URL || 'https://data.alpaca.markets' }}
+      GOOGLE_CLOUD_RUN_API_SERVICE: ${{ vars.GOOGLE_CLOUD_RUN_API_SERVICE || 'newleaf-api' }}
+      GOOGLE_CLOUD_RUN_RENDERER_SERVICE: ${{ vars.GOOGLE_CLOUD_RUN_RENDERER_SERVICE || 'newleaf-ffmpeg-renderer' }}
+      SKIP_ENABLE_APIS: ${{ vars.SKIP_ENABLE_APIS || 'true' }}
+      SKIP_PROVISIONING: ${{ vars.SKIP_PROVISIONING || 'true' }}
+      CLOUD_BUILD_SUPPRESS_LOGS: ${{ vars.CLOUD_BUILD_SUPPRESS_LOGS || 'true' }}
+      MIN_INSTANCES: ${{ vars.MIN_INSTANCES || '1' }}
+      CPU_THROTTLING: ${{ vars.CPU_THROTTLING || 'false' }}
+      REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
+      AUTH_ADMIN_EMAILS: ${{ vars.AUTH_ADMIN_EMAILS }}
+      AUTH_SESSION_COOKIE_NAME: ${{ vars.AUTH_SESSION_COOKIE_NAME || 'newleaf_session' }}
+      AUTH_SESSION_COOKIE_DOMAIN: ${{ vars.AUTH_SESSION_COOKIE_DOMAIN || '.newleafsystem.com' }}
+      AUTH_SESSION_COOKIE_PATH: ${{ vars.AUTH_SESSION_COOKIE_PATH || '/' }}
+      AUTH_SESSION_COOKIE_MAX_AGE_SEC: ${{ vars.AUTH_SESSION_COOKIE_MAX_AGE_SEC || '432000' }}
+      AUTH_SESSION_COOKIE_SAME_SITE: ${{ vars.AUTH_SESSION_COOKIE_SAME_SITE || 'lax' }}
+      AUTH_SESSION_COOKIE_SECURE: ${{ vars.AUTH_SESSION_COOKIE_SECURE || 'true' }}
+      FIRESTORE_DATABASE_ID: ${{ vars.FIRESTORE_DATABASE_ID || 'newleafdb' }}
+      PUBLIC_BASE_URL: ${{ vars.PUBLIC_BASE_URL || 'https://api.newleafsystem.com' }}
+      ADMIN_BASE_URL: ${{ vars.ADMIN_BASE_URL || 'https://admin.newleafsystem.com' }}
+      SOCIAL_CALLBACK_BASE_URL: ${{ vars.SOCIAL_CALLBACK_BASE_URL || 'https://api.newleafsystem.com' }}
+      CORS_ALLOWED_ORIGINS: ${{ vars.CORS_ALLOWED_ORIGINS || 'https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com' }}
+      MEDIA_RENDERER_URL: ${{ vars.MEDIA_RENDERER_URL }}
+      MEDIA_RENDER_HMAC_SECRET: ${{ secrets.MEDIA_RENDER_HMAC_SECRET }}
+      YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}
+      YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+      YOUTUBE_REDIRECT_URI: ${{ vars.YOUTUBE_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/youtube/oauth/callback' }}
+      YOUTUBE_SCOPES: ${{ vars.YOUTUBE_SCOPES || 'https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly https://www.googleapis.com/auth/youtube.force-ssl' }}
+      YOUTUBE_DEFAULT_PRIVACY_STATUS: ${{ vars.YOUTUBE_DEFAULT_PRIVACY_STATUS || 'private' }}
+      YOUTUBE_DEFAULT_CATEGORY_ID: ${{ vars.YOUTUBE_DEFAULT_CATEGORY_ID || '27' }}
+      X_CLIENT_ID: ${{ vars.X_CLIENT_ID }}
+      X_CLIENT_SECRET: ${{ secrets.X_CLIENT_SECRET }}
+      X_REDIRECT_URI: ${{ vars.X_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/x/oauth/callback' }}
+      X_SCOPES: ${{ vars.X_SCOPES || 'tweet.read users.read tweet.write media.write offline.access' }}
+      X_UPLOAD_CHUNK_BYTES: ${{ vars.X_UPLOAD_CHUNK_BYTES || '4194304' }}
+      LINKEDIN_CLIENT_ID: ${{ vars.LINKEDIN_CLIENT_ID }}
+      LINKEDIN_CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
+      LINKEDIN_REDIRECT_URI: ${{ vars.LINKEDIN_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/linkedin/oauth/callback' }}
+      LINKEDIN_SCOPES: ${{ vars.LINKEDIN_SCOPES || 'openid profile email w_member_social r_organization_social' }}
+      LINKEDIN_API_VERSION: ${{ vars.LINKEDIN_API_VERSION || '202604' }}
+      META_APP_ID: ${{ vars.META_APP_ID }}
+      META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+      META_REDIRECT_URI: ${{ vars.META_REDIRECT_URI || 'https://api.newleafsystem.com/api/v1/social/meta/oauth/callback' }}
+      META_GRAPH_VERSION: ${{ vars.META_GRAPH_VERSION || 'v21.0' }}
+      META_FACEBOOK_SCOPES: ${{ vars.META_FACEBOOK_SCOPES || 'pages_show_list pages_manage_posts pages_read_engagement' }}
+      META_INSTAGRAM_SCOPES: ${{ vars.META_INSTAGRAM_SCOPES || 'pages_show_list pages_read_engagement instagram_basic instagram_content_publish' }}
+    steps:
+      - name: Resolve selected services
+        id: selected
+        shell: bash
+        run: |
+          deploy_api=false
+          deploy_renderer=false
+          case "${{ inputs.deployment_target }}" in
+            full-stack|api-renderer)
+              deploy_api=true
+              deploy_renderer=true
+              ;;
+            api)
+              deploy_api=true
+              ;;
+            renderer)
+              deploy_renderer=true
+              ;;
+          esac
+          echo "api=${deploy_api}" >> "${GITHUB_OUTPUT}"
+          echo "renderer=${deploy_renderer}" >> "${GITHUB_OUTPUT}"
+
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate Google auth config
+        shell: bash
+        run: |
+          if [[ -z "${GCP_WORKLOAD_IDENTITY_PROVIDER:-}" ]]; then
+            echo "GCP_WORKLOAD_IDENTITY_PROVIDER repository secret is required." >&2
+            exit 1
+          fi
+          if [[ ! "${GCP_SERVICE_ACCOUNT:-}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.iam\.gserviceaccount\.com$ ]]; then
+            echo "GCP_SERVICE_ACCOUNT must be a service-account email like name@project.iam.gserviceaccount.com." >&2
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          project_id: ${{ env.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ env.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ env.GCP_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Verify Google credentials file
+        shell: bash
+        run: |
+          if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" || ! -f "${GOOGLE_APPLICATION_CREDENTIALS}" ]]; then
+            echo "Google credentials file was not created by google-github-actions/auth." >&2
+            exit 1
+          fi
+
+      - name: Deploy renderer
+        id: deploy_renderer
+        if: ${{ steps.selected.outputs.renderer == 'true' }}
+        run: bash scripts/setup-google-cloud-run-renderer.sh
+
+      - name: Resolve renderer URL
+        if: ${{ steps.selected.outputs.api == 'true' }}
+        shell: bash
+        run: |
+          if [[ -n "${{ steps.deploy_renderer.outputs.service_url }}" ]]; then
+            echo "MEDIA_RENDERER_URL=${{ steps.deploy_renderer.outputs.service_url }}" >> "${GITHUB_ENV}"
+            exit 0
+          fi
+
+          if [[ -n "${MEDIA_RENDERER_URL:-}" ]]; then
+            exit 0
+          fi
+
+          if renderer_url="$(gcloud run services describe "${GOOGLE_CLOUD_RUN_RENDERER_SERVICE}" --region "${GCP_REGION}" --project "${GCP_PROJECT_ID}" --format='value(status.url)' 2>/dev/null)" && [[ -n "${renderer_url}" ]]; then
+            echo "MEDIA_RENDERER_URL=${renderer_url}" >> "${GITHUB_ENV}"
+          else
+            echo "Renderer service URL could not be resolved; API deploy will continue without MEDIA_RENDERER_URL."
+          fi
+
+      - name: Deploy API
+        if: ${{ steps.selected.outputs.api == 'true' }}
+        run: bash scripts/setup-google-cloud-run-api.sh

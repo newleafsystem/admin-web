@@ -190,7 +190,7 @@ REPOSITORY_PROVIDER=firestore
 
 This sends browser API calls, shared browser auth, and provider callbacks through the `api.newleafsystem.com` Firebase Hosting facade.
 
-The `npm run firebase:build` command forces `VITE_API_BASE_URL=https://api.newleafsystem.com/api/v1` unless you deliberately override it, so local `.env` values cannot accidentally ship a bundle that calls `localhost:8080`.
+The `npm run firebase:build` command defaults `VITE_API_BASE_URL` to `https://api.newleafsystem.com/api/v1` unless you deliberately override it, so local `.env` values cannot accidentally ship a bundle that calls `localhost:8080`.
 The Firebase Hosting build also rejects browser-facing platform domains such as `firebaseapp.com`, `web.app`, and `run.app` for the API base URL or Firebase Auth domain. Production auth and API traffic should use the NewLeaf custom domain.
 
 Firebase values are applied in two different places:
@@ -260,6 +260,17 @@ Cloudflare DNS
 Firebase Hosting serves the Vite admin UI from `apps/admin/dist`. The dedicated API facade Hosting site serves `api.newleafsystem.com`, provides Firebase reserved auth helper URLs under `/__/auth/*`, and rewrites `/api/**` to the `newleaf-api` Cloud Run service in `us-central1`.
 
 Admin sign-in also refreshes an HTTP-only Firebase session cookie for direct browser access to protected API pages such as Swagger. In production, use the custom-domain URL `https://api.newleafsystem.com/api/v1/service/docs`. The raw Cloud Run `run.app` URL cannot receive a `.newleafsystem.com` browser cookie, so it still requires a bearer token or vendor service credentials.
+
+Manual deployments can be started from GitHub Actions with the `Selected Deployment` workflow. Choose one deployment target:
+
+- `full-stack`: Firebase Hosting admin UI, Firebase Hosting API facade, and Cloud Run renderer before API
+- `admin`: Firebase Hosting admin UI only
+- `api-facade`: Firebase Hosting API facade for `api.newleafsystem.com` only
+- `api`: Cloud Run API only
+- `renderer`: Cloud Run renderer only
+- `api-renderer`: renderer first, then API with the resolved renderer URL
+
+The workflow has a `run_checks` switch that defaults to true and runs the repository preflight once before any selected deployment. Leave it enabled for production deployments.
 
 Required DNS in Cloudflare:
 
@@ -399,7 +410,8 @@ Deploy lifecycle:
 - `main` deploys the Cloud Run API through `.github/workflows/google-cloud-run.yml` only when API service files, API container files, API deploy scripts, `packages/video-assembler/`, or shared npm manifests change.
 - `main` deploys the FFmpeg renderer through `.github/workflows/google-cloud-run.yml` only when renderer service files, the renderer deploy script, or shared npm manifests change.
 - Frontend-only pushes do not trigger Cloud Run deployment, and API-only pushes do not trigger Firebase Hosting deployment.
-- Cloud Run deployments can still be run manually from `.github/workflows/google-cloud-run.yml` or local scripts when you need a selective API or renderer rollout.
+- Selective manual deployments can be run from `.github/workflows/deploy-selected.yml` when you need to deploy only the admin UI, the API facade, the API service, the renderer, or API plus renderer together.
+- Cloud Run deployments can still be run manually from `.github/workflows/google-cloud-run.yml` or local scripts when you need the lower-level API or renderer rollout controls.
 - CodeQL scans JavaScript/TypeScript through `.github/workflows/codeql.yml`.
 
 Deploy Firebase Hosting locally:
