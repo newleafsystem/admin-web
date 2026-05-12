@@ -212,13 +212,15 @@ export function normalizeRole(role) {
 }
 
 export function normalizeUser(user) {
+  const id = normalizeIdentifier(user?.id) || normalizeIdentifier(user?.uid);
+  const uid = normalizeIdentifier(user?.uid) || id;
   const role = isImmutableUser(user) ? 'admin' : normalizeRole(user?.role);
   const immutable = isImmutableUser(user);
   return {
-    id: user.id,
-    uid: user.uid ?? user.id,
+    id,
+    uid,
     email: normalizeEmail(user.email),
-    displayName: user.displayName ?? user.email ?? user.uid ?? user.id,
+    displayName: user.displayName || user.email || uid || id || 'Unknown user',
     photoUrl: user.photoUrl ?? null,
     role,
     roles: rolesForRole(role),
@@ -240,6 +242,10 @@ export function normalizeUser(user) {
     updatedAt: user.updatedAt ?? null,
     authMode: user.authMode ?? user.metadata?.authMode ?? null,
   };
+}
+
+function normalizeIdentifier(value) {
+  return String(value ?? '').trim();
 }
 
 export function isImmutableAdminEmail(email) {

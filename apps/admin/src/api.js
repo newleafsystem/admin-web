@@ -617,11 +617,12 @@ export async function fetchUsers() {
 }
 
 export async function updateUserRole(userId, role, appAccess) {
+  const normalizedUserId = requireUserId(userId, "update user role");
   const payload = {
     ...(role !== undefined ? { role } : {}),
     ...(appAccess !== undefined ? { appAccess } : {})
   };
-  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
+  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(normalizedUserId)}`, {
     method: "PATCH",
     headers: {
       "content-type": "application/json"
@@ -634,7 +635,8 @@ export async function updateUserRole(userId, role, appAccess) {
 }
 
 export async function updateUserNotifications(userId, notificationPreferences) {
-  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}/notifications`, {
+  const normalizedUserId = requireUserId(userId, "update user notifications");
+  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(normalizedUserId)}/notifications`, {
     method: "PATCH",
     headers: {
       "content-type": "application/json"
@@ -647,7 +649,8 @@ export async function updateUserNotifications(userId, notificationPreferences) {
 }
 
 export async function deleteUser(userId) {
-  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(userId)}`, {
+  const normalizedUserId = requireUserId(userId, "delete user");
+  const response = await apiFetch(`${API_BASE_URL}/users/${encodeURIComponent(normalizedUserId)}`, {
     method: "DELETE"
   });
   const body = await readJson(response);
@@ -735,6 +738,14 @@ function delay(ms) {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
+function requireUserId(userId, action) {
+  const normalizedUserId = String(userId ?? "").trim();
+  if (!normalizedUserId) {
+    throw new Error(`Unable to ${action}: user id is missing.`);
+  }
+  return normalizedUserId;
+}
+
 async function apiFetch(url, options) {
   try {
     const token = await getAuthToken();
@@ -797,11 +808,13 @@ function normalizeServiceClient(client) {
 }
 
 function normalizeAppUser(user = {}) {
+  const id = String(user.id ?? user.uid ?? "").trim();
+  const uid = String(user.uid ?? user.id ?? "").trim();
   return {
-    id: user.id ?? user.uid ?? "",
-    uid: user.uid ?? user.id ?? "",
+    id,
+    uid,
     email: user.email ?? "",
-    displayName: user.displayName ?? user.email ?? user.uid ?? "Unknown user",
+    displayName: user.displayName || user.email || uid || id || "Unknown user",
     photoUrl: user.photoUrl ?? null,
     role: user.role ?? (user.roles?.includes("admin") ? "admin" : "anonymous"),
     roles: user.roles ?? [],

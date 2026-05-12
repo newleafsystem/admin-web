@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createInMemoryRepository } from '../lib/repository.js';
-import { createUserAccessService, IMMUTABLE_ADMIN_EMAIL, IMMUTABLE_ADMIN_EMAILS } from './userAccessService.js';
+import { createUserAccessService, IMMUTABLE_ADMIN_EMAIL, IMMUTABLE_ADMIN_EMAILS, normalizeUser } from './userAccessService.js';
 
 const repository = createInMemoryRepository({
   clock: (() => {
@@ -54,6 +54,13 @@ assert.deepEqual(secondImmutableAdmin.roles, ['admin']);
 assert.equal(secondImmutableAdmin.appAccess.admin, true);
 assert.equal(secondImmutableAdmin.appAccess.invest, true);
 assert.equal(secondImmutableAdmin.immutable, true);
+
+const legacyUserWithoutStoredId = normalizeUser({
+  uid: 'legacy-firebase-uid',
+  email: 'legacy.user@example.com',
+});
+assert.equal(legacyUserWithoutStoredId.id, 'legacy-firebase-uid');
+assert.equal(legacyUserWithoutStoredId.uid, 'legacy-firebase-uid');
 
 await assert.rejects(
   () => service.updateUserAccess(secondImmutableAdmin.id, {

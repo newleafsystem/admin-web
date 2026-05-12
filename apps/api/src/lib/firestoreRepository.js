@@ -102,7 +102,7 @@ export function createFirestoreRepository({
   async function getRecord(collectionName, id) {
     if (!id) return undefined;
     const snapshot = await (await collection(collectionName)).doc(id).get();
-    return snapshot.exists ? copy(snapshot.data()) : undefined;
+    return snapshot.exists ? copy(recordFromSnapshot(snapshot)) : undefined;
   }
 
   async function setRecord(collectionName, id, record) {
@@ -124,7 +124,7 @@ export function createFirestoreRepository({
   async function listRecords(collectionName, predicate = () => true) {
     const snapshot = await (await collection(collectionName)).get();
     return snapshot.docs
-      .map((doc) => doc.data())
+      .map(recordFromSnapshot)
       .filter(predicate)
       .sort(compareCreatedAt)
       .map(copy);
@@ -659,6 +659,14 @@ export function createFirestoreRepository({
     async deleteAppUser(userId) {
       return deleteRecord('appUsers', userId);
     },
+  };
+}
+
+function recordFromSnapshot(doc) {
+  const data = doc.data() ?? {};
+  return {
+    ...data,
+    id: String(data.id ?? '').trim() || doc.id,
   };
 }
 
