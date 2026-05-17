@@ -25,6 +25,23 @@ flowchart LR
 
 The API is the only component that talks to vendors. The admin UI consumes `/api/v1` routes and renders normalized operational state.
 
+## API-Driven Async Product Strategy
+
+NewLeaf product flows are API-driven and asynchronous. Frontend apps submit intent, receive a durable state record, and then render status from the API. They should not wait for provider or backend work to finish inside a long browser request.
+
+Core split:
+
+- Admin-web is the control plane. It creates, approves, queues, retries, cancels, and publishes work, then shows what is queued, failed, partially failed, and published.
+- Client-web is mostly read-only. It renders published recommendations, reports, cards, videos, and market data from `api.newleafsystem.com`.
+- Client-web writes are limited to user-owned product surfaces, such as portfolio creation, workbench settings, strategy-builder drafts, and user watchlists. Shared publication, recommendation, email, PDF, and video state remains backend-owned.
+- API services own queues, locks, idempotency, provider credentials, retry state, and audit metadata.
+
+Long-running channels return state, not final completion:
+
+```text
+Admin/client intent -> API creates durable state -> worker/provider fanout -> API updates status -> UI reads status
+```
+
 ## External Service Submission Flow
 
 ```mermaid

@@ -33,6 +33,20 @@ Benefits:
 - Routes stay thin.
 - Provider code is isolated from HTTP concerns.
 
+## API-Driven Async Operations Pattern
+
+NewLeaf product workflows should be API-driven and queue/state driven. Browser clients should start work and then read status; they should not wait for provider, rendering, email, PDF, storage, or publishing work to finish in the request/response path.
+
+Rules:
+
+- Admin-web may create, approve, retry, cancel, or publish work through API calls, but long work should return `202 Accepted` with a job, task, batch, publish plan, or channel status record.
+- The API owns orchestration, idempotency keys, provider credentials, retries, locks, queue state, and audit metadata.
+- Admin-web is the operational console for in-flight and completed work. It should show queued, publishing, partial_failed, failed, and published records from API state rather than blocking on long-running actions.
+- Client-web is mostly a read surface. Public and signed-in pages should read published data through `api.newleafsystem.com`; they should not poll private provider URLs or write directly to Firestore/R2 for shared content.
+- Client-web write paths are narrow and user-owned, such as portfolio records, workbench preferences, strategy-builder drafts, and watchlists owned by the signed-in user. These writes still go through authenticated API routes or tightly scoped Firestore rules.
+- Daily picks, Invest lifecycle cards, email sends, PDFs, scripts, videos, scanner jobs, and social publishing must be modeled as durable backend state with status fields that can be inspected from admin-web.
+- Avoid synchronous browser flows that assume HeyGen, PDF generation, R2 writes, email delivery, or social publishing completes before the UI can continue.
+
 ## Route Pattern
 
 Routes should follow this shape:
