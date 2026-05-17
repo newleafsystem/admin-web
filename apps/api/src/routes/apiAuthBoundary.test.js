@@ -24,6 +24,7 @@ try {
   const protectedRoutes = [
     { method: 'GET', path: '/api/v1/users' },
     { method: 'GET', path: '/api/v1/jobs' },
+    { method: 'GET', path: '/api/v1/recommendation-batches' },
     { method: 'GET', path: '/api/v1/service-clients' },
     { method: 'GET', path: '/api/v1/market/options/snapshots?symbols=AAPL' },
     { method: 'POST', path: '/api/v1/firestore/get', body: { path: 'marketState/current' } },

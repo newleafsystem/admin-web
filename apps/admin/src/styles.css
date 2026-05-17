@@ -3105,6 +3105,83 @@ textarea.script-editor:focus {
   display: flex;
 }
 
+.recommendation-editor-grid,
+.recommendation-batch-list {
+  display: grid;
+  gap: 12px;
+}
+
+.recommendation-editor-card,
+.recommendation-batch-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #fbfcfd;
+}
+
+.recommendation-editor-card textarea {
+  min-height: 92px;
+}
+
+.recommendation-batch-card {
+  background: #ffffff;
+}
+
+.recommendation-batch-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.recommendation-batch-top h3 {
+  margin: 0;
+}
+
+.recommendation-symbol-strip,
+.recommendation-channel-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.recommendation-symbol-strip span {
+  display: inline-grid;
+  min-height: 28px;
+  place-items: center;
+  border: 1px solid rgba(39, 116, 92, 0.18);
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: var(--green-bg);
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.recommendation-channel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+}
+
+.recommendation-channel-grid div {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfd;
+}
+
+.recommendation-channel-grid div > span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .wide-dialog {
   width: min(760px, calc(100vw - 32px));
 }

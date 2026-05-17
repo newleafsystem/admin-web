@@ -1,5 +1,6 @@
 export const navItems = [
   "Dashboard",
+  "Recommendations",
   "Create Content",
   "Content Queue",
   "Review",
@@ -14,6 +15,7 @@ export const navItems = [
 
 export const routeByView = Object.freeze({
   Dashboard: "/",
+  Recommendations: "/recommendations",
   "Create Content": "/create",
   "Content Queue": "/content-queue",
   Review: "/review",

@@ -2,8 +2,10 @@ import React, { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import {
   approveJob,
   approvePublishPlan,
+  approveRecommendationBatch as approveRecommendationBatchApi,
   createContentJob,
   createPublishPlan,
+  createRecommendationBatch as createRecommendationBatchApi,
   createServiceClient,
   deleteUser,
   deleteJobPublications,
@@ -14,6 +16,7 @@ import {
   fetchOperationsSnapshot,
   fetchPublishPlans,
   fetchPublications,
+  fetchRecommendationBatches,
   fetchWatchlistConfig,
   fetchUsers,
   generateJobScript,
@@ -31,7 +34,9 @@ import {
   rotateServiceClient,
   retryPublishAttempt,
   startSocialOAuth,
+  publishRecommendationBatch as publishRecommendationBatchApi,
   updateContentJob,
+  updateRecommendationBatch as updateRecommendationBatchApi,
   updateWatchlistConfig,
   updateUserNotifications,
   updateUserRole,
@@ -89,6 +94,9 @@ const Dashboard = lazy(() =>
 const PublishedVideos = lazy(() =>
   import("./sections/PublishedVideos.jsx").then((module) => ({ default: module.PublishedVideos }))
 );
+const Recommendations = lazy(() =>
+  import("./sections/Recommendations.jsx").then((module) => ({ default: module.Recommendations }))
+);
 const Users = lazy(() =>
   import("./sections/Users.jsx").then((module) => ({ default: module.Users }))
 );
@@ -113,6 +121,7 @@ export default function App({ session }) {
   const [serviceClients, setServiceClients] = useState([]);
   const [users, setUsers] = useState([]);
   const [watchlistConfig, setWatchlistConfig] = useState(null);
+  const [recommendationBatches, setRecommendationBatches] = useState([]);
   const [publicationDrafts, setPublicationDrafts] = useState({});
   const [connectedAccounts, setConnectedAccounts] = useState([]);
   const [auditEvents, setAuditEvents] = useState([]);
@@ -231,6 +240,7 @@ export default function App({ session }) {
         setServiceClients(snapshot.serviceClients);
         setUsers(snapshot.users);
         setWatchlistConfig(snapshot.watchlistConfig);
+        setRecommendationBatches(snapshot.recommendationBatches);
         setPublicationDrafts(buildPublicationDrafts(snapshot.publications));
         setConnectedAccounts(snapshot.connectedAccounts);
         setAuditEvents(snapshot.auditEvents);
@@ -1526,6 +1536,95 @@ export default function App({ session }) {
     }
   }
 
+  async function createRecommendationBatch(payload) {
+    setActionError(null);
+    try {
+      const created = await withSectionLoader("Recommendations", "Creating recommendation batch...", () =>
+        createRecommendationBatchApi(payload)
+      );
+      setRecommendationBatches((current) => [created, ...current.filter((batch) => batch.id !== created.id)]);
+      setAuditEvents((current) =>
+        addAuditEvent(current, "create_recommendation_batch", created.id, currentActor(session), {
+          tradeDate: created.tradeDate,
+          recommendations: created.recommendations.length
+        })
+      );
+      return created;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
+  async function saveRecommendationBatch(batchId, payload) {
+    setActionError(null);
+    try {
+      const updated = await withSectionLoader("Recommendations", "Saving recommendation batch...", () =>
+        updateRecommendationBatchApi(batchId, payload)
+      );
+      setRecommendationBatches((current) =>
+        current.map((batch) => (batch.id === updated.id ? updated : batch))
+      );
+      setAuditEvents((current) =>
+        addAuditEvent(current, "update_recommendation_batch", updated.id, currentActor(session), {
+          tradeDate: updated.tradeDate,
+          recommendations: updated.recommendations.length
+        })
+      );
+      return updated;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
+  async function approveRecommendationBatch(batchId) {
+    setActionError(null);
+    try {
+      const updated = await withSectionLoader("Recommendations", "Approving recommendation batch...", () =>
+        approveRecommendationBatchApi(batchId)
+      );
+      setRecommendationBatches((current) =>
+        current.map((batch) => (batch.id === updated.id ? updated : batch))
+      );
+      setAuditEvents((current) =>
+        addAuditEvent(current, "approve_recommendation_batch", updated.id, currentActor(session), {
+          tradeDate: updated.tradeDate
+        })
+      );
+      return updated;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
+  async function publishRecommendationBatch(batchId) {
+    setActionError(null);
+    try {
+      const updated = await withSectionLoader("Recommendations", "Publishing recommendation batch...", () =>
+        publishRecommendationBatchApi(batchId)
+      );
+      const [refreshedBatches, refreshedJobs] = await Promise.all([
+        fetchRecommendationBatches(),
+        fetchJobs()
+      ]);
+      setRecommendationBatches(refreshedBatches);
+      setJobs(refreshedJobs);
+      setSelectedJobId(updated.scriptJobId ?? refreshedJobs[0]?.id ?? null);
+      setAuditEvents((current) =>
+        addAuditEvent(current, "publish_recommendation_batch", updated.id, currentActor(session), {
+          tradeDate: updated.tradeDate,
+          scriptJobId: updated.scriptJobId
+        })
+      );
+      return updated;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1613,6 +1712,16 @@ export default function App({ session }) {
                 setActiveView={setActiveView}
                 setSelectedJobId={setSelectedJobId}
                 users={users}
+              />
+            )}
+
+            {activeView === "Recommendations" && (
+              <Recommendations
+                batches={recommendationBatches}
+                onApprove={approveRecommendationBatch}
+                onCreate={createRecommendationBatch}
+                onPublish={publishRecommendationBatch}
+                onSave={saveRecommendationBatch}
               />
             )}
 

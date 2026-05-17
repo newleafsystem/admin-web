@@ -3,14 +3,24 @@ import { youtubeMetadataDefaults } from "./constants.js";
 import { getAuthToken } from "./firebaseClient.js";
 
 export async function fetchOperationsSnapshot() {
-  const [jobs, publishPlans, connectedAccounts, publications, serviceClients, users, watchlistConfig] = await Promise.all([
+  const [
+    jobs,
+    publishPlans,
+    connectedAccounts,
+    publications,
+    serviceClients,
+    users,
+    watchlistConfig,
+    recommendationBatches
+  ] = await Promise.all([
     fetchJobs(),
     fetchPublishPlans(),
     fetchSocialAccounts(),
     fetchPublications(),
     fetchServiceClients().catch(() => []),
     fetchUsers().catch(() => []),
-    fetchWatchlistConfig().catch(() => null)
+    fetchWatchlistConfig().catch(() => null),
+    fetchRecommendationBatches().catch(() => [])
   ]);
 
   return {
@@ -21,6 +31,7 @@ export async function fetchOperationsSnapshot() {
     serviceClients,
     users,
     watchlistConfig,
+    recommendationBatches,
     auditEvents: []
   };
 }
@@ -678,6 +689,57 @@ export async function updateWatchlistConfig(config) {
   return normalizeWatchlistConfig(body.watchlist);
 }
 
+export async function fetchRecommendationBatches() {
+  const response = await apiFetch(`${API_BASE_URL}/recommendation-batches`);
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to load recommendation batches");
+  return (body.recommendationBatches ?? []).map(normalizeRecommendationBatch);
+}
+
+export async function createRecommendationBatch(payload) {
+  const response = await apiFetch(`${API_BASE_URL}/recommendation-batches`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to create recommendation batch");
+  return normalizeRecommendationBatch(body.recommendationBatch);
+}
+
+export async function updateRecommendationBatch(batchId, payload) {
+  const response = await apiFetch(`${API_BASE_URL}/recommendation-batches/${encodeURIComponent(batchId)}`, {
+    method: "PATCH",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to update recommendation batch");
+  return normalizeRecommendationBatch(body.recommendationBatch);
+}
+
+export async function approveRecommendationBatch(batchId) {
+  const response = await apiFetch(`${API_BASE_URL}/recommendation-batches/${encodeURIComponent(batchId)}/approve`, {
+    method: "POST"
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to approve recommendation batch");
+  return normalizeRecommendationBatch(body.recommendationBatch);
+}
+
+export async function publishRecommendationBatch(batchId) {
+  const response = await apiFetch(`${API_BASE_URL}/recommendation-batches/${encodeURIComponent(batchId)}/publish`, {
+    method: "POST"
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to publish recommendation batch");
+  return normalizeRecommendationBatch(body.recommendationBatch);
+}
+
 async function requestVideoGenerationWithRecovery({ jobId, path, body, fallbackMessage }) {
   try {
     const response = await apiFetch(path, {
@@ -930,6 +992,77 @@ export function normalizeWatchlistConfig(config = null) {
     updatedAt: formatDate(config.updatedAt),
     updatedBy: config.updatedBy ?? null
   };
+}
+
+export function normalizeRecommendationBatch(batch = {}) {
+  return {
+    id: batch.id ?? "",
+    tradeDate: batch.tradeDate ?? "",
+    weekId: batch.weekId ?? "",
+    title: batch.title ?? "",
+    theme: batch.theme ?? "",
+    dateRange: batch.dateRange ?? "",
+    status: batch.status ?? "draft",
+    recommendations: Array.isArray(batch.recommendations)
+      ? batch.recommendations.map(normalizeRecommendationItem)
+      : [],
+    channels: normalizeRecommendationChannels(batch.channels),
+    publicData: batch.publicData ?? null,
+    scriptJobId: batch.scriptJobId ?? null,
+    createdBy: batch.createdBy ?? null,
+    approvedBy: batch.approvedBy ?? null,
+    approvedAt: formatDate(batch.approvedAt),
+    publishedBy: batch.publishedBy ?? null,
+    publishedAt: formatDate(batch.publishedAt),
+    createdAt: formatDate(batch.createdAt),
+    updatedAt: formatDate(batch.updatedAt),
+    metadata: batch.metadata ?? {}
+  };
+}
+
+function normalizeRecommendationItem(item = {}) {
+  return {
+    id: item.id ?? "",
+    tileId: item.tileId ?? item.id ?? "",
+    symbol: String(item.symbol ?? "").toUpperCase(),
+    strategy: item.strategy ?? "",
+    direction: item.direction ?? "NEUTRAL",
+    price: item.price ?? "",
+    expiry: item.expiry ?? "",
+    rewardRisk: item.rewardRisk ?? "",
+    oddsOfProfit: item.oddsOfProfit ?? "",
+    maxProfit: item.maxProfit ?? "",
+    thesis: item.thesis ?? "",
+    riskNotes: item.riskNotes ?? "",
+    entry: item.entry ?? "",
+    exit: item.exit ?? "",
+    ivContext: item.ivContext ?? {},
+    sentiment: item.sentiment ?? {},
+    lifecycle: item.lifecycle ?? {},
+    legs: item.legs ?? [],
+    sortOrder: Number(item.sortOrder ?? 0)
+  };
+}
+
+function normalizeRecommendationChannels(channels = {}) {
+  const fallback = {
+    liveSite: { status: "not_requested" },
+    email: { status: "not_requested" },
+    pdf: { status: "not_requested" },
+    script: { status: "not_requested" },
+    video: { status: "not_requested" }
+  };
+  return Object.fromEntries(
+    Object.entries({ ...fallback, ...channels }).map(([key, value]) => [
+      key,
+      {
+        status: value?.status ?? "unknown",
+        updatedAt: formatDate(value?.updatedAt),
+        jobId: value?.jobId ?? null,
+        artifact: value?.artifact ?? null
+      }
+    ])
+  );
 }
 
 function normalizeWatchlistMarket(market = {}) {

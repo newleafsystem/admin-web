@@ -70,6 +70,7 @@ function defaultCollections(prefix = '') {
     secrets: `${normalizedPrefix}repositorySecrets`,
     serviceClients: `${normalizedPrefix}serviceClients`,
     smartCollections: `${normalizedPrefix}smartCollections`,
+    recommendationBatches: `${normalizedPrefix}recommendationBatches`,
     marketWatchlists: `${normalizedPrefix}marketWatchlists`,
     marketUniverseSymbols: `${normalizedPrefix}marketUniverseSymbols`,
     appUsers: `${normalizedPrefix}users`,
@@ -580,6 +581,58 @@ export function createFirestoreRepository({
       return deleteRecord('smartCollections', collectionId);
     },
 
+    async createRecommendationBatch(input) {
+      const timestamp = clock();
+      const id = input.id ?? makeId('recommendationBatch');
+      const batch = applyTimestamps(
+        {
+          id,
+          tradeDate: input.tradeDate,
+          weekId: input.weekId ?? null,
+          title: input.title,
+          theme: input.theme ?? '',
+          dateRange: input.dateRange ?? '',
+          status: input.status ?? 'draft',
+          recommendations: input.recommendations ?? [],
+          channels: input.channels ?? {},
+          publicData: input.publicData ?? null,
+          scriptJobId: input.scriptJobId ?? null,
+          createdBy: input.createdBy ?? null,
+          approvedBy: input.approvedBy ?? null,
+          approvedAt: input.approvedAt ?? null,
+          publishedBy: input.publishedBy ?? null,
+          publishedAt: input.publishedAt ?? null,
+          metadata: input.metadata ?? {},
+        },
+        timestamp,
+      );
+      return setRecord('recommendationBatches', id, batch);
+    },
+
+    async listRecommendationBatches(filters = {}) {
+      const batches = await listRecords('recommendationBatches', (batch) => {
+        if (filters.status && batch.status !== filters.status) return false;
+        return true;
+      });
+      return batches.sort(compareUpdatedAtDesc);
+    },
+
+    async getRecommendationBatch(batchId) {
+      return getRecord('recommendationBatches', batchId);
+    },
+
+    async updateRecommendationBatch(batchId, patch) {
+      return updateRecord('recommendationBatches', batchId, patch);
+    },
+
+    async getLatestPublishedRecommendationBatch() {
+      const batches = await listRecords(
+        'recommendationBatches',
+        (batch) => batch.status === 'published',
+      );
+      return copy(batches.sort(comparePublishedAtDesc)[0]);
+    },
+
     async getMarketWatchlist(watchlistId) {
       return getRecord('marketWatchlists', watchlistId);
     },
@@ -672,4 +725,12 @@ function recordFromSnapshot(doc) {
 
 function compareCreatedAt(left, right) {
   return String(left.createdAt ?? '').localeCompare(String(right.createdAt ?? ''));
+}
+
+function compareUpdatedAtDesc(left, right) {
+  return String(right.updatedAt ?? right.createdAt ?? '').localeCompare(String(left.updatedAt ?? left.createdAt ?? ''));
+}
+
+function comparePublishedAtDesc(left, right) {
+  return String(right.publishedAt ?? right.updatedAt ?? '').localeCompare(String(left.publishedAt ?? left.updatedAt ?? ''));
 }

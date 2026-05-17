@@ -7,6 +7,10 @@ import { createJobsRouter } from './routes/jobs.js';
 import { createPublishingRouter } from './routes/publishing.js';
 import { createMarketDataRouter } from './routes/marketData.js';
 import { createPublicAssetsRouter } from './routes/publicAssets.js';
+import {
+  createPublicRecommendationBatchesRouter,
+  createRecommendationBatchesRouter,
+} from './routes/recommendationBatches.js';
 import { createServiceApiRouter } from './routes/serviceApi.js';
 import { createServiceClientsRouter } from './routes/serviceClients.js';
 import { createServiceDocsRouter } from './routes/serviceDocs.js';
@@ -28,6 +32,7 @@ import { createSocialConfigService } from './services/socialConfigService.js';
 import { createSocialOAuthService } from './services/socialOAuthService.js';
 import { createSocialPublisherService } from './services/socialPublisherService.js';
 import { startPublicationSyncScheduler } from './services/publicationSyncScheduler.js';
+import { createRecommendationBatchService } from './services/recommendationBatchService.js';
 import { createYouTubeOAuthService } from './services/youtubeOAuthService.js';
 import { createYouTubePublisherService } from './services/youtubePublisherService.js';
 import { createUserAccessService } from './services/userAccessService.js';
@@ -53,6 +58,8 @@ export function createApp(options = {}) {
   const videoReviewService = options.videoReviewService ?? createVideoReviewService();
   const videoStudioService = options.videoStudioService ?? createVideoStudioService();
   const watchlistService = options.watchlistService ?? createWatchlistService({ repository });
+  const recommendationBatchService =
+    options.recommendationBatchService ?? createRecommendationBatchService({ repository, jobStateService });
   const youtubePublisherService =
     options.youtubePublisherService ??
     createYouTubePublisherService({ repository, jobStateService, youtubeOAuthService });
@@ -80,6 +87,7 @@ export function createApp(options = {}) {
     videoStudioService,
     videoThumbnailService,
     watchlistService,
+    recommendationBatchService,
   };
 
   const app = express();
@@ -128,11 +136,13 @@ export function createApp(options = {}) {
   app.use('/api/auth', createAuthSessionRouter(services));
   app.use('/api/v1/public', createPublicAssetsRouter(services));
   app.use('/api/v1/public/firestore', createPublicFirestoreBridgeRouter());
+  app.use('/api/v1/public', createPublicRecommendationBatchesRouter(services));
 
   app.use(authenticateRequest({ repository, userAccessService }));
   app.use('/api/v1/firestore', createFirestoreBridgeRouter());
   app.use('/api/v1', createUsersRouter(services));
   app.use('/api/v1', createWatchlistsRouter(services));
+  app.use('/api/v1', createRecommendationBatchesRouter(services));
   app.use('/api/v1/assets', createAssetsRouter(services));
   app.use('/api/v1/jobs', createJobsRouter(services));
   app.use('/api/v1/market', createMarketDataRouter(services));

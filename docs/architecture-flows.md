@@ -105,23 +105,24 @@ sequenceDiagram
   participant UI as Admin UI
   participant API
   participant Repo as Firestore/Repository
-  participant Public as Public Data Cache
+  participant Client as Client Web
   participant Email
   participant PDF
   participant HeyGen
   participant Assembler
 
   Admin->>UI: Curate daily recommendation batch
-  UI->>API: Create or update draft batch
+  UI->>API: POST/PATCH /api/v1/recommendation-batches
   API->>Repo: Store canonical recommendationBatch
   Admin->>UI: Approve and publish batch
-  UI->>API: Publish recommendationBatch
-  API->>Repo: Mark publishing and record audit metadata
-  API->>Public: Write published JSON/cache for picks and invest cards
-  API->>Email: Resolve weeklyPicks recipients and send notification
-  API->>PDF: Generate batch PDF artifact
-  API->>Repo: Store generated script/prompt artifact
-  API->>HeyGen: Submit approved script through backend service
+  UI->>API: POST approve, POST publish
+  API->>Repo: Mark published and store public snapshot
+  Client->>API: GET /api/v1/public/recommendations/latest
+  API-->>Client: Published picks/invest card data
+  API->>Repo: Create text_to_heygen recommendation video job
+  API->>Email: Queue weeklyPicks notification channel
+  API->>PDF: Queue batch PDF channel
+  API->>HeyGen: Submit approved script through existing backend flow
   HeyGen-->>API: Webhook or polling completion
   API->>Assembler: Assemble final video when all segments are ready
   API->>Repo: Mark channel states and final batch status
@@ -131,6 +132,7 @@ Channel ownership:
 
 - Firestore is the canonical source for the approved recommendation batch and audit state.
 - R2 or public storage is a delivery/cache layer for client-web cards, not the only source of truth.
+- The first implemented public surface is the API recommendation route; storage cache generation can be added later without changing the client contract.
 - Live-site cards, email, PDF, script, and HeyGen video all derive from the same stable `recommendationBatchId`.
 - Email recipients are resolved from user notification preferences, not ad hoc recipient lists.
 - Video generation must reuse the existing backend HeyGen flow; the admin UI never calls HeyGen directly.

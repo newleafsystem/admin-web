@@ -24,6 +24,14 @@ function listFromMap(map, predicate = () => true) {
   return Array.from(map.values()).filter(predicate).map(copy);
 }
 
+function compareUpdatedAtDesc(left, right) {
+  return String(right.updatedAt ?? right.createdAt ?? '').localeCompare(String(left.updatedAt ?? left.createdAt ?? ''));
+}
+
+function comparePublishedAtDesc(left, right) {
+  return String(right.publishedAt ?? right.updatedAt ?? '').localeCompare(String(left.publishedAt ?? left.updatedAt ?? ''));
+}
+
 function loadCollection(map, records, key = 'id') {
   for (const record of records ?? []) {
     if (record?.[key]) {
@@ -44,6 +52,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
   const secrets = new Map();
   const serviceClients = new Map();
   const smartCollections = new Map();
+  const recommendationBatches = new Map();
   const marketWatchlists = new Map();
   const marketUniverseSymbols = new Map();
   const appUsers = new Map();
@@ -66,6 +75,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       secrets: [],
       serviceClients: [],
       smartCollections: [],
+      recommendationBatches: [],
       marketWatchlists: [],
       marketUniverseSymbols: [],
       appUsers: [],
@@ -80,6 +90,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
     loadCollection(secrets, persisted.secrets);
     loadCollection(serviceClients, persisted.serviceClients);
     loadCollection(smartCollections, persisted.smartCollections);
+    loadCollection(recommendationBatches, persisted.recommendationBatches);
     loadCollection(marketWatchlists, persisted.marketWatchlists);
     loadCollection(marketUniverseSymbols, persisted.marketUniverseSymbols);
     loadCollection(appUsers, persisted.appUsers);
@@ -102,6 +113,7 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       secrets: Array.from(secrets.values()),
       serviceClients: Array.from(serviceClients.values()),
       smartCollections: Array.from(smartCollections.values()),
+      recommendationBatches: Array.from(recommendationBatches.values()),
       marketWatchlists: Array.from(marketWatchlists.values()),
       marketUniverseSymbols: Array.from(marketUniverseSymbols.values()),
       appUsers: Array.from(appUsers.values()),
@@ -646,6 +658,71 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       smartCollections.delete(collectionId);
       await persist();
       return copy(existing);
+    },
+
+    async createRecommendationBatch(input) {
+      await hydrate();
+      const timestamp = clock();
+      const id = input.id ?? makeId('recommendationBatch');
+      const batch = applyTimestamps(
+        {
+          id,
+          tradeDate: input.tradeDate,
+          weekId: input.weekId ?? null,
+          title: input.title,
+          theme: input.theme ?? '',
+          dateRange: input.dateRange ?? '',
+          status: input.status ?? 'draft',
+          recommendations: input.recommendations ?? [],
+          channels: input.channels ?? {},
+          publicData: input.publicData ?? null,
+          scriptJobId: input.scriptJobId ?? null,
+          createdBy: input.createdBy ?? null,
+          approvedBy: input.approvedBy ?? null,
+          approvedAt: input.approvedAt ?? null,
+          publishedBy: input.publishedBy ?? null,
+          publishedAt: input.publishedAt ?? null,
+          metadata: input.metadata ?? {},
+        },
+        timestamp,
+      );
+      recommendationBatches.set(id, batch);
+      await persist();
+      return copy(batch);
+    },
+
+    async listRecommendationBatches(filters = {}) {
+      await hydrate();
+      return listFromMap(recommendationBatches, (batch) => {
+        if (filters.status && batch.status !== filters.status) return false;
+        return true;
+      }).sort(compareUpdatedAtDesc);
+    },
+
+    async getRecommendationBatch(batchId) {
+      await hydrate();
+      return copy(recommendationBatches.get(batchId));
+    },
+
+    async updateRecommendationBatch(batchId, patch) {
+      await hydrate();
+      const existing = recommendationBatches.get(batchId);
+      if (!existing) return null;
+      const updated = {
+        ...existing,
+        ...patch,
+        updatedAt: clock(),
+      };
+      recommendationBatches.set(batchId, updated);
+      await persist();
+      return copy(updated);
+    },
+
+    async getLatestPublishedRecommendationBatch() {
+      await hydrate();
+      const published = Array.from(recommendationBatches.values()).filter((batch) => batch.status === 'published');
+      published.sort(comparePublishedAtDesc);
+      return copy(published[0]);
     },
 
     async getMarketWatchlist(watchlistId) {
