@@ -13,6 +13,7 @@ import { createServiceDocsRouter } from './routes/serviceDocs.js';
 import { createSmartCollectionsRouter } from './routes/smartCollections.js';
 import { createSocialAccountsRouter, createSocialOAuthCallbackRouter } from './routes/socialAccounts.js';
 import { createAuthSessionRouter } from './routes/authSession.js';
+import { createFirestoreBridgeRouter, createPublicFirestoreBridgeRouter } from './routes/firestoreBridge.js';
 import { createUsersRouter } from './routes/users.js';
 import { createVideoProjectsRouter } from './routes/videoProjects.js';
 import { createWatchlistsRouter } from './routes/watchlists.js';
@@ -126,8 +127,10 @@ export function createApp(options = {}) {
   app.use('/api/v1/service', createServiceApiRouter(services));
   app.use('/api/auth', createAuthSessionRouter(services));
   app.use('/api/v1/public', createPublicAssetsRouter(services));
+  app.use('/api/v1/public/firestore', createPublicFirestoreBridgeRouter());
 
   app.use(authenticateRequest({ repository, userAccessService }));
+  app.use('/api/v1/firestore', createFirestoreBridgeRouter());
   app.use('/api/v1', createUsersRouter(services));
   app.use('/api/v1', createWatchlistsRouter(services));
   app.use('/api/v1/assets', createAssetsRouter(services));
