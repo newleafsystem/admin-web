@@ -10,10 +10,11 @@ const openApiPath = path.resolve(currentDir, '../../../../docs/service-api-opena
 
 export function createServiceDocsRouter({ repository, userAccessService } = {}) {
   const router = Router();
-  router.use(authenticateUserOrService({ repository, userAccessService }), requireRole('service'));
+  const docsAuth = [authenticateUserOrService({ repository, userAccessService }), requireRole('service')];
 
   router.get(
     '/openapi.yaml',
+    docsAuth,
     asyncHandler(async (req, res) => {
       const spec = await fsp.readFile(openApiPath, 'utf8');
       res
@@ -23,13 +24,17 @@ export function createServiceDocsRouter({ repository, userAccessService } = {}) 
     }),
   );
 
-  router.get('/docs', asyncHandler(async (req, res) => {
-    const spec = await fsp.readFile(openApiPath, 'utf8');
-    res
-      .type('html')
-      .set('X-Content-Type-Options', 'nosniff')
-      .send(renderSwaggerUiPage(spec));
-  }));
+  router.get(
+    '/docs',
+    docsAuth,
+    asyncHandler(async (req, res) => {
+      const spec = await fsp.readFile(openApiPath, 'utf8');
+      res
+        .type('html')
+        .set('X-Content-Type-Options', 'nosniff')
+        .send(renderSwaggerUiPage(spec));
+    }),
+  );
 
   return router;
 }

@@ -19,8 +19,34 @@ const server = await listen(app);
 const baseUrl = `http://127.0.0.1:${server.address().port}`;
 
 try {
+  const anonymousSubmission = await unsignedJson({
+    method: 'POST',
+    path: '/api/v1/service/text-to-heygen/jobs',
+    body: {
+      title: 'Unsigned Vendor Script',
+      script: 'This request should never be accepted without service credentials.',
+    },
+  });
+  assert.equal(anonymousSubmission.status, 401);
+  assert.match(anonymousSubmission.body.error.message, /Missing service API credentials/);
+
   const firstClient = await createClient({ name: 'Vendor A' });
   const secondClient = await createClient({ name: 'Vendor B' });
+  const scopedOutClient = await createClient({ name: 'Vendor Without Scope' });
+  await repository.updateServiceClient(scopedOutClient.client.id, { scopes: [] });
+
+  const deniedByScope = await signedJson({
+    method: 'POST',
+    path: '/api/v1/service/text-to-heygen/jobs',
+    keyId: scopedOutClient.credentials.keyId,
+    signingSecret: scopedOutClient.credentials.signingSecret,
+    body: {
+      title: 'No Scope Script',
+      script: 'This client is signed but not allowed to submit jobs.',
+    },
+  });
+  assert.equal(deniedByScope.status, 403);
+  assert.match(deniedByScope.body.error.message, /not allowed to use this scope/);
 
   const payload = {
     title: 'Vendor Script',
@@ -133,6 +159,20 @@ async function postAdmin(path, body = {}) {
       'content-type': 'application/json',
     },
     body: JSON.stringify(body),
+  });
+  return {
+    status: response.status,
+    body: await response.json().catch(() => ({})),
+  };
+}
+
+async function unsignedJson({ method, path, body = undefined }) {
+  const response = await fetch(`${baseUrl}${path}`, {
+    method,
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
   return {
     status: response.status,

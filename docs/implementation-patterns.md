@@ -363,6 +363,8 @@ Rules:
 - expose service-owned artifact content only after checking the job belongs to the same service key fingerprint;
 - expose vendor documentation through `GET /api/v1/service/docs` and the raw OpenAPI contract through `GET /api/v1/service/openapi.yaml`;
 - protect docs routes with either an approved admin Firebase bearer token, approved admin session cookie, or valid vendor service credentials;
+- keep the docs auth middleware scoped to the docs endpoints only, so operational service endpoints are guarded by the service API middleware and return service-specific auth failures;
+- keep the Postman collection at `docs/postman/newleaf-service-api.postman_collection.json` aligned with the HMAC signature payload and OpenAPI examples;
 - keep every operational service route protected by signed request headers;
 - keep a low default rate limit and move rate limiting to Firebase Hosting, Cloud Run, or API gateway ingress for production.
 

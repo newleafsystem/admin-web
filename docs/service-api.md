@@ -40,6 +40,24 @@ The Swagger page and raw OpenAPI contract are protected. Anonymous browser reque
 
 Swagger "Try it out" is intentionally disabled because this API is meant for backend-to-backend calls. Generate the HMAC signature in the calling backend, Postman pre-request script, or a local test script, then send the signed request from there. If a request is sent without signed headers, the API returns `Missing service API credentials`.
 
+## Postman Collection
+
+Import the developer collection from:
+
+```text
+docs/postman/newleaf-service-api.postman_collection.json
+```
+
+Set collection variables locally:
+
+```text
+baseUrl=https://api.newleafsystem.com/api/v1
+serviceKeyId=<vendor key id>
+serviceSigningSecret=<one-time vendor signing secret>
+```
+
+The collection signs each request with a pre-request script. Do not commit exported collections after entering real values. The optional `serviceApiKey` variable is only for the legacy hashed-key fallback and should stay empty for managed vendor clients.
+
 ## Vendor Access
 
 Admins create vendor access from the **Vendors** page.
@@ -171,3 +189,5 @@ The same signed request headers are required. The service key must own the job.
 - Rotate a vendor client when a signing secret is exposed.
 - Use Firebase Hosting, Cloud Run, or an API gateway for IP allowlisting and edge rate limiting in production.
 - Keep `SERVICE_API_RATE_LIMIT_PER_MINUTE` low for local and staging use.
+- Operational `/api/v1/service/*` routes do not accept admin Firebase credentials; they require signed service credentials and service scopes.
+- Admin and product APIs mounted after the global auth middleware require a Firebase ID token or the shared NewLeaf session cookie before route-level roles are checked.

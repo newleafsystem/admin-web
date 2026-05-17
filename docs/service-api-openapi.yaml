@@ -28,11 +28,23 @@ info:
     pre-request script, or local signing script that can generate the exact HMAC
     headers for the request body.
 servers:
+  - url: https://api.newleafsystem.com/api/v1
+    description: Production API custom domain.
   - url: http://localhost:8080/api/v1
+    description: Local development API.
+tags:
+  - name: Service docs
+    description: Protected Swagger and OpenAPI documentation endpoints.
+  - name: Text-to-HeyGen jobs
+    description: Backend-to-backend service endpoints for vendor-owned video jobs.
 security:
   - newleafKeyId: []
     newleafTimestamp: []
     newleafSignature: []
+  - serviceApiKey: []
+externalDocs:
+  description: Service API usage guide and auth notes.
+  url: ./service-api.md
 components:
   securitySchemes:
     newleafKeyId:
@@ -50,7 +62,68 @@ components:
       in: header
       name: x-newleaf-signature
       description: HMAC-SHA256 signature formatted as sha256=<hex>.
+    serviceApiKey:
+      type: apiKey
+      in: header
+      name: x-newleaf-api-key
+      description: Legacy hashed API key fallback for local scripts. Managed signed clients are preferred.
+    firebaseBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: Firebase ID token
+      description: Admin Firebase ID token accepted for documentation routes only.
+    newleafSession:
+      type: apiKey
+      in: cookie
+      name: __Host-newleaf_session
+      description: HTTP-only NewLeaf Firebase session cookie accepted for documentation routes only.
+  responses:
+    BadRequest:
+      description: Request validation failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing, invalid, expired, or incorrectly signed credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated caller does not have the required role, scope, or resource ownership.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Resource not found or not visible to the authenticated caller.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    TooManyRequests:
+      description: Service API rate limit exceeded.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
   schemas:
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [message, requestId]
+          properties:
+            message:
+              type: string
+            requestId:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
     Segment:
       type: object
       required: [title, prompt]
@@ -179,8 +252,16 @@ components:
 paths:
   /service/docs:
     get:
+      tags: [Service docs]
       summary: Open Swagger UI documentation.
       description: Protected documentation page for vendors and admins.
+      security:
+        - firebaseBearer: []
+        - newleafSession: []
+        - newleafKeyId: []
+          newleafTimestamp: []
+          newleafSignature: []
+        - serviceApiKey: []
       responses:
         '200':
           description: Swagger UI HTML.
@@ -188,10 +269,22 @@ paths:
             text/html:
               schema:
                 type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /service/openapi.yaml:
     get:
+      tags: [Service docs]
       summary: Download the OpenAPI contract.
       description: Protected OpenAPI YAML contract used by the Swagger UI page.
+      security:
+        - firebaseBearer: []
+        - newleafSession: []
+        - newleafKeyId: []
+          newleafTimestamp: []
+          newleafSignature: []
+        - serviceApiKey: []
       responses:
         '200':
           description: OpenAPI YAML.
@@ -199,13 +292,21 @@ paths:
             application/yaml:
               schema:
                 type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /service/text-to-heygen/jobs:
     post:
+      tags: [Text-to-HeyGen jobs]
       summary: Submit a text-to-HeyGen job.
       description: |
         Creates a service-owned content job from a vendor script. The script can be
         sent as plain text, base64, markdown slides, or explicit ordered segments.
         The backend owns HeyGen credentials and generation state.
+
+        This route requires a service client with the `text_to_heygen` scope. Admin
+        Firebase credentials are not accepted for operational service calls.
       requestBody:
         required: true
         content:
@@ -262,12 +363,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceJobResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Missing or invalid service credentials.
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Service client cannot access the resource or scope.
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /service/jobs/{jobId}:
     get:
+      tags: [Text-to-HeyGen jobs]
       summary: Get service-owned job status.
       description: Returns only jobs created by the calling service client.
       parameters:
@@ -283,14 +389,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Service client does not own the job.
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Job not found.
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /service/jobs/{jobId}/retry:
     post:
+      tags: [Text-to-HeyGen jobs]
       summary: Retry a failed or script-ready service job.
-      description: Reuses the original service job and script metadata. This does not create a new public publish intent.
+      description: |
+        Reuses the original service job and script metadata. This does not create a
+        new public publish intent. Requires the `text_to_heygen` scope and ownership
+        of the target service job.
       parameters:
         - name: jobId
           in: path
@@ -304,8 +418,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ServiceJobResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
   /service/jobs/{jobId}/artifacts/{artifactId}/content:
     get:
+      tags: [Text-to-HeyGen jobs]
       summary: Stream a service-owned artifact.
       description: Supports full and ranged responses for service-owned local artifacts. Provider URL artifacts redirect to the provider URL.
       parameters:
@@ -324,7 +447,11 @@ paths:
           description: Artifact stream.
         '206':
           description: Partial artifact stream.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '403':
-          description: Service client does not own the job.
+          $ref: '#/components/responses/Forbidden'
         '404':
-          description: Artifact not found.
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'

@@ -50,6 +50,9 @@ try {
   assert.match(yamlResponse.headers.get('content-type') ?? '', /application\/yaml/);
   const yaml = await yamlResponse.text();
   assert.match(yaml, /NewLeaf Service API/);
+  assert.match(yaml, /https:\/\/api\.newleafsystem\.com\/api\/v1/);
+  assert.match(yaml, /serviceApiKey/);
+  assert.match(yaml, /firebaseBearer/);
   assert.match(yaml, /\/service\/text-to-heygen\/jobs/);
 
   console.log('Service API Swagger docs tests passed.');
@@ -59,7 +62,7 @@ try {
 
 async function createClient() {
   const keyId = 'svc_docs_test';
-  const signingSecret = 'nlsec_docs_test_secret';
+  const signingSecret = 'docs_test_signing_secret';
   const secretRecord = await repository.putSecret({
     provider: 'newleaf',
     kind: 'service_api_signing_secret',

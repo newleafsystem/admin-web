@@ -655,8 +655,10 @@ POST /api/v1/webhooks/social/:platform
 - [docs/end-to-end-api-solution.md](docs/end-to-end-api-solution.md): full product architecture.
 - [docs/mvp-implementation-plan.md](docs/mvp-implementation-plan.md): phased MVP plan.
 - [docs/social-channel-secrets.md](docs/social-channel-secrets.md): secret and connected-account model.
+- [docs/api-auth-and-roles.md](docs/api-auth-and-roles.md): API auth modes, route boundaries, and role validation.
 - [docs/service-api.md](docs/service-api.md): signed vendor API usage.
 - [docs/service-api-openapi.yaml](docs/service-api-openapi.yaml): OpenAPI contract for service clients.
+- [docs/postman/newleaf-service-api.postman_collection.json](docs/postman/newleaf-service-api.postman_collection.json): Postman collection for signed service API calls.
 - [docs/newleaf-video-studio.md](docs/newleaf-video-studio.md): timeline-based walkthrough editor and FFmpeg render API.
 - [docs/youtube-oauth-flow.md](docs/youtube-oauth-flow.md): YouTube OAuth setup and connection flow.
 
@@ -686,6 +688,12 @@ Protected raw OpenAPI YAML:
 http://localhost:8080/api/v1/service/openapi.yaml
 ```
 
+Postman collection:
+
+```text
+docs/postman/newleaf-service-api.postman_collection.json
+```
+
 Submit a job:
 
 ```text
@@ -701,6 +709,8 @@ GET /api/v1/service/jobs/<jobId>
 The legacy `SERVICE_API_KEY_HASHES` environment variable remains available for local scripted tests, but managed vendor clients should use the signed request flow. Do not expose service credentials in a browser or mobile app. For production, put edge rate limiting and IP allowlists at Firebase Hosting, Cloud Run, or your API gateway.
 
 For full markdown scripts, vendors can send either plain JSON text in `script` or UTF-8 base64 in `scriptBase64`. Use `segmentMode: "slides"` for scripts with headings such as `## Slide 1: Intro`.
+
+See [docs/api-auth-and-roles.md](docs/api-auth-and-roles.md) for the route-level auth boundary. Product/admin routes require Firebase bearer or shared session-cookie auth before role checks; operational service routes require signed service credentials and service scopes.
 
 ## Security Before Publishing To GitHub
 
