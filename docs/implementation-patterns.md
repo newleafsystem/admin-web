@@ -115,6 +115,43 @@ Rules:
 - Existing users with no preference record default to weekly picks and account-access email enabled when they have an email address. Admins can pause delivery or disable individual topics from the Users section.
 - Pipeline and scheduler email senders must resolve recipients from `users/{uid}.notificationPreferences`; they should not email every user solely because an email field exists.
 
+## Picks Recommendation Pipeline Pattern
+
+Admin-web is the source of truth for daily picks recommendations. The daily workflow starts with an admin-curated batch, normally five recommendations, and then fans out into public display, notification, PDF, script, and video channels.
+
+Rules:
+
+- Admins should create and approve one recommendation batch through the API, not by manually editing client-web JSON.
+- The canonical persisted batch should live in Firestore first so admin review, audit, email recipient resolution, and downstream job state are queryable. If R2 is used, treat it as a public delivery/cache artifact generated from the canonical Firestore batch.
+- Public client-web pages must read the published batch through `api.newleafsystem.com` routes, either directly from Firestore allowlisted public paths or through `/api/v1/public/data/*`; browser bundles must not expose R2 or Firebase internal provider URLs.
+- Each published batch should include a stable `recommendationBatchId`, `tradeDate`, `status`, `publishedAt`, and exactly ordered recommendation items. Item IDs must be stable because cards, PDFs, scripts, videos, and email links will point back to the same recommendation.
+- Publishing a batch should be idempotent. Re-running a failed fanout for the same `recommendationBatchId` must update or reuse downstream artifacts instead of creating duplicate emails, PDFs, scripts, or HeyGen jobs.
+- Live-site cards are the first channel: picks and invest cards render from the published batch data object. Invest may show lifecycle/status fields derived from the same item rather than a separate duplicate recommendation record.
+- Email is the second channel: recipients come from `users/{uid}.notificationPreferences.email` where `enabled` is true and `topics.weeklyPicks` is true. Do not send to users solely because they have an email address.
+- PDF is the third channel: generate one PDF artifact for the batch, store it as a normal job/artifact or recommendation artifact, and expose it through authenticated admin routes plus public links only when the batch is published.
+- Script generation is the fourth channel: create a structured script/prompt from the same batch data. Keep the generated script editable in the Review Workspace before video generation.
+- HeyGen video generation is the fifth channel: create or reuse a `text_to_heygen` job and run the existing HeyGen generation flow. The admin UI should not call HeyGen directly.
+- Audit records must capture who created, approved, published, regenerated, emailed, and republished a recommendation batch.
+- Do not couple the daily picks pipeline to the stock scanner scheduler. Scanner data can inform the admin decision, but admin approval is the trigger that publishes recommendations and starts channel fanout.
+
+Suggested durable states:
+
+```text
+draft -> approved -> publishing -> published
+                 \-> partial_failed
+                 \-> failed
+```
+
+Suggested channel state keys under the batch:
+
+```text
+channels.liveSite.status
+channels.email.status
+channels.pdf.status
+channels.script.status
+channels.video.status
+```
+
 ## Market Watchlist Pattern
 
 - `admin-web` owns scanner watchlist edits through `GET/PUT /api/v1/watchlists/default`; the browser never writes Firestore directly.

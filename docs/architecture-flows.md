@@ -80,6 +80,44 @@ Main records:
 - `job`: source, status, owner, title, and workflow metadata.
 - `artifact`: source files, generated video, transcript, captions, thumbnails, or payload snapshots.
 
+## Picks Recommendation Publishing Flow
+
+```mermaid
+sequenceDiagram
+  participant Admin
+  participant UI as Admin UI
+  participant API
+  participant Repo as Firestore/Repository
+  participant Public as Public Data Cache
+  participant Email
+  participant PDF
+  participant HeyGen
+  participant Assembler
+
+  Admin->>UI: Curate daily recommendation batch
+  UI->>API: Create or update draft batch
+  API->>Repo: Store canonical recommendationBatch
+  Admin->>UI: Approve and publish batch
+  UI->>API: Publish recommendationBatch
+  API->>Repo: Mark publishing and record audit metadata
+  API->>Public: Write published JSON/cache for picks and invest cards
+  API->>Email: Resolve weeklyPicks recipients and send notification
+  API->>PDF: Generate batch PDF artifact
+  API->>Repo: Store generated script/prompt artifact
+  API->>HeyGen: Submit approved script through backend service
+  HeyGen-->>API: Webhook or polling completion
+  API->>Assembler: Assemble final video when all segments are ready
+  API->>Repo: Mark channel states and final batch status
+```
+
+Channel ownership:
+
+- Firestore is the canonical source for the approved recommendation batch and audit state.
+- R2 or public storage is a delivery/cache layer for client-web cards, not the only source of truth.
+- Live-site cards, email, PDF, script, and HeyGen video all derive from the same stable `recommendationBatchId`.
+- Email recipients are resolved from user notification preferences, not ad hoc recipient lists.
+- Video generation must reuse the existing backend HeyGen flow; the admin UI never calls HeyGen directly.
+
 ## HeyGen Generation Flow
 
 ```mermaid
