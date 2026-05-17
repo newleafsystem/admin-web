@@ -20,12 +20,16 @@ https://api.newleafsystem.com/api/v1/service/docs
 
 Admin and client-web sign-in refresh one HTTP-only Firebase session cookie through the shared API. Set `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` and `AUTH_SESSION_COOKIE_PATH=/` so the same cookie works for both `/api/auth/*` browser auth endpoints and `/api/v1/*` protected service routes. The raw Cloud Run `run.app` URL cannot participate in this browser SSO cookie, so it still requires an `Authorization` bearer token or signed vendor credentials.
 
+The HTTP-only session cookie is authoritative. `/api/auth/custom-token` is only a convenience endpoint used to restore Firebase Web SDK client state after a page refresh. If Firebase Admin cannot mint a custom token, for example because the Cloud Run runtime service account is missing `iam.serviceAccounts.signBlob`, the endpoint still returns the authenticated session payload with `customTokenUnavailable=true` instead of failing the page with a 500.
+
+For full Firebase Web SDK restore, the Cloud Run runtime service account also needs custom-token signing permission. The deployment helper grants `roles/iam.serviceAccountTokenCreator` on the runtime service account to itself when provisioning is enabled.
+
 Browser auth endpoints are intentionally separated from operational routes:
 
 ```text
 POST   /api/auth/session       Exchange a Firebase ID token for the shared session cookie
 GET    /api/auth/session       Validate the shared session cookie and return sanitized user access
-POST   /api/auth/custom-token  Restore Firebase client state from the shared session cookie
+POST   /api/auth/custom-token  Best-effort Firebase client-state restore from the shared session cookie
 POST   /api/auth/logout        Clear the shared session cookie
 DELETE /api/auth/session       Clear the shared session cookie
 ```

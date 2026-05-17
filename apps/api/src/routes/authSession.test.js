@@ -33,6 +33,7 @@ const appUser = Object.freeze({
 });
 
 let clearedCookie = false;
+let failCustomToken = false;
 
 const firebaseAuthService = {
   async verifyIdToken(idToken) {
@@ -48,6 +49,11 @@ const firebaseAuthService = {
   },
   async createCustomToken(uid) {
     assert.equal(uid, decodedToken.uid);
+    if (failCustomToken) {
+      const error = new Error('signBlob permission denied');
+      error.code = 'auth/insufficient-permission';
+      throw error;
+    }
     return 'custom-token';
   },
 };
@@ -122,7 +128,32 @@ try {
     headers: { cookie: 'newleaf_session=session-token' },
   });
   assert.equal(customTokenResponse.status, 200);
-  assert.deepEqual(await customTokenResponse.json(), { customToken: 'custom-token' });
+  const customToken = await customTokenResponse.json();
+  assert.equal(customToken.authenticated, true);
+  assert.equal(customToken.customToken, 'custom-token');
+  assert.equal(customToken.profile.accessManagedBy, 'admin-web');
+
+  failCustomToken = true;
+  const originalWarn = console.warn;
+  const warnings = [];
+  console.warn = (...args) => warnings.push(args);
+  let customTokenFallbackResponse;
+  try {
+    customTokenFallbackResponse = await fetch(`${baseUrl}/api/auth/custom-token`, {
+      method: 'POST',
+      headers: { cookie: 'newleaf_session=session-token' },
+    });
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.equal(customTokenFallbackResponse.status, 200);
+  const customTokenFallback = await customTokenFallbackResponse.json();
+  assert.equal(customTokenFallback.authenticated, true);
+  assert.equal(customTokenFallback.customToken, null);
+  assert.equal(customTokenFallback.customTokenUnavailable, true);
+  assert.equal(customTokenFallback.profile.appAccess.invest, true);
+  assert.equal(warnings.length, 1);
+  failCustomToken = false;
 
   const invalidSessionResponse = await fetch(`${baseUrl}/api/auth/session`, {
     headers: { cookie: 'newleaf_session=bad-session' },

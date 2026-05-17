@@ -137,7 +137,7 @@ else
   fi
 
   FIREBASE_SESSION_COOKIE_ROLE="projects/${GCP_PROJECT_ID}/roles/${FIREBASE_SESSION_COOKIE_ROLE_ID}"
-  FIREBASE_SESSION_COOKIE_PERMISSIONS="firebaseauth.users.createSession,firebaseauth.users.get,firebase.projects.get"
+  FIREBASE_SESSION_COOKIE_PERMISSIONS="firebaseauth.users.createSession,firebaseauth.users.get,firebase.projects.get,iam.serviceAccounts.signBlob"
   if gcloud iam roles describe "${FIREBASE_SESSION_COOKIE_ROLE_ID}" \
     --project "${GCP_PROJECT_ID}" >/dev/null 2>&1; then
     echo "Updating custom IAM role for Firebase session cookies: ${FIREBASE_SESSION_COOKIE_ROLE}"
@@ -163,6 +163,11 @@ else
       --role="${role}" \
       --condition=None >/dev/null
   done
+
+  gcloud iam service-accounts add-iam-policy-binding "${SERVICE_ACCOUNT_EMAIL}" \
+    --member="serviceAccount:${SERVICE_ACCOUNT_EMAIL}" \
+    --role="roles/iam.serviceAccountTokenCreator" \
+    --project "${GCP_PROJECT_ID}" >/dev/null
 
   echo "Granting API access to gs://${GCS_BUCKET}..."
   gcloud storage buckets add-iam-policy-binding "gs://${GCS_BUCKET}" \

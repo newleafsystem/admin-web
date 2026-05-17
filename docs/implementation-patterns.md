@@ -116,6 +116,7 @@ Rules:
 - Browser stock-scanner pages must use `GET /api/v1/public/data/reports/latest?symbols=A,B,C` for batched latest-report reads instead of issuing one browser request per symbol. The API can aggregate per-symbol report JSON from storage and return partial errors without exposing the storage origin.
 - Live market-data provider calls must go through API routes such as `/api/v1/market/options/snapshots`; never ask the browser to store or send provider API keys directly to the provider.
 - Shared browser sessions must use `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com` and `AUTH_SESSION_COOKIE_PATH=/` so the same HTTP-only Firebase session cookie can be created through `/api/auth/session` and sent to `/api/v1/*` routes.
+- Treat `/api/auth/custom-token` as best-effort Firebase Web SDK restore only. The HTTP-only session cookie is the source of truth, and custom-token signer or IAM failures must return authenticated session state with `customTokenUnavailable=true`, not a 500.
 - CORS for the API must explicitly allow credentialed requests from registered NewLeaf domains only: `https://admin.newleafsystem.com`, `https://newleafsystem.com`, `https://www.newleafsystem.com`, and `https://preview.newleafsystem.com`.
 - `VITE_ADMIN_EMAILS` in client-web is bootstrap fallback only; once `admin-web` writes explicit `appAccess`, Firestore wins for env-only bootstrap admins.
 - Firestore rules may allow a user to create or update only their own identity and conservative default `appAccess`; only admins may grant paid/private app access.

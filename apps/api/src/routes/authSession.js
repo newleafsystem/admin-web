@@ -85,9 +85,30 @@ export function createAuthSessionRouter({
         throw unauthorized('Missing NewLeaf session cookie');
       }
 
-      const decodedToken = await firebaseAuthService.verifySessionCookie(sessionCookie);
-      const customToken = await firebaseAuthService.createCustomToken(decodedToken.uid);
-      res.json({ customToken });
+      let decodedToken;
+      try {
+        decodedToken = await firebaseAuthService.verifySessionCookie(sessionCookie);
+      } catch {
+        sessionCookieService.clear(res);
+        throw unauthorized('Invalid or expired NewLeaf session cookie');
+      }
+
+      const user = await ensureSessionUser({ userAccessService, decodedToken, req });
+      const session = toAuthSessionResponse({ user, decodedToken });
+      try {
+        const customToken = await firebaseAuthService.createCustomToken(decodedToken.uid);
+        res.json({ ...session, customToken });
+      } catch (error) {
+        console.warn('Firebase custom token restore is unavailable', {
+          requestId: req.requestId,
+          code: getFirebaseAuthErrorCode(error),
+        });
+        res.json({
+          ...session,
+          customToken: null,
+          customTokenUnavailable: true,
+        });
+      }
     }),
   );
 
@@ -165,6 +186,10 @@ function toClientProfile(user, safeUser) {
     accessManagedBy: user.accessManagedBy,
     accessUpdatedAt: user.accessUpdatedAt,
   };
+}
+
+function getFirebaseAuthErrorCode(error) {
+  return error?.code ?? error?.errorInfo?.code ?? 'unknown';
 }
 
 async function requireFirebaseAuth() {
