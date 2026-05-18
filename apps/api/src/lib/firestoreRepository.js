@@ -596,6 +596,7 @@ export function createFirestoreRepository({
           recommendations: input.recommendations ?? [],
           channels: input.channels ?? {},
           publicData: input.publicData ?? null,
+          outputArtifacts: input.outputArtifacts ?? {},
           scriptJobId: input.scriptJobId ?? null,
           createdBy: input.createdBy ?? null,
           approvedBy: input.approvedBy ?? null,

@@ -34,6 +34,7 @@ import { createSocialPublisherService } from './services/socialPublisherService.
 import { startPublicationSyncScheduler } from './services/publicationSyncScheduler.js';
 import { createRecommendationBatchService } from './services/recommendationBatchService.js';
 import { createRecommendationGenerationService } from './services/recommendationGenerationService.js';
+import { createRecommendationOutputService } from './services/recommendationOutputService.js';
 import { createYouTubeOAuthService } from './services/youtubeOAuthService.js';
 import { createYouTubePublisherService } from './services/youtubePublisherService.js';
 import { createUserAccessService } from './services/userAccessService.js';
@@ -61,9 +62,16 @@ export function createApp(options = {}) {
   const watchlistService = options.watchlistService ?? createWatchlistService({ repository });
   const recommendationGenerationService =
     options.recommendationGenerationService ?? createRecommendationGenerationService();
+  const recommendationOutputService =
+    options.recommendationOutputService ?? createRecommendationOutputService({ repository });
   const recommendationBatchService =
     options.recommendationBatchService ??
-    createRecommendationBatchService({ repository, jobStateService, recommendationGenerationService });
+    createRecommendationBatchService({
+      repository,
+      jobStateService,
+      recommendationGenerationService,
+      recommendationOutputService,
+    });
   const youtubePublisherService =
     options.youtubePublisherService ??
     createYouTubePublisherService({ repository, jobStateService, youtubeOAuthService });
@@ -93,6 +101,7 @@ export function createApp(options = {}) {
     watchlistService,
     recommendationBatchService,
     recommendationGenerationService,
+    recommendationOutputService,
   };
 
   const app = express();

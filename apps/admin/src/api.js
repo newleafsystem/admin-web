@@ -1020,6 +1020,7 @@ export function normalizeRecommendationBatch(batch = {}) {
       ? batch.recommendations.map(normalizeRecommendationItem)
       : [],
     channels: normalizeRecommendationChannels(batch.channels),
+    outputArtifacts: normalizeRecommendationOutputArtifacts(batch.outputArtifacts),
     publicData: batch.publicData ?? null,
     scriptJobId: batch.scriptJobId ?? null,
     createdBy: batch.createdBy ?? null,
@@ -1072,7 +1073,29 @@ function normalizeRecommendationChannels(channels = {}) {
         status: value?.status ?? "unknown",
         updatedAt: formatDate(value?.updatedAt),
         jobId: value?.jobId ?? null,
+        artifactId: value?.artifactId ?? null,
         artifact: value?.artifact ?? null
+      }
+    ])
+  );
+}
+
+function normalizeRecommendationOutputArtifacts(outputArtifacts = {}) {
+  if (!outputArtifacts || typeof outputArtifacts !== "object" || Array.isArray(outputArtifacts)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(outputArtifacts).map(([key, value]) => [
+      key,
+      {
+        artifactId: value?.artifactId ?? value?.id ?? null,
+        kind: value?.kind ?? "",
+        mimeType: value?.mimeType ?? "",
+        sizeBytes: value?.sizeBytes ?? null,
+        filename: value?.filename ?? "",
+        storageProvider: value?.storageProvider ?? "",
+        createdAt: formatDate(value?.createdAt),
+        updatedAt: formatDate(value?.updatedAt)
       }
     ])
   );

@@ -10,6 +10,7 @@ export function createRecommendationBatchService({
   repository,
   jobStateService,
   recommendationGenerationService,
+  recommendationOutputService,
   clock = () => new Date().toISOString(),
 } = {}) {
   if (!repository) {
@@ -192,6 +193,15 @@ export function createRecommendationBatchService({
     const timestamp = clock();
     const publicData = buildPublicRecommendationBatch(existing, timestamp);
     const scriptJob = await ensureScriptJob(existing, publicData, { actorUid, timestamp });
+    const outputArtifacts = recommendationOutputService?.ensureOutputs
+      ? await recommendationOutputService.ensureOutputs({
+          batch: existing,
+          publicData,
+          scriptJob,
+          actorUid,
+          timestamp,
+        })
+      : normalizePlainObject(existing.outputArtifacts);
     const channels = mergeChannels(existing.channels, {
       liveSite: {
         status: 'published',
@@ -205,15 +215,29 @@ export function createRecommendationBatchService({
         actorUid,
       },
       pdf: {
-        status: existing.channels?.pdf?.status === 'ready' ? 'ready' : 'queued',
+        status: outputArtifacts.pdf ? 'ready' : existing.channels?.pdf?.status === 'ready' ? 'ready' : 'queued',
         updatedAt: timestamp,
         actorUid,
+        artifactId: outputArtifacts.pdf?.artifactId ?? existing.channels?.pdf?.artifactId ?? null,
       },
       script: {
         status: 'ready',
         updatedAt: timestamp,
         actorUid,
         jobId: scriptJob.id,
+        artifactId: outputArtifacts.videoScript?.artifactId ?? existing.channels?.script?.artifactId ?? null,
+      },
+      social: {
+        status: outputArtifacts.socialCopy ? 'ready' : existing.channels?.social?.status ?? 'not_requested',
+        updatedAt: timestamp,
+        actorUid,
+        artifactId: outputArtifacts.socialCopy?.artifactId ?? existing.channels?.social?.artifactId ?? null,
+      },
+      archive: {
+        status: outputArtifacts.archive ? 'ready' : existing.channels?.archive?.status ?? 'not_requested',
+        updatedAt: timestamp,
+        actorUid,
+        artifactId: outputArtifacts.archive?.artifactId ?? existing.channels?.archive?.artifactId ?? null,
       },
       video: {
         status: scriptJob.status ?? 'script_ready',
@@ -227,6 +251,7 @@ export function createRecommendationBatchService({
       status: 'published',
       publicData,
       scriptJobId: scriptJob.id,
+      outputArtifacts,
       channels,
       publishedAt: existing.publishedAt ?? timestamp,
       publishedBy: existing.publishedBy ?? actorUid,
@@ -629,6 +654,8 @@ function initialChannels(timestamp) {
     email: { status: 'not_requested', updatedAt: timestamp },
     pdf: { status: 'not_requested', updatedAt: timestamp },
     script: { status: 'not_requested', updatedAt: timestamp },
+    social: { status: 'not_requested', updatedAt: timestamp },
+    archive: { status: 'not_requested', updatedAt: timestamp },
     video: { status: 'not_requested', updatedAt: timestamp },
   };
 }

@@ -3179,7 +3179,8 @@ textarea.script-editor:focus {
 }
 
 .recommendation-symbol-strip,
-.recommendation-channel-grid {
+.recommendation-channel-grid,
+.recommendation-output-row {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -3218,6 +3219,25 @@ textarea.script-editor:focus {
   font-size: 0.74rem;
   font-weight: 800;
   text-transform: uppercase;
+}
+
+.recommendation-output-row {
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.recommendation-output-row a {
+  display: inline-grid;
+  min-height: 30px;
+  place-items: center;
+  border: 1px solid rgba(159, 126, 63, 0.3);
+  border-radius: 8px;
+  padding: 5px 10px;
+  background: #fffaf0;
+  color: #725521;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .wide-dialog {

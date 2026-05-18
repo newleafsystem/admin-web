@@ -9,6 +9,7 @@ const { createInMemoryRepository } = await import('../lib/repository.js');
 
 const repository = createInMemoryRepository();
 const generationCalls = [];
+const outputCalls = [];
 const recommendationGenerationService = {
   async generateRecommendations({ prompts, batch, existingRecommendations }) {
     generationCalls.push({
@@ -40,9 +41,27 @@ const recommendationGenerationService = {
     };
   },
 };
+const recommendationOutputService = {
+  async ensureOutputs({ batch, publicData, scriptJob }) {
+    outputCalls.push({
+      batchId: batch.id,
+      scriptJobId: scriptJob.id,
+      existingPdfArtifactId: batch.outputArtifacts?.pdf?.artifactId ?? null,
+    });
+    const suffix = batch.outputArtifacts?.pdf?.artifactId ? 'reused' : 'created';
+    return {
+      archive: batch.outputArtifacts?.archive ?? artifactSummary(`archive-${suffix}`, 'recommendation_archive'),
+      videoScript: batch.outputArtifacts?.videoScript ?? artifactSummary(`script-${suffix}`, 'recommendation_video_script'),
+      pdf: batch.outputArtifacts?.pdf ?? artifactSummary(`pdf-${suffix}`, 'recommendation_pdf'),
+      socialCopy: batch.outputArtifacts?.socialCopy ?? artifactSummary(`social-${suffix}`, 'recommendation_social_copy'),
+      generatedAt: '2026-05-18T00:00:00.000Z',
+    };
+  },
+};
 const app = createApp({
   repository,
   recommendationGenerationService,
+  recommendationOutputService,
   autoResumeQueuedUploads: false,
   autoSyncPublications: false,
 });
@@ -104,7 +123,22 @@ try {
   assert.equal(published.body.recommendationBatch.publicData.picks[0].symbol, 'ADBE');
   assert.ok(published.body.recommendationBatch.scriptJobId);
   assert.equal(published.body.recommendationBatch.channels.liveSite.status, 'published');
+  assert.equal(published.body.recommendationBatch.channels.pdf.status, 'ready');
+  assert.equal(published.body.recommendationBatch.channels.social.status, 'ready');
+  assert.equal(published.body.recommendationBatch.channels.archive.status, 'ready');
   assert.equal(published.body.recommendationBatch.channels.video.status, 'script_ready');
+  assert.equal(published.body.recommendationBatch.outputArtifacts.pdf.artifactId, 'pdf-created');
+  assert.equal(published.body.recommendationBatch.outputArtifacts.socialCopy.artifactId, 'social-created');
+  assert.equal(outputCalls.length, 1);
+
+  const republished = await json({
+    method: 'POST',
+    path: `/api/v1/recommendation-batches/${encodeURIComponent(batchId)}/publish`,
+  });
+  assert.equal(republished.status, 200);
+  assert.equal(republished.body.recommendationBatch.outputArtifacts.pdf.artifactId, 'pdf-created');
+  assert.equal(outputCalls.length, 2);
+  assert.equal(outputCalls[1].existingPdfArtifactId, 'pdf-created');
 
   const scriptJob = await repository.getJob(published.body.recommendationBatch.scriptJobId);
   assert.equal(scriptJob.status, 'script_ready');
@@ -203,4 +237,16 @@ function close(server) {
       else resolve();
     });
   });
+}
+
+function artifactSummary(artifactId, kind) {
+  return {
+    artifactId,
+    kind,
+    mimeType: kind === 'recommendation_pdf' ? 'application/pdf' : 'application/json',
+    sizeBytes: 256,
+    storageProvider: 'test',
+    storageKey: `test/${artifactId}`,
+    filename: `${artifactId}.bin`,
+  };
 }

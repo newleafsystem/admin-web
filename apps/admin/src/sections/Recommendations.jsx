@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { StatusBadge } from "../components/common.jsx";
+import { API_BASE_URL } from "../config.js";
 
 const MAX_PROMPT_ROWS = 25;
 
@@ -51,6 +52,8 @@ const channelLabels = {
   email: "Email",
   pdf: "PDF",
   script: "Script",
+  social: "Social",
+  archive: "Archive",
   video: "Video"
 };
 
@@ -520,6 +523,24 @@ export function Recommendations({ batches = [], onApprove, onCreate, onGenerate,
                 {batch.scriptJobId && (
                   <p className="muted">Video script job: {batch.scriptJobId}</p>
                 )}
+
+                {hasOutputArtifacts(batch.outputArtifacts) && (
+                  <div className="recommendation-output-row">
+                    {Object.entries(outputLabels).map(([key, label]) => {
+                      const artifact = batch.outputArtifacts?.[key];
+                      return artifact?.artifactId ? (
+                        <a
+                          href={`${API_BASE_URL}/assets/${encodeURIComponent(artifact.artifactId)}/content`}
+                          key={key}
+                          rel="noreferrer"
+                          target="_blank"
+                        >
+                          {label}
+                        </a>
+                      ) : null;
+                    })}
+                  </div>
+                )}
               </article>
             ))}
           </div>
@@ -527,6 +548,17 @@ export function Recommendations({ batches = [], onApprove, onCreate, onGenerate,
       </section>
     </div>
   );
+}
+
+const outputLabels = {
+  pdf: "PDF report",
+  socialCopy: "Social copy",
+  archive: "Picks JSON",
+  videoScript: "Video script"
+};
+
+function hasOutputArtifacts(outputArtifacts = {}) {
+  return Object.values(outputArtifacts ?? {}).some((artifact) => artifact?.artifactId);
 }
 
 function draftFromBatch(batch) {

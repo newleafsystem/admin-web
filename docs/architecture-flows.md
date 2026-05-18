@@ -121,6 +121,7 @@ sequenceDiagram
   Admin->>UI: Approve and publish batch
   UI->>API: POST approve, POST publish
   API->>Repo: Mark published and store public snapshot
+  API->>Repo: Create or reuse PDF, script, social copy, and picks JSON artifacts
   Client->>API: GET /api/v1/public/recommendations/latest
   API-->>Client: Published picks/invest card data
   API->>Repo: Create text_to_heygen recommendation video job
@@ -138,6 +139,7 @@ Channel ownership:
 - R2 or public storage is a delivery/cache layer for client-web cards, not the only source of truth.
 - The first implemented public surface is the API recommendation route; storage cache generation can be added later without changing the client contract.
 - Live-site cards, email, PDF, script, and HeyGen video all derive from the same stable `recommendationBatchId`.
+- PDF, social copy, video script, and picks archive outputs are stored as reusable artifacts on the batch so republishing can reuse existing files.
 - Email recipients are resolved from user notification preferences, not ad hoc recipient lists.
 - Video generation must reuse the existing backend HeyGen flow; the admin UI never calls HeyGen directly.
 

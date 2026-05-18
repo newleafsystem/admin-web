@@ -32,6 +32,10 @@ const ARTIFACT_KINDS = new Set([
   'thumbnail',
   'captions',
   'request_payload',
+  'recommendation_archive',
+  'recommendation_video_script',
+  'recommendation_pdf',
+  'recommendation_social_copy',
 ]);
 
 export function createAssetsRouter({ repository }) {
