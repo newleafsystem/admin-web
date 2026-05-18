@@ -104,6 +104,7 @@ sequenceDiagram
   participant Admin
   participant UI as Admin UI
   participant API
+  participant LLM as AI provider
   participant Repo as Firestore/Repository
   participant Client as Client Web
   participant Email
@@ -111,7 +112,10 @@ sequenceDiagram
   participant HeyGen
   participant Assembler
 
-  Admin->>UI: Curate daily recommendation batch
+  Admin->>UI: Add prompt rows or curate daily recommendation batch
+  UI->>API: POST /api/v1/recommendation-batches/generate
+  API->>LLM: Generate risk-aware draft picks with server-side AI config
+  API->>Repo: Append generated picks to open date batch
   UI->>API: POST/PATCH /api/v1/recommendation-batches
   API->>Repo: Store canonical recommendationBatch
   Admin->>UI: Approve and publish batch

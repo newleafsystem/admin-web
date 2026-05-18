@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { notFound } from '../lib/httpErrors.js';
-import { requireObject } from '../lib/validation.js';
+import { rejectUnknownFields, requireObject } from '../lib/validation.js';
 
 export function createRecommendationBatchesRouter({ recommendationBatchService }) {
   const router = Router();
@@ -27,6 +27,19 @@ export function createRecommendationBatchesRouter({ recommendationBatchService }
         actorUid: req.user?.uid ?? null,
       });
       res.status(201).json({ recommendationBatch });
+    }),
+  );
+
+  router.post(
+    '/recommendation-batches/generate',
+    requireRole('admin'),
+    asyncHandler(async (req, res) => {
+      const body = requireObject(req.body);
+      rejectUnknownFields(body, ['batchId', 'tradeDate', 'title', 'theme', 'dateRange', 'prompts']);
+      const recommendationBatch = await recommendationBatchService.generateRecommendations(body, {
+        actorUid: req.user?.uid ?? null,
+      });
+      res.json({ recommendationBatch });
     }),
   );
 

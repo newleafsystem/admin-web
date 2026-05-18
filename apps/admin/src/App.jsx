@@ -19,6 +19,7 @@ import {
   fetchRecommendationBatches,
   fetchWatchlistConfig,
   fetchUsers,
+  generateRecommendationBatch as generateRecommendationBatchApi,
   generateJobScript,
   generateJobThumbnail,
   generateVideoSummary,
@@ -1578,6 +1579,26 @@ export default function App({ session }) {
     }
   }
 
+  async function generateRecommendationBatch(payload) {
+    setActionError(null);
+    try {
+      const generated = await withSectionLoader("Recommendations", "Generating recommendation picks...", () =>
+        generateRecommendationBatchApi(payload)
+      );
+      setRecommendationBatches((current) => [generated, ...current.filter((batch) => batch.id !== generated.id)]);
+      setAuditEvents((current) =>
+        addAuditEvent(current, "generate_recommendation_batch", generated.id, currentActor(session), {
+          tradeDate: generated.tradeDate,
+          recommendations: generated.recommendations.length
+        })
+      );
+      return generated;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
   async function approveRecommendationBatch(batchId) {
     setActionError(null);
     try {
@@ -1720,6 +1741,7 @@ export default function App({ session }) {
                 batches={recommendationBatches}
                 onApprove={approveRecommendationBatch}
                 onCreate={createRecommendationBatch}
+                onGenerate={generateRecommendationBatch}
                 onPublish={publishRecommendationBatch}
                 onSave={saveRecommendationBatch}
               />

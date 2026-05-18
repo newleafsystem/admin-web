@@ -133,23 +133,24 @@ Rules:
 
 ## Picks Recommendation Pipeline Pattern
 
-Admin-web is the source of truth for daily picks recommendations. The daily workflow starts with an admin-curated batch, normally five recommendations, and then fans out into public display, notification, PDF, script, and video channels.
+Admin-web is the source of truth for daily picks recommendations. The daily workflow starts with an admin-curated or AI-assisted draft batch and then fans out into public display, notification, PDF, script, and video channels.
 
 Rules:
 
-- Admins should create and approve one recommendation batch through the API, not by manually editing client-web JSON.
-- Current API routes are `GET/POST /api/v1/recommendation-batches`, `GET/PATCH /api/v1/recommendation-batches/:batchId`, `POST /api/v1/recommendation-batches/:batchId/approve`, and `POST /api/v1/recommendation-batches/:batchId/publish`.
+- Admins should create, generate, edit, and approve recommendation batches through the API, not by manually editing client-web JSON or writing directly to Firestore from the browser.
+- Prompt-based generation uses `POST /api/v1/recommendation-batches/generate`. The API owns the LLM request through the server-side `AI_API_KEY` or `OPENAI_API_KEY` configuration and appends generated picks into the open draft or approved batch for that `tradeDate`.
+- Current API routes are `GET/POST /api/v1/recommendation-batches`, `POST /api/v1/recommendation-batches/generate`, `GET/PATCH /api/v1/recommendation-batches/:batchId`, `POST /api/v1/recommendation-batches/:batchId/approve`, and `POST /api/v1/recommendation-batches/:batchId/publish`.
 - Current public read routes are `GET /api/v1/public/recommendations/latest` and `GET /api/v1/public/recommendations/:batchId`; client-web should use these instead of reading legacy `weeklyPicks` for the current cards.
 - The canonical persisted batch should live in Firestore first so admin review, audit, email recipient resolution, and downstream job state are queryable. If R2 is used, treat it as a public delivery/cache artifact generated from the canonical Firestore batch.
 - Public client-web pages must read the published batch through `api.newleafsystem.com` recommendation routes; browser bundles must not expose R2 or Firebase internal provider URLs for recommendation cards.
-- Each published batch should include a stable `recommendationBatchId`, `tradeDate`, `status`, `publishedAt`, and exactly ordered recommendation items. Item IDs must be stable because cards, PDFs, scripts, videos, and email links will point back to the same recommendation.
+- Each published batch should include a stable `recommendationBatchId`, `tradeDate`, `status`, `publishedAt`, and ordered recommendation items. Item IDs must be stable because cards, PDFs, scripts, videos, and email links will point back to the same recommendation.
 - Publishing a batch should be idempotent. Re-running a failed fanout for the same `recommendationBatchId` must update or reuse downstream artifacts instead of creating duplicate emails, PDFs, scripts, or HeyGen jobs.
 - Live-site cards are the first channel: picks and invest cards render from the published batch data object. Invest may show lifecycle/status fields derived from the same item rather than a separate duplicate recommendation record.
 - Email is the second channel: recipients come from `users/{uid}.notificationPreferences.email` where `enabled` is true and `topics.weeklyPicks` is true. Do not send to users solely because they have an email address.
 - PDF is the third channel: generate one PDF artifact for the batch, store it as a normal job/artifact or recommendation artifact, and expose it through authenticated admin routes plus public links only when the batch is published.
 - Script generation is the fourth channel: publishing creates or reuses a `recommendation_video` content job with `sourceType=text_to_heygen` and a structured script in job metadata. Keep the generated script editable in the Review Workspace before video generation.
 - HeyGen video generation is the fifth channel: create or reuse a `text_to_heygen` job and run the existing HeyGen generation flow. The admin UI should not call HeyGen directly.
-- Audit records must capture who created, approved, published, regenerated, emailed, and republished a recommendation batch.
+- Audit records must capture who created, AI-generated, approved, published, regenerated, emailed, and republished a recommendation batch.
 - Do not couple the daily picks pipeline to the stock scanner scheduler. Scanner data can inform the admin decision, but admin approval is the trigger that publishes recommendations and starts channel fanout.
 
 Suggested durable states:

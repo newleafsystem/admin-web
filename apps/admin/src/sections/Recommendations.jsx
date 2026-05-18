@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { StatusBadge } from "../components/common.jsx";
 
+const MAX_PROMPT_ROWS = 25;
+
 const emptyRecommendation = (index = 0) => ({
   id: "",
   symbol: "",
@@ -18,16 +20,30 @@ const emptyRecommendation = (index = 0) => ({
   sortOrder: (index + 1) * 10
 });
 
+const emptyPromptRow = (index = 0) => ({
+  id: `prompt_${index + 1}_${Math.random().toString(36).slice(2, 8)}`,
+  prompt: ""
+});
+
+const emptyPromptRows = () => Array.from({ length: 5 }, (_, index) => emptyPromptRow(index));
+
 const emptyDraft = () => ({
   id: null,
   tradeDate: new Date().toISOString().slice(0, 10),
   title: "Daily Picks",
   theme: "",
   dateRange: "",
-  recommendations: Array.from({ length: 5 }, (_, index) => emptyRecommendation(index)),
+  recommendations: [emptyRecommendation(0)],
   error: null,
   message: null,
   isSaving: false
+});
+
+const emptyGenerationState = () => ({
+  rows: emptyPromptRows(),
+  error: null,
+  message: null,
+  isGenerating: false
 });
 
 const channelLabels = {
@@ -38,12 +54,18 @@ const channelLabels = {
   video: "Video"
 };
 
-export function Recommendations({ batches = [], onApprove, onCreate, onPublish, onSave }) {
+export function Recommendations({ batches = [], onApprove, onCreate, onGenerate, onPublish, onSave }) {
   const [draft, setDraft] = useState(emptyDraft);
+  const [generation, setGeneration] = useState(emptyGenerationState);
   const sortedBatches = useMemo(
     () => [...batches].sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt))),
     [batches]
   );
+
+  function resetDraft() {
+    setDraft(emptyDraft());
+    setGeneration(emptyGenerationState());
+  }
 
   function updateDraftField(field, value) {
     setDraft((current) => ({
@@ -52,6 +74,40 @@ export function Recommendations({ batches = [], onApprove, onCreate, onPublish, 
       error: null,
       message: null
     }));
+  }
+
+  function updatePromptRow(rowId, value) {
+    setGeneration((current) => ({
+      ...current,
+      error: null,
+      message: null,
+      rows: current.rows.map((row) => (row.id === rowId ? { ...row, prompt: value } : row))
+    }));
+  }
+
+  function addPromptRow() {
+    setGeneration((current) => {
+      if (current.rows.length >= MAX_PROMPT_ROWS) {
+        return current;
+      }
+      return {
+        ...current,
+        error: null,
+        rows: [...current.rows, emptyPromptRow(current.rows.length)]
+      };
+    });
+  }
+
+  function removePromptRow(rowId) {
+    setGeneration((current) => {
+      const rows = current.rows.filter((row) => row.id !== rowId);
+      return {
+        ...current,
+        error: null,
+        message: null,
+        rows: rows.length > 0 ? rows : [emptyPromptRow(0)]
+      };
+    });
   }
 
   function updateRecommendation(index, field, value) {
@@ -63,6 +119,27 @@ export function Recommendations({ batches = [], onApprove, onCreate, onPublish, 
         itemIndex === index ? { ...item, [field]: value } : item
       )
     }));
+  }
+
+  function addRecommendation() {
+    setDraft((current) => ({
+      ...current,
+      error: null,
+      message: null,
+      recommendations: reindexRecommendations([...current.recommendations, emptyRecommendation(current.recommendations.length)])
+    }));
+  }
+
+  function removeRecommendation(index) {
+    setDraft((current) => {
+      const recommendations = current.recommendations.filter((_, itemIndex) => itemIndex !== index);
+      return {
+        ...current,
+        error: null,
+        message: null,
+        recommendations: reindexRecommendations(recommendations.length > 0 ? recommendations : [emptyRecommendation(0)])
+      };
+    });
   }
 
   function editBatch(batch) {
@@ -77,7 +154,51 @@ export function Recommendations({ batches = [], onApprove, onCreate, onPublish, 
       message: null,
       isSaving: false
     });
+    setGeneration(emptyGenerationState());
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function generateFromPrompts(event) {
+    event.preventDefault();
+    const prompts = generation.rows
+      .map((row) => ({
+        id: row.id,
+        prompt: row.prompt.trim()
+      }))
+      .filter((row) => row.prompt);
+
+    if (!draft.tradeDate) {
+      setGeneration((current) => ({ ...current, error: "Choose a trade date before generating picks." }));
+      return;
+    }
+    if (prompts.length === 0) {
+      setGeneration((current) => ({ ...current, error: "Add at least one prompt before generating picks." }));
+      return;
+    }
+
+    setGeneration((current) => ({ ...current, isGenerating: true, error: null, message: null }));
+    try {
+      const saved = await onGenerate({
+        batchId: draft.id || undefined,
+        tradeDate: draft.tradeDate,
+        title: draft.title,
+        theme: draft.theme,
+        dateRange: draft.dateRange || draft.tradeDate,
+        prompts
+      });
+      setDraft({
+        ...draftFromBatch(saved),
+        message: `${saved.recommendations.length} picks are in ${saved.title}.`,
+        error: null,
+        isSaving: false
+      });
+      setGeneration({
+        ...emptyGenerationState(),
+        message: "Generated picks were appended."
+      });
+    } catch (error) {
+      setGeneration((current) => ({ ...current, isGenerating: false, error: error.message, message: null }));
+    }
   }
 
   async function submitBatch(event) {
@@ -123,51 +244,102 @@ export function Recommendations({ batches = [], onApprove, onCreate, onPublish, 
             <p className="eyebrow">Daily picks</p>
             <h2>{draft.id ? "Edit recommendation batch" : "Create recommendation batch"}</h2>
           </div>
-          <button type="button" onClick={() => setDraft(emptyDraft())}>New batch</button>
+          <button type="button" onClick={resetDraft}>New batch</button>
         </div>
 
+        <div className="form-grid compact-grid">
+          <label>
+            <span>Trade date</span>
+            <input
+              type="date"
+              value={draft.tradeDate}
+              onChange={(event) => updateDraftField("tradeDate", event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Title</span>
+            <input
+              value={draft.title}
+              onChange={(event) => updateDraftField("title", event.target.value)}
+              placeholder="Daily Picks"
+            />
+          </label>
+          <label>
+            <span>Date range</span>
+            <input
+              value={draft.dateRange}
+              onChange={(event) => updateDraftField("dateRange", event.target.value)}
+              placeholder="May 17, 2026"
+            />
+          </label>
+          <label>
+            <span>Theme</span>
+            <input
+              value={draft.theme}
+              onChange={(event) => updateDraftField("theme", event.target.value)}
+              placeholder="Defined-risk premium ideas"
+            />
+          </label>
+        </div>
+
+        <form className="recommendation-generator-block" onSubmit={generateFromPrompts}>
+          <div className="section-title-row">
+            <div>
+              <p className="eyebrow">Prompt generator</p>
+              <h3>Generate picks</h3>
+            </div>
+            <button type="button" onClick={addPromptRow} disabled={generation.rows.length >= MAX_PROMPT_ROWS}>
+              Add prompt
+            </button>
+          </div>
+
+          <div className="recommendation-prompt-grid">
+            {generation.rows.map((row, index) => (
+              <article className="recommendation-prompt-card" key={row.id}>
+                <div className="section-title-row">
+                  <h4>Prompt {index + 1}</h4>
+                  <button type="button" onClick={() => removePromptRow(row.id)}>Remove</button>
+                </div>
+                <label>
+                  <span>Prompt</span>
+                  <textarea
+                    value={row.prompt}
+                    onChange={(event) => updatePromptRow(row.id, event.target.value)}
+                    placeholder="Generate one defined-risk options idea for AAPL with a risk-aware thesis."
+                  />
+                </label>
+              </article>
+            ))}
+          </div>
+
+          {generation.error && <section className="form-error">{generation.error}</section>}
+          {generation.message && <section className="form-success">{generation.message}</section>}
+
+          <div className="button-row">
+            <button disabled={generation.isGenerating} type="submit">
+              {generation.isGenerating ? "Generating..." : "Generate picks"}
+            </button>
+          </div>
+        </form>
+
         <form className="form-grid" onSubmit={submitBatch}>
-          <div className="form-grid compact-grid">
-            <label>
-              <span>Trade date</span>
-              <input
-                type="date"
-                value={draft.tradeDate}
-                onChange={(event) => updateDraftField("tradeDate", event.target.value)}
-              />
-            </label>
-            <label>
-              <span>Title</span>
-              <input
-                value={draft.title}
-                onChange={(event) => updateDraftField("title", event.target.value)}
-                placeholder="Daily Picks"
-              />
-            </label>
-            <label>
-              <span>Date range</span>
-              <input
-                value={draft.dateRange}
-                onChange={(event) => updateDraftField("dateRange", event.target.value)}
-                placeholder="May 17, 2026"
-              />
-            </label>
-            <label>
-              <span>Theme</span>
-              <input
-                value={draft.theme}
-                onChange={(event) => updateDraftField("theme", event.target.value)}
-                placeholder="Defined-risk premium ideas"
-              />
-            </label>
+          <div className="section-title-row">
+            <div>
+              <p className="eyebrow">Review</p>
+              <h3>{draft.recommendations.filter(hasRecommendationContent).length} editable picks</h3>
+            </div>
+            <button type="button" onClick={addRecommendation}>Add manual pick</button>
           </div>
 
           <div className="recommendation-editor-grid">
             {draft.recommendations.map((item, index) => (
-              <article className="recommendation-editor-card" key={`recommendation-${index}`}>
+              <article className="recommendation-editor-card" key={item.id || `recommendation-${index}`}>
                 <div className="section-title-row">
-                  <h4>Pick {index + 1}</h4>
-                  <span className="muted">Sort {item.sortOrder}</span>
+                  <div>
+                    <h4>Pick {index + 1}</h4>
+                    <span className="muted">Sort {(index + 1) * 10}</span>
+                  </div>
+                  <button type="button" onClick={() => removeRecommendation(index)}>Remove</button>
                 </div>
                 <div className="form-grid compact-grid">
                   <label>
@@ -259,6 +431,22 @@ export function Recommendations({ batches = [], onApprove, onCreate, onPublish, 
                       placeholder="What would invalidate or stress this setup."
                     />
                   </label>
+                  <label>
+                    <span>Entry</span>
+                    <textarea
+                      value={item.entry}
+                      onChange={(event) => updateRecommendation(index, "entry", event.target.value)}
+                      placeholder="Entry guidance for admin review."
+                    />
+                  </label>
+                  <label>
+                    <span>Exit</span>
+                    <textarea
+                      value={item.exit}
+                      onChange={(event) => updateRecommendation(index, "exit", event.target.value)}
+                      placeholder="Exit, stop, or invalidation guidance."
+                    />
+                  </label>
                 </div>
               </article>
             ))}
@@ -271,7 +459,7 @@ export function Recommendations({ batches = [], onApprove, onCreate, onPublish, 
             <button disabled={draft.isSaving} type="submit">
               {draft.isSaving ? "Saving..." : draft.id ? "Save batch" : "Create batch"}
             </button>
-            <button type="button" onClick={() => setDraft(emptyDraft())}>Clear</button>
+            <button type="button" onClick={resetDraft}>Clear</button>
           </div>
         </form>
       </section>
@@ -356,7 +544,8 @@ function draftFromBatch(batch) {
 }
 
 function normalizeDraftRecommendations(recommendations = []) {
-  const items = recommendations.map((item, index) => ({
+  const sourceItems = [...recommendations].sort((left, right) => Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0));
+  const items = sourceItems.map((item, index) => ({
     ...emptyRecommendation(index),
     ...item,
     price: valueToInput(item.price),
@@ -364,10 +553,7 @@ function normalizeDraftRecommendations(recommendations = []) {
     oddsOfProfit: valueToInput(item.oddsOfProfit),
     maxProfit: valueToInput(item.maxProfit)
   }));
-  while (items.length < 5) {
-    items.push(emptyRecommendation(items.length));
-  }
-  return items.slice(0, 5);
+  return items.length > 0 ? reindexRecommendations(items) : [emptyRecommendation(0)];
 }
 
 function draftToPayload(draft) {
@@ -376,8 +562,7 @@ function draftToPayload(draft) {
     title: draft.title,
     theme: draft.theme,
     dateRange: draft.dateRange || draft.tradeDate,
-    recommendations: draft.recommendations
-      .filter((item) => item.symbol.trim() || item.strategy.trim() || item.thesis.trim())
+    recommendations: reindexRecommendations(draft.recommendations.filter(hasRecommendationContent))
       .map((item, index) => ({
         id: item.id || undefined,
         symbol: item.symbol.trim().toUpperCase(),
@@ -395,6 +580,22 @@ function draftToPayload(draft) {
         sortOrder: (index + 1) * 10
       }))
   };
+}
+
+function reindexRecommendations(recommendations) {
+  return recommendations.map((item, index) => ({
+    ...item,
+    sortOrder: (index + 1) * 10
+  }));
+}
+
+function hasRecommendationContent(item) {
+  return Boolean(
+    String(item.symbol ?? "").trim() ||
+    String(item.strategy ?? "").trim() ||
+    String(item.thesis ?? "").trim() ||
+    String(item.riskNotes ?? "").trim()
+  );
 }
 
 function numericOrUndefined(value) {

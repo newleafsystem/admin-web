@@ -2,11 +2,14 @@ import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
 
 export const RECOMMENDATION_BATCH_STATUSES = Object.freeze(['draft', 'approved', 'published', 'archived']);
 export const RECOMMENDATION_DIRECTIONS = Object.freeze(['BULLISH', 'BEARISH', 'NEUTRAL']);
-export const MAX_RECOMMENDATIONS_PER_BATCH = 5;
+export const MAX_RECOMMENDATIONS_PER_BATCH = 50;
+const MAX_GENERATION_PROMPTS = 25;
+const MAX_GENERATION_PROMPT_CHARS = 4000;
 
 export function createRecommendationBatchService({
   repository,
   jobStateService,
+  recommendationGenerationService,
   clock = () => new Date().toISOString(),
 } = {}) {
   if (!repository) {
@@ -67,6 +70,93 @@ export function createRecommendationBatchService({
       updatedBy: actorUid,
     });
     return normalizeBatchRecord(updated);
+  }
+
+  async function generateRecommendations(input, { actorUid = null } = {}) {
+    if (!recommendationGenerationService?.generateRecommendations) {
+      throw conflict('AI recommendation generation is not configured.');
+    }
+
+    const timestamp = clock();
+    const request = normalizeGenerationInput(input);
+    const existing = request.batchId
+      ? await requireBatch(request.batchId)
+      : await findOpenBatchForTradeDate(request.tradeDate);
+
+    if (existing?.status === 'published') {
+      throw conflict('Published recommendation batches cannot be edited. Create a new batch or republish channels.', {
+        batchId: existing.id,
+      });
+    }
+    if (existing?.status === 'archived') {
+      throw conflict('Archived recommendation batches cannot be edited', {
+        batchId: existing.id,
+      });
+    }
+
+    const batchContext = batchContextForGeneration(existing, request, timestamp);
+    const existingRecommendations = normalizeRecommendations(batchContext.recommendations ?? [], { allowEmpty: true });
+    const remainingSlots = MAX_RECOMMENDATIONS_PER_BATCH - existingRecommendations.length;
+    if (remainingSlots <= 0) {
+      throw conflict(`This batch already has ${MAX_RECOMMENDATIONS_PER_BATCH} recommendations.`, {
+        maxItems: MAX_RECOMMENDATIONS_PER_BATCH,
+      });
+    }
+
+    const generated = await recommendationGenerationService.generateRecommendations({
+      prompts: request.prompts,
+      batch: batchContext,
+      existingRecommendations,
+      maxRecommendations: MAX_RECOMMENDATIONS_PER_BATCH,
+    });
+    const generatedRecommendations = normalizeGeneratedRecommendations(
+      generated.recommendations.slice(0, remainingSlots),
+      {
+        existingRecommendations,
+        prompts: request.prompts,
+        timestamp,
+      },
+    );
+    if (generatedRecommendations.length === 0) {
+      throw conflict('AI recommendation generation did not produce any usable recommendations.');
+    }
+
+    const recommendations = [...existingRecommendations, ...generatedRecommendations];
+    const generationSummary = {
+      at: timestamp,
+      by: actorUid,
+      provider: generated.provider,
+      model: generated.model,
+      promptCount: request.prompts.length,
+      generatedCount: generatedRecommendations.length,
+      appendedToBatchId: existing?.id ?? null,
+    };
+    const normalized = normalizeBatchInput(
+      {
+        ...batchContext,
+        recommendations,
+        metadata: mergeGenerationMetadata(batchContext.metadata, generationSummary),
+      },
+      { timestamp: batchContext.createdAt ?? timestamp },
+    );
+
+    const saved = existing
+      ? await repository.updateRecommendationBatch(existing.id, {
+          ...normalized,
+          status: 'draft',
+          approvedAt: null,
+          approvedBy: null,
+          publicData: null,
+          updatedBy: actorUid,
+        })
+      : await repository.createRecommendationBatch({
+          ...normalized,
+          status: 'draft',
+          channels: initialChannels(timestamp),
+          createdBy: actorUid,
+        });
+
+    return normalizeBatchRecord(saved);
   }
 
   async function approveBatch(batchId, { actorUid = null } = {}) {
@@ -157,6 +247,10 @@ export function createRecommendationBatchService({
     return normalizeBatchRecord(batch);
   }
 
+  async function findOpenBatchForTradeDate(tradeDate) {
+    return findOpenBatchForTradeDateFromRepository(repository, tradeDate);
+  }
+
   async function requireBatch(batchId) {
     const normalizedId = cleanString(batchId, { maxLength: 160 });
     if (!normalizedId) {
@@ -222,11 +316,59 @@ export function createRecommendationBatchService({
     getBatch,
     createBatch,
     updateBatch,
+    generateRecommendations,
     approveBatch,
     publishBatch,
     getLatestPublishedBatch,
     getPublishedBatch,
   };
+}
+
+function normalizeGenerationInput(input = {}) {
+  const batchId = cleanString(input.batchId, { maxLength: 160 });
+  const tradeDate = cleanDate(input.tradeDate);
+  if (!batchId && !tradeDate) {
+    throw badRequest('tradeDate is required when batchId is not provided');
+  }
+
+  return {
+    batchId,
+    tradeDate,
+    title: cleanString(input.title, { maxLength: 160 }),
+    theme: cleanString(input.theme, { maxLength: 240 }),
+    dateRange: cleanString(input.dateRange, { maxLength: 160 }),
+    prompts: normalizeGenerationPrompts(input.prompts),
+  };
+}
+
+function normalizeGenerationPrompts(prompts) {
+  if (!Array.isArray(prompts)) {
+    throw badRequest('prompts must be an array');
+  }
+  const normalized = prompts
+    .map((item, index) => {
+      const prompt = typeof item === 'string'
+        ? cleanString(item, { maxLength: MAX_GENERATION_PROMPT_CHARS })
+        : cleanString(item?.prompt, { maxLength: MAX_GENERATION_PROMPT_CHARS });
+      if (!prompt) {
+        return null;
+      }
+      return {
+        id: cleanString(item?.id, { maxLength: 80 }) ?? `prompt_${index + 1}`,
+        prompt,
+      };
+    })
+    .filter(Boolean);
+
+  if (normalized.length === 0) {
+    throw badRequest('At least one prompt is required');
+  }
+  if (normalized.length > MAX_GENERATION_PROMPTS) {
+    throw badRequest(`prompts cannot contain more than ${MAX_GENERATION_PROMPTS} items`, {
+      maxItems: MAX_GENERATION_PROMPTS,
+    });
+  }
+  return normalized;
 }
 
 function normalizeBatchInput(input = {}, { timestamp, partial = false } = {}) {
@@ -244,6 +386,101 @@ function normalizeBatchInput(input = {}, { timestamp, partial = false } = {}) {
     recommendations,
     metadata: normalizePlainObject(input.metadata),
     createdAt: input.createdAt ?? timestamp,
+  };
+}
+
+async function findOpenBatchForTradeDateFromRepository(repository, tradeDate) {
+  const batches = await repository.listRecommendationBatches({});
+  return batches.find((batch) => batch.tradeDate === tradeDate && ['draft', 'approved'].includes(batch.status)) ?? null;
+}
+
+function batchContextForGeneration(existing, request, timestamp) {
+  const tradeDate = request.tradeDate ?? existing?.tradeDate;
+  return {
+    id: existing?.id ?? null,
+    tradeDate,
+    weekId: existing?.weekId ?? weekIdForDate(tradeDate),
+    title: request.title ?? existing?.title ?? `Daily Picks - ${tradeDate}`,
+    theme: request.theme ?? existing?.theme ?? '',
+    dateRange: request.dateRange ?? existing?.dateRange ?? tradeDate,
+    recommendations: existing?.recommendations ?? [],
+    metadata: existing?.metadata ?? {},
+    createdAt: existing?.createdAt ?? timestamp,
+  };
+}
+
+function normalizeGeneratedRecommendations(rawRecommendations, { existingRecommendations, prompts, timestamp }) {
+  const usedIds = new Set(existingRecommendations.map((item) => item.id).filter(Boolean));
+  const maxSortOrder = existingRecommendations.reduce(
+    (maxValue, item) => Math.max(maxValue, Number(item.sortOrder) || 0),
+    0,
+  );
+
+  return rawRecommendations.map((item, index) => {
+    const sortOrder = maxSortOrder + ((index + 1) * 10);
+    const symbol = cleanSymbol(item.symbol);
+    const id = uniqueRecommendationId({
+      requestedId: item.id,
+      symbol,
+      sortOrder,
+      usedIds,
+    });
+    const sourcePromptId =
+      cleanString(item.sourcePromptId ?? item.promptId, { maxLength: 80 }) ?? prompts[index]?.id ?? null;
+    return normalizeRecommendation(
+      {
+        ...item,
+        id,
+        tileId: cleanString(item.tileId, { maxLength: 120 }) ?? id,
+        symbol,
+        sortOrder,
+        lifecycle: {
+          ...normalizePlainObject(item.lifecycle),
+          generation: {
+            source: 'ai',
+            generatedAt: timestamp,
+            sourcePromptId,
+          },
+        },
+      },
+      index,
+    );
+  });
+}
+
+function uniqueRecommendationId({ requestedId, symbol, sortOrder, usedIds }) {
+  const requested = cleanString(requestedId, { maxLength: 120 });
+  const fallback = `pick_${sortOrder}_${String(symbol ?? 'ai').toLowerCase()}`;
+  const base = sanitizeRecommendationId(requested ?? fallback) || `pick_${sortOrder}`;
+  let candidate = base;
+  let suffix = 2;
+  while (usedIds.has(candidate)) {
+    candidate = `${base}_${suffix}`;
+    suffix += 1;
+  }
+  usedIds.add(candidate);
+  return candidate;
+}
+
+function sanitizeRecommendationId(value) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 120);
+}
+
+function mergeGenerationMetadata(metadata, generationSummary) {
+  const normalizedMetadata = normalizePlainObject(metadata);
+  const generationHistory = Array.isArray(normalizedMetadata.generationHistory)
+    ? normalizedMetadata.generationHistory.slice(-9)
+    : [];
+  return {
+    ...normalizedMetadata,
+    source: normalizedMetadata.source ?? 'admin-ai-assisted',
+    lastGeneration: generationSummary,
+    generationHistory: [...generationHistory, generationSummary],
   };
 }
 
@@ -336,7 +573,7 @@ function buildPublicRecommendationBatch(batch, publishedAt) {
     dateRange: batch.dateRange ?? batch.tradeDate,
     status: 'published',
     publishedAt: batch.publishedAt ?? publishedAt ?? null,
-    source: 'admin-curated',
+    source: batch.metadata?.source ?? 'admin-curated',
     recommendations,
     picks: recommendations,
   };

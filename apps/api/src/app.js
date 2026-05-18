@@ -33,6 +33,7 @@ import { createSocialOAuthService } from './services/socialOAuthService.js';
 import { createSocialPublisherService } from './services/socialPublisherService.js';
 import { startPublicationSyncScheduler } from './services/publicationSyncScheduler.js';
 import { createRecommendationBatchService } from './services/recommendationBatchService.js';
+import { createRecommendationGenerationService } from './services/recommendationGenerationService.js';
 import { createYouTubeOAuthService } from './services/youtubeOAuthService.js';
 import { createYouTubePublisherService } from './services/youtubePublisherService.js';
 import { createUserAccessService } from './services/userAccessService.js';
@@ -58,8 +59,11 @@ export function createApp(options = {}) {
   const videoReviewService = options.videoReviewService ?? createVideoReviewService();
   const videoStudioService = options.videoStudioService ?? createVideoStudioService();
   const watchlistService = options.watchlistService ?? createWatchlistService({ repository });
+  const recommendationGenerationService =
+    options.recommendationGenerationService ?? createRecommendationGenerationService();
   const recommendationBatchService =
-    options.recommendationBatchService ?? createRecommendationBatchService({ repository, jobStateService });
+    options.recommendationBatchService ??
+    createRecommendationBatchService({ repository, jobStateService, recommendationGenerationService });
   const youtubePublisherService =
     options.youtubePublisherService ??
     createYouTubePublisherService({ repository, jobStateService, youtubeOAuthService });
@@ -88,6 +92,7 @@ export function createApp(options = {}) {
     videoThumbnailService,
     watchlistService,
     recommendationBatchService,
+    recommendationGenerationService,
   };
 
   const app = express();

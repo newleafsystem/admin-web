@@ -8,8 +8,41 @@ const { createApp } = await import('../app.js');
 const { createInMemoryRepository } = await import('../lib/repository.js');
 
 const repository = createInMemoryRepository();
+const generationCalls = [];
+const recommendationGenerationService = {
+  async generateRecommendations({ prompts, batch, existingRecommendations }) {
+    generationCalls.push({
+      prompts,
+      batch,
+      existingRecommendations,
+    });
+    return {
+      provider: 'test',
+      model: 'stub-recommendation-model',
+      recommendations: prompts.map((prompt, index) => {
+        const symbol = prompt.prompt.match(/\b[A-Z]{2,6}\b/)?.[0] ?? `AI${index + 1}`;
+        return {
+          sourcePromptId: prompt.id,
+          symbol,
+          strategy: 'Defined-risk call spread',
+          direction: 'BULLISH',
+          price: 100 + index,
+          expiry: '2026-06-19',
+          rewardRisk: 1.4,
+          oddsOfProfit: 58,
+          maxProfit: 320,
+          thesis: `${symbol} may act as a data-supported bullish setup based on the submitted prompt.`,
+          riskNotes: 'A close below support or a volatility crush would invalidate the setup.',
+          entry: 'Enter only if liquidity and spread width remain acceptable.',
+          exit: 'Trim into strength or exit if the setup breaks support.',
+        };
+      }),
+    };
+  },
+};
 const app = createApp({
   repository,
+  recommendationGenerationService,
   autoResumeQueuedUploads: false,
   autoSyncPublications: false,
 });
@@ -92,6 +125,51 @@ try {
   });
   assert.equal(list.status, 200);
   assert.equal(list.body.recommendationBatches.length, 1);
+
+  const generated = await json({
+    method: 'POST',
+    path: '/api/v1/recommendation-batches/generate',
+    body: {
+      tradeDate: '2026-05-18',
+      title: 'Daily Picks',
+      theme: 'AI-assisted defined-risk ideas',
+      prompts: [
+        { id: 'prompt_msft', prompt: 'Generate a MSFT defined-risk idea.' },
+        { id: 'prompt_tsla', prompt: 'Generate a TSLA defined-risk idea.' },
+      ],
+    },
+  });
+  assert.equal(generated.status, 200);
+  assert.equal(generated.body.recommendationBatch.status, 'draft');
+  assert.equal(generated.body.recommendationBatch.recommendations.length, 2);
+  assert.equal(generated.body.recommendationBatch.recommendations[0].symbol, 'MSFT');
+  assert.equal(generationCalls.length, 1);
+  assert.equal(generationCalls[0].existingRecommendations.length, 0);
+  const generatedBatchId = generated.body.recommendationBatch.id;
+
+  const appended = await json({
+    method: 'POST',
+    path: '/api/v1/recommendation-batches/generate',
+    body: {
+      tradeDate: '2026-05-18',
+      prompts: [
+        { id: 'prompt_nvda', prompt: 'Generate a NVDA defined-risk idea.' },
+      ],
+    },
+  });
+  assert.equal(appended.status, 200);
+  assert.equal(appended.body.recommendationBatch.id, generatedBatchId);
+  assert.equal(appended.body.recommendationBatch.recommendations.length, 3);
+  assert.equal(appended.body.recommendationBatch.recommendations[2].symbol, 'NVDA');
+  assert.equal(generationCalls.length, 2);
+  assert.equal(generationCalls[1].existingRecommendations.length, 2);
+
+  const listAfterGeneration = await json({
+    method: 'GET',
+    path: '/api/v1/recommendation-batches',
+  });
+  assert.equal(listAfterGeneration.status, 200);
+  assert.equal(listAfterGeneration.body.recommendationBatches.length, 2);
 
   console.log('Recommendation batch route tests passed.');
 } finally {

@@ -219,7 +219,7 @@ Use `.env.example` as the source of truth for local values and `.env.production.
 Important groups:
 
 - Runtime: `PORT`, `PUBLIC_BASE_URL`, `ADMIN_BASE_URL`, `CORS_ALLOWED_ORIGINS`
-- AI review: `OPENAI_API_KEY`, `AI_MODEL`, `AI_TRANSCRIPTION_MODEL`
+- AI review and recommendation generation: `OPENAI_API_KEY`, `AI_API_KEY`, `AI_MODEL`, `AI_TRANSCRIPTION_MODEL`
 - YouTube: `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET`, `YOUTUBE_SCOPES`
 - X: `X_CLIENT_ID`, `X_CLIENT_SECRET`, `X_SCOPES`
 - Optional LinkedIn: `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`

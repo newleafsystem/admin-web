@@ -722,6 +722,19 @@ export async function updateRecommendationBatch(batchId, payload) {
   return normalizeRecommendationBatch(body.recommendationBatch);
 }
 
+export async function generateRecommendationBatch(payload) {
+  const response = await apiFetch(`${API_BASE_URL}/recommendation-batches/generate`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to generate recommendations");
+  return normalizeRecommendationBatch(body.recommendationBatch);
+}
+
 export async function approveRecommendationBatch(batchId) {
   const response = await apiFetch(`${API_BASE_URL}/recommendation-batches/${encodeURIComponent(batchId)}/approve`, {
     method: "POST"
