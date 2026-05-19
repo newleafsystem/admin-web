@@ -296,6 +296,7 @@ if [[ -n "${AUTH_ADMIN_EMAILS:-}" ]]; then
 fi
 
 add_env_if_present AUTH_SESSION_COOKIE_NAME
+add_env_if_present AUTH_SESSION_HINT_COOKIE_NAME
 add_env_if_present AUTH_SESSION_COOKIE_DOMAIN
 add_env_if_present AUTH_SESSION_COOKIE_PATH
 add_env_if_present AUTH_SESSION_COOKIE_MAX_AGE_SEC

@@ -158,6 +158,7 @@ jobs:
       REQUIRE_AUTH: ${{ vars.REQUIRE_AUTH || 'true' }}
       AUTH_ADMIN_EMAILS: ${{ vars.AUTH_ADMIN_EMAILS }}
       AUTH_SESSION_COOKIE_NAME: ${{ vars.AUTH_SESSION_COOKIE_NAME || 'newleaf_session' }}
+      AUTH_SESSION_HINT_COOKIE_NAME: ${{ vars.AUTH_SESSION_HINT_COOKIE_NAME || 'newleaf_session_hint' }}
       AUTH_SESSION_COOKIE_DOMAIN: ${{ vars.AUTH_SESSION_COOKIE_DOMAIN || '.newleafsystem.com' }}
       AUTH_SESSION_COOKIE_PATH: ${{ vars.AUTH_SESSION_COOKIE_PATH || '/' }}
       AUTH_SESSION_COOKIE_MAX_AGE_SEC: ${{ vars.AUTH_SESSION_COOKIE_MAX_AGE_SEC || '432000' }}

@@ -36,6 +36,7 @@ export const config = Object.freeze({
   auth: {
     requireAuth: readBoolean('REQUIRE_AUTH', false),
     sessionCookieName: readOptionalString('AUTH_SESSION_COOKIE_NAME') ?? 'newleaf_session',
+    sessionHintCookieName: readOptionalString('AUTH_SESSION_HINT_COOKIE_NAME') ?? 'newleaf_session_hint',
     sessionCookieDomain: readOptionalString('AUTH_SESSION_COOKIE_DOMAIN'),
     sessionCookiePath: readOptionalString('AUTH_SESSION_COOKIE_PATH') ?? '/api/v1',
     sessionCookieMaxAgeMs: readNumber('AUTH_SESSION_COOKIE_MAX_AGE_SEC', 5 * 24 * 60 * 60) * 1000,

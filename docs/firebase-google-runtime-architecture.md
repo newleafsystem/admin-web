@@ -45,6 +45,7 @@ ADMIN_BASE_URL=https://admin.newleafsystem.com
 SOCIAL_CALLBACK_BASE_URL=https://api.newleafsystem.com
 CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com
 AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com
+AUTH_SESSION_HINT_COOKIE_NAME=newleaf_session_hint
 AUTH_SESSION_COOKIE_PATH=/
 AUTH_SESSION_COOKIE_SAME_SITE=lax
 AUTH_SESSION_COOKIE_SECURE=true

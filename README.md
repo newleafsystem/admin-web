@@ -303,6 +303,7 @@ Required GitHub repository variables:
 - `SOCIAL_PUBLICATION_SYNC_INTERVAL_MS=3600000`
 - `CORS_ALLOWED_ORIGINS=https://admin.newleafsystem.com https://newleafsystem.com https://www.newleafsystem.com https://preview.newleafsystem.com`
 - `AUTH_SESSION_COOKIE_NAME=newleaf_session`
+- `AUTH_SESSION_HINT_COOKIE_NAME=newleaf_session_hint`
 - `AUTH_SESSION_COOKIE_DOMAIN=.newleafsystem.com`
 - `AUTH_SESSION_COOKIE_PATH=/`
 - `AUTH_SESSION_COOKIE_MAX_AGE_SEC=432000`

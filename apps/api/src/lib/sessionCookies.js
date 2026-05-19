@@ -30,11 +30,14 @@ export async function setAuthSessionCookieFromIdToken(res, idToken) {
     expiresIn: config.auth.sessionCookieMaxAgeMs,
   });
   res.cookie(config.auth.sessionCookieName, sessionCookie, sessionCookieOptions());
+  res.cookie(config.auth.sessionHintCookieName, '1', sessionHintCookieOptions());
   if (config.auth.sessionCookieDomain) {
     res.cookie(config.auth.sessionCookieName, sessionCookie, sessionCookieOptions({ hostOnly: true }));
+    res.cookie(config.auth.sessionHintCookieName, '1', sessionHintCookieOptions({ hostOnly: true }));
   }
   return {
     name: config.auth.sessionCookieName,
+    hintName: config.auth.sessionHintCookieName,
     maxAgeSec: Math.floor(config.auth.sessionCookieMaxAgeMs / 1000),
     domain: config.auth.sessionCookieDomain ?? null,
     path: config.auth.sessionCookiePath,
@@ -44,8 +47,10 @@ export async function setAuthSessionCookieFromIdToken(res, idToken) {
 
 export function clearAuthSessionCookie(res) {
   res.clearCookie(config.auth.sessionCookieName, sessionCookieOptions({ clear: true }));
+  res.clearCookie(config.auth.sessionHintCookieName, sessionHintCookieOptions({ clear: true }));
   if (config.auth.sessionCookieDomain) {
     res.clearCookie(config.auth.sessionCookieName, sessionCookieOptions({ clear: true, hostOnly: true }));
+    res.clearCookie(config.auth.sessionHintCookieName, sessionHintCookieOptions({ clear: true, hostOnly: true }));
   }
 }
 
@@ -76,6 +81,21 @@ export function readCookieValue(cookieHeader, name) {
 function sessionCookieOptions({ clear = false, hostOnly = false } = {}) {
   const options = {
     httpOnly: true,
+    secure: Boolean(config.auth.sessionCookieSecure),
+    sameSite: normalizeSameSite(config.auth.sessionCookieSameSite),
+    path: config.auth.sessionCookiePath,
+  };
+  if (!clear) {
+    options.maxAge = config.auth.sessionCookieMaxAgeMs;
+  }
+  if (config.auth.sessionCookieDomain && !hostOnly) {
+    options.domain = config.auth.sessionCookieDomain;
+  }
+  return options;
+}
+
+function sessionHintCookieOptions({ clear = false, hostOnly = false } = {}) {
+  const options = {
     secure: Boolean(config.auth.sessionCookieSecure),
     sameSite: normalizeSameSite(config.auth.sessionCookieSameSite),
     path: config.auth.sessionCookiePath,

@@ -46,6 +46,7 @@ export function createAuthSessionRouter({
     asyncHandler(async (req, res) => {
       const sessionCookie = readAuthSessionCookie(req);
       if (!sessionCookie) {
+        sessionCookieService.clear(res);
         res.json({ authenticated: false });
         return;
       }

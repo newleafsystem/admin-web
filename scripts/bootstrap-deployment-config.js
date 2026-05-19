@@ -60,6 +60,7 @@ const REPO_VARIABLE_NAMES = [
   'REQUIRE_AUTH',
   'AUTH_ADMIN_EMAILS',
   'AUTH_SESSION_COOKIE_NAME',
+  'AUTH_SESSION_HINT_COOKIE_NAME',
   'AUTH_SESSION_COOKIE_DOMAIN',
   'AUTH_SESSION_COOKIE_PATH',
   'AUTH_SESSION_COOKIE_MAX_AGE_SEC',
@@ -282,6 +283,7 @@ function buildEnvValues(fileEnv) {
   env.FIRESTORE_DATABASE_ID ||= 'newleafdb';
   env.GCP_SERVICE_ACCOUNT ||= credentials?.client_email || '';
   env.AUTH_SESSION_COOKIE_NAME ||= 'newleaf_session';
+  env.AUTH_SESSION_HINT_COOKIE_NAME ||= 'newleaf_session_hint';
   env.AUTH_SESSION_COOKIE_DOMAIN ||= '.newleafsystem.com';
   env.AUTH_SESSION_COOKIE_PATH ||= '/';
   env.AUTH_SESSION_COOKIE_MAX_AGE_SEC ||= '432000';
