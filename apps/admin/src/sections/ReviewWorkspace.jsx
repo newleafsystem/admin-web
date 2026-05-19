@@ -47,15 +47,18 @@ export function ReviewWorkspace({
   const isGeneratingSummary =
     summaryWorkflow.isGenerating && summaryWorkflow.jobId === selectedJob.id;
   const summaryError = summaryWorkflow.jobId === selectedJob.id ? summaryWorkflow.error : null;
+  const isScriptReady = selectedJob.status === "script_ready";
   const canApprove = ["review_required", "video_ready"].includes(selectedJob.status);
   const canDeleteReview = canApprove;
   const isApprovedForPublishing = ["approved", "publishing", "published"].includes(selectedJob.status);
   const showScriptPanel =
     selectedJob.sourceType === "text_to_heygen" && selectedJob.script.preview.length > 0;
-  const canRegenerateHeyGen = showScriptPanel;
+  const canRegenerateScript = showScriptPanel && !isScriptReady;
+  const canRequestHeyGenVideo = showScriptPanel;
   const isDeleting = deleteWorkflow.isDeleting && deleteWorkflow.jobId === selectedJob.id;
   const isScriptBusy = scriptWorkflow.isSaving || scriptWorkflow.isRegenerating;
   const scriptHasChanges = scriptText.trim() !== scriptSeed.trim();
+  const videoActionLabel = isScriptReady ? "Generate video" : "Regenerate video";
 
   async function confirmReviewDelete() {
     if (!deleteConfirmation) {
@@ -92,7 +95,7 @@ export function ReviewWorkspace({
     }
   }
 
-  async function regenerateVideoFromScript() {
+  async function requestVideoFromScript() {
     setScriptWorkflow({ isSaving: false, isRegenerating: true, error: null, message: null });
     try {
       await saveReviewScript(selectedJob.id, scriptText);
@@ -101,7 +104,9 @@ export function ReviewWorkspace({
         isSaving: false,
         isRegenerating: false,
         error: null,
-        message: "Video regeneration requested from the edited script."
+        message: isScriptReady
+          ? "Video generation requested from this script."
+          : "Video regeneration requested from the edited script."
       });
     } catch (error) {
       setScriptWorkflow({
@@ -122,13 +127,15 @@ export function ReviewWorkspace({
           {selectedJob.script.disclaimer && <p>{selectedJob.script.disclaimer}</p>}
         </div>
         <div className="action-row">
-          {canRegenerateHeyGen && (
+          {showScriptPanel && (
             <>
-              <button type="button" onClick={() => requestRegeneration("script", selectedJob.id)}>
-                Regenerate script
-              </button>
-              <button type="button" disabled={isScriptBusy} onClick={regenerateVideoFromScript}>
-                {scriptWorkflow.isRegenerating ? "Requesting..." : "Regenerate video"}
+              {canRegenerateScript && (
+                <button type="button" onClick={() => requestRegeneration("script", selectedJob.id)}>
+                  Regenerate script
+                </button>
+              )}
+              <button type="button" disabled={isScriptBusy || !canRequestHeyGenVideo} onClick={requestVideoFromScript}>
+                {scriptWorkflow.isRegenerating ? "Requesting..." : videoActionLabel}
               </button>
             </>
           )}
@@ -198,8 +205,8 @@ export function ReviewWorkspace({
                 <button type="button" disabled={isScriptBusy || !scriptHasChanges} onClick={saveScriptEdits}>
                   {scriptWorkflow.isSaving ? "Saving..." : "Save script"}
                 </button>
-                <button className="primary" type="button" disabled={isScriptBusy} onClick={regenerateVideoFromScript}>
-                  {scriptWorkflow.isRegenerating ? "Requesting..." : "Regenerate video"}
+                <button className="primary" type="button" disabled={isScriptBusy} onClick={requestVideoFromScript}>
+                  {scriptWorkflow.isRegenerating ? "Requesting..." : videoActionLabel}
                 </button>
               </div>
             </div>

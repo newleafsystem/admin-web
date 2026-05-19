@@ -151,7 +151,7 @@ export const intakeModes = [
   }
 ];
 
-export const REVIEWABLE_STATUSES = new Set(["review_required", "video_ready"]);
+export const REVIEWABLE_STATUSES = new Set(["script_ready", "review_required", "video_ready"]);
 
 export const initialContentDraft = {
   mode: "video_upload",

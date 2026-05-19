@@ -4,6 +4,7 @@ import {
   hasActivePublishingWork,
   isArchivedContentQueueJob,
   isArchivedPublishPlan,
+  isReviewableJob,
   normalizePathname,
 } from './utils.js';
 
@@ -41,6 +42,8 @@ assert.equal(
   }),
   true,
 );
+
+assert.equal(isReviewableJob({ status: 'script_ready' }), true);
 
 assert.equal(
   isArchivedPublishPlan({

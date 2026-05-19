@@ -57,7 +57,15 @@ const channelLabels = {
   video: "Video"
 };
 
-export function Recommendations({ batches = [], onApprove, onCreate, onGenerate, onPublish, onSave }) {
+export function Recommendations({
+  batches = [],
+  onApprove,
+  onCreate,
+  onGenerate,
+  onOpenScriptJob,
+  onPublish,
+  onSave
+}) {
   const [draft, setDraft] = useState(emptyDraft);
   const [generation, setGeneration] = useState(emptyGenerationState);
   const sortedBatches = useMemo(
@@ -521,7 +529,12 @@ export function Recommendations({ batches = [], onApprove, onCreate, onGenerate,
                 </div>
 
                 {batch.scriptJobId && (
-                  <p className="muted">Video script job: {batch.scriptJobId}</p>
+                  <div className="recommendation-script-job-row">
+                    <p className="muted">Video script job: {batch.scriptJobId}</p>
+                    <button type="button" onClick={() => onOpenScriptJob?.(batch.scriptJobId)}>
+                      Open video workflow
+                    </button>
+                  </div>
                 )}
 
                 {hasOutputArtifacts(batch.outputArtifacts) && (

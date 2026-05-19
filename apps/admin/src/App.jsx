@@ -671,7 +671,9 @@ export default function App({ session }) {
       const videoScript = buildRegenerationVideoScript(targetJob, editedScriptText);
       const updatedJob =
         scope === "video"
-          ? await regenerateJobVideo(targetJob.id, videoScript)
+          ? targetJob.status === "script_ready"
+            ? await requestVideoGeneration(targetJob.id, videoScript)
+            : await regenerateJobVideo(targetJob.id, videoScript)
           : await generateJobScript(targetJob.id);
       setJobs((current) =>
         current.map((job) => (job.id === targetJob.id ? mergeJob(job, updatedJob) : job))
@@ -1742,6 +1744,10 @@ export default function App({ session }) {
                 onApprove={approveRecommendationBatch}
                 onCreate={createRecommendationBatch}
                 onGenerate={generateRecommendationBatch}
+                onOpenScriptJob={(jobId) => {
+                  setSelectedJobId(jobId);
+                  setActiveView("Review");
+                }}
                 onPublish={publishRecommendationBatch}
                 onSave={saveRecommendationBatch}
               />
