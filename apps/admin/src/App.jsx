@@ -153,6 +153,8 @@ export default function App({ session }) {
   const activeView = routeState.status === "view" ? routeState.view : "Dashboard";
   const effectiveRouteStatus = routeState.status === "view" && loadError ? "serverError" : routeState.status;
   const pageTitle = getPageTitle(effectiveRouteStatus, activeView);
+  const backgroundLoaderLabel = Object.entries(sectionLoaders)
+    .find(([view]) => view !== activeView)?.[1] ?? null;
 
   function setActiveView(view, options = {}) {
     const nextView = routeByView[view] ? view : "Dashboard";
@@ -1711,9 +1713,9 @@ export default function App({ session }) {
           </div>
         </header>
 
-        {Object.keys(sectionLoaders).length > 0 && (
+        {backgroundLoaderLabel && (
           <section className="section-loader app-loader" aria-live="polite">
-            <LeafLoader compact label={Object.values(sectionLoaders)[0]} />
+            <LeafLoader compact label={backgroundLoaderLabel} />
           </section>
         )}
 
