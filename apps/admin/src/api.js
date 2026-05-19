@@ -775,6 +775,22 @@ export async function publishRecommendationBatch(batchId) {
   return normalizeRecommendationBatch(body.recommendationBatch);
 }
 
+export async function deleteRecommendationBatch(batchId, payload) {
+  const response = await apiFetch(`${API_BASE_URL}/recommendation-batches/${encodeURIComponent(batchId)}/delete`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const body = await readJson(response);
+  assertOk(response, body, "Unable to delete recommendation batch");
+  return {
+    recommendationBatch: body.recommendationBatch ? normalizeRecommendationBatch(body.recommendationBatch) : null,
+    cleanup: body.cleanup ?? {}
+  };
+}
+
 async function requestVideoGenerationWithRecovery({ jobId, path, body, fallbackMessage }) {
   try {
     const response = await apiFetch(path, {

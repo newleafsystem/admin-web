@@ -3260,6 +3260,32 @@ textarea.script-editor:focus {
   margin: 0;
 }
 
+.recommendation-delete-options {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgba(39, 116, 92, 0.16);
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfcfd;
+}
+
+.recommendation-delete-options .checkbox-line {
+  align-items: flex-start;
+  min-height: 0;
+}
+
+.recommendation-delete-options .checkbox-line span {
+  display: grid;
+  gap: 3px;
+}
+
+.recommendation-delete-options small {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
 .wide-dialog {
   width: min(760px, calc(100vw - 32px));
 }

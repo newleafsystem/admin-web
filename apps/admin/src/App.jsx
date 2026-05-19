@@ -7,6 +7,7 @@ import {
   createPublishPlan,
   createRecommendationBatch as createRecommendationBatchApi,
   createServiceClient,
+  deleteRecommendationBatch as deleteRecommendationBatchApi,
   deleteUser,
   deleteJobPublications,
   deletePublication,
@@ -1648,6 +1649,32 @@ export default function App({ session }) {
     }
   }
 
+  async function deleteRecommendationBatch(batchId, payload) {
+    setActionError(null);
+    try {
+      const result = await withSectionLoader("Recommendations", "Cleaning up recommendation...", () =>
+        deleteRecommendationBatchApi(batchId, payload)
+      );
+      const [refreshedBatches, refreshedJobs, refreshedPublications] = await Promise.all([
+        fetchRecommendationBatches(),
+        fetchJobs(),
+        fetchPublications()
+      ]);
+      setRecommendationBatches(refreshedBatches);
+      setJobs(refreshedJobs);
+      setPublications(refreshedPublications);
+      setAuditEvents((current) =>
+        addAuditEvent(current, "delete_recommendation_batch", batchId, currentActor(session), {
+          cleanup: result.cleanup
+        })
+      );
+      return result;
+    } catch (error) {
+      setActionError(error.message);
+      throw error;
+    }
+  }
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -1748,6 +1775,7 @@ export default function App({ session }) {
                   setSelectedJobId(jobId);
                   setActiveView("Review");
                 }}
+                onDelete={deleteRecommendationBatch}
                 onPublish={publishRecommendationBatch}
                 onSave={saveRecommendationBatch}
               />

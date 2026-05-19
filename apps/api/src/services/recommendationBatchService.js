@@ -1,14 +1,35 @@
 import { badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import {
+  buildObjectStorageJobPrefix,
+  isObjectStorageProvider,
+} from '../lib/assetStorage.js';
 
 export const RECOMMENDATION_BATCH_STATUSES = Object.freeze(['draft', 'approved', 'published', 'archived']);
 export const RECOMMENDATION_DIRECTIONS = Object.freeze(['BULLISH', 'BEARISH', 'NEUTRAL']);
 export const MAX_RECOMMENDATIONS_PER_BATCH = 50;
 const MAX_GENERATION_PROMPTS = 25;
 const MAX_GENERATION_PROMPT_CHARS = 4000;
+const RECOMMENDATION_DELETE_PLATFORMS = Object.freeze(['youtube', 'x', 'linkedin', 'facebook', 'instagram']);
+const RECOMMENDATION_JOB_DELETE_STATUSES = new Set([
+  'draft',
+  'source_ingested',
+  'content_extracted',
+  'script_ready',
+  'video_requested',
+  'video_ready',
+  'review_required',
+  'approved',
+  'publishing',
+  'published',
+  'partial_failed',
+  'failed',
+]);
 
 export function createRecommendationBatchService({
   repository,
   jobStateService,
+  publisherService,
+  artifactStorageService,
   recommendationGenerationService,
   recommendationMarketDataService,
   recommendationOutputService,
@@ -276,6 +297,96 @@ export function createRecommendationBatchService({
     return normalizeBatchRecord(published);
   }
 
+  async function deleteBatch(batchId, input = {}, { actorUid = null } = {}) {
+    const existing = await requireBatch(batchId);
+    const request = normalizeDeleteInput(input);
+    const timestamp = clock();
+    const cleanup = {
+      reason: request.reason,
+      recommendationBatchId: existing.id,
+      publicDataRemoved: existing.status === 'published' || Boolean(existing.publicData),
+      selectedPlatforms: request.platforms,
+      publications: [],
+      outputArtifacts: null,
+      videoJob: null,
+      recommendationRecord: null,
+    };
+    const scriptJob = existing.scriptJobId ? await repository.getJob(existing.scriptJobId) : null;
+
+    if (scriptJob && request.platforms.length > 0) {
+      cleanup.publications = await deleteSelectedPublications({
+        jobId: scriptJob.id,
+        platforms: request.platforms,
+        actorUid,
+        reason: request.reason,
+        timestamp,
+      });
+    }
+
+    if (scriptJob && request.removeVideoJob) {
+      cleanup.videoJob = await deleteRecommendationVideoJob({
+        job: scriptJob,
+        actorUid,
+        reason: request.reason,
+        timestamp,
+      });
+    } else if (request.removeOutputArtifacts) {
+      cleanup.outputArtifacts = await deleteRecommendationOutputArtifacts({
+        outputArtifacts: existing.outputArtifacts,
+        actorUid,
+        reason: request.reason,
+      });
+    }
+
+    if (request.removeRecommendation) {
+      if (!repository.deleteRecommendationBatch) {
+        throw conflict('Recommendation batch deletion is not supported by this repository');
+      }
+      const deleted = await repository.deleteRecommendationBatch(existing.id);
+      cleanup.recommendationRecord = {
+        deleted: Boolean(deleted),
+        id: deleted?.id ?? existing.id,
+        status: deleted?.status ?? existing.status,
+      };
+      return {
+        recommendationBatch: null,
+        cleanup,
+      };
+    }
+
+    const archived = await repository.updateRecommendationBatch(existing.id, {
+      status: 'archived',
+      publicData: null,
+      scriptJobId: request.removeVideoJob ? null : existing.scriptJobId,
+      outputArtifacts: request.removeOutputArtifacts ? {} : normalizePlainObject(existing.outputArtifacts),
+      channels: archivedChannels(existing.channels, {
+        actorUid,
+        reason: request.reason,
+        timestamp,
+        removedVideoJob: Boolean(cleanup.videoJob?.job?.id),
+        removedOutputArtifacts: request.removeOutputArtifacts,
+        removedPublications: cleanup.publications.length > 0,
+      }),
+      metadata: {
+        ...normalizePlainObject(existing.metadata),
+        archivedAt: timestamp,
+        archivedBy: actorUid,
+        archiveReason: request.reason,
+        previousStatus: existing.status,
+      },
+    });
+
+    cleanup.recommendationRecord = {
+      deleted: false,
+      id: archived.id,
+      status: archived.status,
+    };
+    return {
+      recommendationBatch: normalizeBatchRecord(archived),
+      cleanup,
+    };
+  }
+
   async function getLatestPublishedBatch() {
     const batch = await repository.getLatestPublishedRecommendationBatch();
     return batch ? normalizeBatchRecord(batch) : null;
@@ -353,6 +464,155 @@ export function createRecommendationBatchService({
     });
   }
 
+  async function deleteSelectedPublications({ jobId, platforms, actorUid, reason, timestamp }) {
+    const platformSet = new Set(platforms);
+    const attempts = await repository.listPublishAttempts({ jobId });
+    const selected = attempts.filter((attempt) =>
+      attempt.status !== 'deleted' && platformSet.has(cleanPlatform(attempt.platform)),
+    );
+    const deleted = [];
+
+    for (const attempt of selected) {
+      if (isProviderBackedAttempt(attempt)) {
+        if (!publisherService?.deletePublication) {
+          throw conflict('Provider publication deletion is not configured for recommendation cleanup', {
+            attemptId: attempt.id,
+            platform: attempt.platform,
+          });
+        }
+        const result = await publisherService.deletePublication(attempt.id, {
+          actorUid,
+          reason,
+        });
+        deleted.push({
+          attemptId: attempt.id,
+          platform: attempt.platform,
+          status: result.publication?.status ?? 'deleted',
+          providerDeleted: Boolean(result.providerDeleted),
+          providerPostId: attempt.providerPostId ?? null,
+          providerUrl: attempt.providerUrl ?? null,
+        });
+        continue;
+      }
+
+      const updated = await repository.updatePublishAttempt(attempt.id, {
+        status: 'deleted',
+        providerUrl: null,
+        errorCode: null,
+        errorMessage: null,
+        metadata: {
+          ...normalizePlainObject(attempt.metadata),
+          deletedAt: timestamp,
+          deletedBy: actorUid,
+          deleteReason: reason,
+          previousStatus: attempt.status,
+          providerDeleted: false,
+          publisherStatus: 'Removed as part of recommendation cleanup.',
+          progressStage: 'deleted',
+          progressPercent: 100,
+          progressLabel: 'Removed as part of recommendation cleanup.',
+        },
+      });
+      deleted.push({
+        attemptId: attempt.id,
+        platform: attempt.platform,
+        status: updated?.status ?? 'deleted',
+        providerDeleted: false,
+        providerPostId: attempt.providerPostId ?? null,
+        providerUrl: attempt.providerUrl ?? null,
+      });
+    }
+
+    return deleted;
+  }
+
+  async function deleteRecommendationVideoJob({ job, actorUid, reason, timestamp }) {
+    if (!RECOMMENDATION_JOB_DELETE_STATUSES.has(job.status)) {
+      throw conflict('Recommendation video workflow cannot be deleted in its current status', {
+        jobId: job.id,
+        status: job.status,
+      });
+    }
+
+    const [publishPlans, publishAttempts] = await Promise.all([
+      repository.listPublishPlans({ jobId: job.id }),
+      repository.listPublishAttempts({ jobId: job.id }),
+    ]);
+    const remainingProviderBackedAttempts = publishAttempts.filter(isProviderBackedAttempt);
+    if (remainingProviderBackedAttempts.length > 0) {
+      throw conflict('Recommendation video still has live provider publications. Select every live platform before deleting the video workflow.', {
+        jobId: job.id,
+        providerPublicationIds: remainingProviderBackedAttempts.map((attempt) => attempt.id),
+        providerPlatforms: [...new Set(remainingProviderBackedAttempts.map((attempt) => attempt.platform))],
+      });
+    }
+
+    const artifacts = await repository.listArtifactsForJob(job.id);
+    const storageCleanup = await cleanupJobArtifactStorage({
+      artifacts,
+      jobId: job.id,
+      artifactStorageService,
+    });
+    const archivedPublishing = await archivePublishingRecordsForRecommendationDelete({
+      repository,
+      job,
+      publishPlans,
+      publishAttempts,
+      actorUid,
+      reason,
+      timestamp,
+    });
+    const deleted = await repository.deleteJob(job.id);
+    return {
+      ...deleted,
+      publishPlans: archivedPublishing.publishPlans,
+      publishAttempts: archivedPublishing.publishAttempts,
+      storageCleanup,
+    };
+  }
+
+  async function deleteRecommendationOutputArtifacts({ outputArtifacts, actorUid, reason }) {
+    const artifactIds = collectOutputArtifactIds(outputArtifacts);
+    const deletedArtifacts = [];
+    const storageCleanup = {
+      artifactCount: artifactIds.length,
+      objectStorageCount: 0,
+      deletedObjectCount: 0,
+      skippedObjectCount: 0,
+      objects: [],
+    };
+
+    for (const artifactId of artifactIds) {
+      const artifact = await repository.getArtifact(artifactId);
+      if (!artifact) {
+        deletedArtifacts.push({ artifactId, deleted: false, reason: 'artifact_not_found' });
+        continue;
+      }
+      const cleanup = await cleanupObjectStorageArtifact(artifact, artifactStorageService);
+      if (cleanup) {
+        storageCleanup.objectStorageCount += 1;
+        storageCleanup.deletedObjectCount += cleanup.deleted ? 1 : 0;
+        storageCleanup.skippedObjectCount += cleanup.skipped ? 1 : 0;
+        storageCleanup.objects.push(cleanup);
+      }
+      const deleted = repository.deleteArtifact ? await repository.deleteArtifact(artifact.id) : null;
+      deletedArtifacts.push({
+        artifactId: artifact.id,
+        kind: artifact.kind,
+        storageProvider: artifact.storageProvider,
+        storageKey: artifact.storageKey,
+        deleted: Boolean(deleted),
+        deletedBy: actorUid,
+        reason,
+      });
+    }
+
+    return {
+      artifacts: deletedArtifacts,
+      storageCleanup,
+    };
+  }
+
   return {
     listBatches,
     getBatch,
@@ -361,9 +621,238 @@ export function createRecommendationBatchService({
     generateRecommendations,
     approveBatch,
     publishBatch,
+    deleteBatch,
     getLatestPublishedBatch,
     getPublishedBatch,
   };
+}
+
+function normalizeDeleteInput(input = {}) {
+  const body = normalizePlainObject(input);
+  const removeVideoJob = cleanBoolean(body.removeVideoJob, true);
+  return {
+    reason: cleanString(body.reason, { maxLength: 500 }) ?? 'admin_deleted_recommendation_batch',
+    removeRecommendation: cleanBoolean(body.removeRecommendation, true),
+    removeVideoJob,
+    removeOutputArtifacts: removeVideoJob || cleanBoolean(body.removeOutputArtifacts, true),
+    platforms: normalizeDeletePlatforms(body.platforms),
+  };
+}
+
+function normalizeDeletePlatforms(platforms) {
+  if (platforms === null || platforms === undefined) {
+    return [...RECOMMENDATION_DELETE_PLATFORMS];
+  }
+  if (!Array.isArray(platforms)) {
+    throw badRequest('platforms must be an array');
+  }
+  const unique = [];
+  for (const platform of platforms) {
+    const normalized = cleanPlatform(platform);
+    if (!normalized) continue;
+    if (!RECOMMENDATION_DELETE_PLATFORMS.includes(normalized)) {
+      throw badRequest('Recommendation cleanup platform is not supported', {
+        platform: normalized,
+        allowedValues: RECOMMENDATION_DELETE_PLATFORMS,
+      });
+    }
+    if (!unique.includes(normalized)) {
+      unique.push(normalized);
+    }
+  }
+  return unique;
+}
+
+function cleanPlatform(platform) {
+  const normalized = cleanString(platform, { maxLength: 40 })?.toLowerCase();
+  if (normalized === 'twitter') return 'x';
+  return normalized;
+}
+
+function cleanBoolean(value, defaultValue = false) {
+  if (value === null || value === undefined) return defaultValue;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (['true', '1', 'yes', 'on'].includes(normalized)) return true;
+    if (['false', '0', 'no', 'off'].includes(normalized)) return false;
+  }
+  throw badRequest('Expected a boolean cleanup value');
+}
+
+function isProviderBackedAttempt(attempt = {}) {
+  return attempt.status !== 'deleted'
+    && (attempt.status === 'published' || Boolean(attempt.providerPostId) || Boolean(attempt.providerUrl));
+}
+
+async function archivePublishingRecordsForRecommendationDelete({
+  repository,
+  job,
+  publishPlans,
+  publishAttempts,
+  actorUid,
+  reason,
+  timestamp,
+}) {
+  const archivedAttempts = [];
+  for (const attempt of publishAttempts) {
+    if (attempt.status === 'deleted') {
+      archivedAttempts.push(attempt);
+      continue;
+    }
+    const archived = await repository.updatePublishAttempt(attempt.id, {
+      status: 'deleted',
+      providerUrl: null,
+      errorCode: null,
+      errorMessage: null,
+      metadata: {
+        ...normalizePlainObject(attempt.metadata),
+        archivedToAuditAt: timestamp,
+        archiveReason: reason,
+        previousStatus: attempt.status,
+        archivedBy: actorUid ?? null,
+        providerDeleted: false,
+        publisherStatus: 'Removed with recommendation cleanup.',
+        progressStage: 'deleted',
+        progressPercent: 100,
+        progressLabel: 'Removed with recommendation cleanup.',
+      },
+    });
+    archivedAttempts.push(archived);
+  }
+
+  const archivedPlans = [];
+  for (const plan of publishPlans) {
+    if (plan.status === 'deleted') {
+      archivedPlans.push(plan);
+      continue;
+    }
+    const archived = await repository.updatePublishPlan(plan.id, {
+      status: 'deleted',
+      metadata: {
+        ...normalizePlainObject(plan.metadata),
+        archivedToAuditAt: timestamp,
+        archiveReason: reason,
+        previousStatus: plan.status,
+        archivedBy: actorUid ?? null,
+        sourceJobStatus: job.status,
+      },
+    });
+    archivedPlans.push(archived);
+  }
+
+  return {
+    publishPlans: archivedPlans,
+    publishAttempts: archivedAttempts,
+  };
+}
+
+async function cleanupJobArtifactStorage({ artifacts, jobId, artifactStorageService }) {
+  const objectStorageArtifacts = artifacts.filter((artifact) => isObjectStorageProvider(artifact.storageProvider));
+  const objects = [];
+
+  for (const artifact of objectStorageArtifacts) {
+    const result = await cleanupObjectStorageArtifact(artifact, artifactStorageService);
+    objects.push(result ?? {
+      artifactId: artifact.id,
+      storageProvider: artifact.storageProvider,
+      storageKey: artifact.storageKey,
+      deleted: false,
+      skipped: true,
+      reason: 'object_storage_delete_not_configured',
+    });
+  }
+
+  let prefix = null;
+  if (artifactStorageService?.shouldUseObjectStorage?.() && artifactStorageService.deleteObjectStoragePrefix) {
+    const storagePrefix = buildObjectStorageJobPrefix(jobId);
+    const result = await artifactStorageService.deleteObjectStoragePrefix(storagePrefix, {
+      ignoreNotFound: true,
+    });
+    prefix = {
+      storagePrefix,
+      deleted: Boolean(result.deleted),
+      skipped: Boolean(result.skipped),
+      reason: result.reason ?? null,
+    };
+  }
+
+  return {
+    artifactCount: artifacts.length,
+    objectStorageCount: objectStorageArtifacts.length,
+    deletedObjectCount: objects.filter((object) => object.deleted).length,
+    skippedObjectCount: objects.filter((object) => object.skipped).length,
+    prefix,
+    objects,
+  };
+}
+
+async function cleanupObjectStorageArtifact(artifact, artifactStorageService) {
+  if (!isObjectStorageProvider(artifact.storageProvider)) {
+    return null;
+  }
+  if (!artifactStorageService?.deleteObjectStorageArtifact) {
+    return {
+      artifactId: artifact.id,
+      storageProvider: artifact.storageProvider,
+      storageKey: artifact.storageKey,
+      deleted: false,
+      skipped: true,
+      reason: 'object_storage_delete_not_configured',
+    };
+  }
+  const result = await artifactStorageService.deleteObjectStorageArtifact(artifact, {
+    ignoreNotFound: true,
+  });
+  return {
+    artifactId: artifact.id,
+    storageProvider: artifact.storageProvider,
+    storageKey: artifact.storageKey,
+    deleted: Boolean(result.deleted),
+    skipped: Boolean(result.skipped),
+    reason: result.reason ?? null,
+  };
+}
+
+function archivedChannels(channels, {
+  actorUid,
+  reason,
+  timestamp,
+  removedVideoJob,
+  removedOutputArtifacts,
+  removedPublications,
+}) {
+  const deletedChannel = {
+    status: 'deleted',
+    updatedAt: timestamp,
+    actorUid,
+    reason,
+  };
+  return mergeChannels(channels, {
+    liveSite: deletedChannel,
+    email: deletedChannel,
+    pdf: removedOutputArtifacts ? deletedChannel : { status: 'archived', updatedAt: timestamp, actorUid, reason },
+    script: removedOutputArtifacts ? deletedChannel : { status: 'archived', updatedAt: timestamp, actorUid, reason },
+    social: removedPublications || removedOutputArtifacts
+      ? deletedChannel
+      : { status: 'archived', updatedAt: timestamp, actorUid, reason },
+    archive: removedOutputArtifacts ? deletedChannel : { status: 'archived', updatedAt: timestamp, actorUid, reason },
+    video: removedVideoJob ? deletedChannel : { status: 'archived', updatedAt: timestamp, actorUid, reason },
+  });
+}
+
+function collectOutputArtifactIds(outputArtifacts = {}) {
+  const ids = [];
+  for (const value of Object.values(normalizePlainObject(outputArtifacts))) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      continue;
+    }
+    const artifactId = cleanString(value.artifactId ?? value.id, { maxLength: 160 });
+    if (artifactId && !ids.includes(artifactId)) {
+      ids.push(artifactId);
+    }
+  }
+  return ids;
 }
 
 function normalizeGenerationInput(input = {}) {

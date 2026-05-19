@@ -227,6 +227,15 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       return copy(artifacts.get(artifactId));
     },
 
+    async deleteArtifact(artifactId) {
+      await hydrate();
+      const existing = artifacts.get(artifactId);
+      if (!existing) return null;
+      artifacts.delete(artifactId);
+      await persist();
+      return copy(existing);
+    },
+
     async listArtifactsForJob(jobId) {
       await hydrate();
       return listFromMap(artifacts, (artifact) => artifact.jobId === jobId);
@@ -717,6 +726,15 @@ export function createInMemoryRepository({ clock = nowIso, localStorePromise = n
       recommendationBatches.set(batchId, updated);
       await persist();
       return copy(updated);
+    },
+
+    async deleteRecommendationBatch(batchId) {
+      await hydrate();
+      const existing = recommendationBatches.get(batchId);
+      if (!existing) return null;
+      recommendationBatches.delete(batchId);
+      await persist();
+      return copy(existing);
     },
 
     async getLatestPublishedRecommendationBatch() {

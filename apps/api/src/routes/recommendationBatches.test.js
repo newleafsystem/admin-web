@@ -11,6 +11,9 @@ const repository = createInMemoryRepository();
 const generationCalls = [];
 const marketDataCalls = [];
 const outputCalls = [];
+const deletedPublicationAttempts = [];
+const deletedStorageArtifacts = [];
+const deletedStoragePrefixes = [];
 const recommendationGenerationService = {
   async generateRecommendations({ prompts, batch, existingRecommendations, marketDrafts = [] }) {
     generationCalls.push({
@@ -111,6 +114,40 @@ const app = createApp({
   recommendationGenerationService,
   recommendationMarketDataService,
   recommendationOutputService,
+  publisherService: {
+    async deletePublication(attemptId, context = {}) {
+      const attempt = await repository.getPublishAttempt(attemptId);
+      deletedPublicationAttempts.push({ attemptId, platform: attempt.platform, reason: context.reason });
+      const publication = await repository.updatePublishAttempt(attemptId, {
+        status: 'deleted',
+        providerUrl: null,
+        metadata: {
+          ...(attempt.metadata ?? {}),
+          deletedAt: '2026-05-18T00:00:00.000Z',
+          deletedBy: context.actorUid ?? null,
+          deleteReason: context.reason,
+          providerDeleted: true,
+        },
+      });
+      return {
+        publication,
+        providerDeleted: true,
+      };
+    },
+  },
+  artifactStorageService: {
+    shouldUseObjectStorage() {
+      return true;
+    },
+    async deleteObjectStorageArtifact(artifact) {
+      deletedStorageArtifacts.push(artifact);
+      return { deleted: true };
+    },
+    async deleteObjectStoragePrefix(prefix) {
+      deletedStoragePrefixes.push(prefix);
+      return { deleted: true };
+    },
+  },
   autoResumeQueuedUploads: false,
   autoSyncPublications: false,
 });
@@ -268,6 +305,86 @@ try {
   });
   assert.equal(listAfterGeneration.status, 200);
   assert.equal(listAfterGeneration.body.recommendationBatches.length, 2);
+
+  const livePlan = await repository.createPublishPlan({
+    jobId: published.body.recommendationBatch.scriptJobId,
+    platforms: ['youtube', 'x', 'linkedin'],
+    status: 'published',
+    metadata: {
+      title: 'Daily Picks',
+    },
+  });
+  const youtubeAttempt = await repository.createPublishAttempt({
+    planId: livePlan.id,
+    jobId: published.body.recommendationBatch.scriptJobId,
+    platform: 'youtube',
+    status: 'published',
+    providerPostId: 'youtube-video-123',
+    providerUrl: 'https://www.youtube.com/watch?v=youtube-video-123',
+    metadata: {},
+  });
+  const xAttempt = await repository.createPublishAttempt({
+    planId: livePlan.id,
+    jobId: published.body.recommendationBatch.scriptJobId,
+    platform: 'x',
+    status: 'published',
+    providerPostId: 'tweet-123',
+    providerUrl: 'https://x.com/newleaf/status/tweet-123',
+    metadata: {},
+  });
+  const linkedinAttempt = await repository.createPublishAttempt({
+    planId: livePlan.id,
+    jobId: published.body.recommendationBatch.scriptJobId,
+    platform: 'linkedin',
+    status: 'failed',
+    metadata: {},
+  });
+  await repository.createArtifact({
+    id: 'pdf-created',
+    jobId: published.body.recommendationBatch.scriptJobId,
+    kind: 'recommendation_pdf',
+    storageProvider: 'gcs',
+    storageKey: `uploads/${published.body.recommendationBatch.scriptJobId}/recommendation_pdf/report.pdf`,
+    mimeType: 'application/pdf',
+    sizeBytes: 512,
+    metadata: { filename: 'report.pdf' },
+  });
+
+  const deletedBatch = await json({
+    method: 'POST',
+    path: `/api/v1/recommendation-batches/${encodeURIComponent(batchId)}/delete`,
+    body: {
+      reason: 'test_recommendation_cleanup',
+      removeRecommendation: true,
+      removeVideoJob: true,
+      removeOutputArtifacts: true,
+      platforms: ['youtube', 'x', 'linkedin'],
+    },
+  });
+  assert.equal(deletedBatch.status, 200);
+  assert.equal(deletedBatch.body.recommendationBatch, null);
+  assert.equal(deletedBatch.body.cleanup.recommendationRecord.deleted, true);
+  assert.equal(deletedBatch.body.cleanup.publications.length, 3);
+  assert.equal(deletedBatch.body.cleanup.videoJob.job.id, published.body.recommendationBatch.scriptJobId);
+  assert.equal(deletedBatch.body.cleanup.videoJob.storageCleanup.artifactCount, 1);
+  assert.equal(deletedBatch.body.cleanup.videoJob.storageCleanup.deletedObjectCount, 1);
+  assert.equal(deletedBatch.body.cleanup.videoJob.storageCleanup.prefix.storagePrefix, `uploads/${published.body.recommendationBatch.scriptJobId}/`);
+  assert.deepEqual(deletedPublicationAttempts.map((item) => item.attemptId).sort(), [xAttempt.id, youtubeAttempt.id].sort());
+  assert.equal(deletedStorageArtifacts.length, 1);
+  assert.deepEqual(deletedStoragePrefixes, [`uploads/${published.body.recommendationBatch.scriptJobId}/`]);
+  assert.equal(await repository.getRecommendationBatch(batchId), undefined);
+  assert.equal(await repository.getJob(published.body.recommendationBatch.scriptJobId), undefined);
+  assert.equal(await repository.getArtifact('pdf-created'), undefined);
+  assert.equal((await repository.getPublishPlan(livePlan.id)).status, 'deleted');
+  assert.equal((await repository.getPublishAttempt(youtubeAttempt.id)).status, 'deleted');
+  assert.equal((await repository.getPublishAttempt(xAttempt.id)).status, 'deleted');
+  assert.equal((await repository.getPublishAttempt(linkedinAttempt.id)).status, 'deleted');
+
+  const latestAfterDelete = await json({
+    method: 'GET',
+    path: '/api/v1/public/recommendations/latest',
+  });
+  assert.equal(latestAfterDelete.status, 404);
 
   console.log('Recommendation batch route tests passed.');
 } finally {

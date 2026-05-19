@@ -240,6 +240,10 @@ export function createFirestoreRepository({
       return getRecord('artifacts', artifactId);
     },
 
+    async deleteArtifact(artifactId) {
+      return deleteRecord('artifacts', artifactId);
+    },
+
     async listArtifactsForJob(jobId) {
       return listRecords('artifacts', (artifact) => artifact.jobId === jobId);
     },
@@ -624,6 +628,10 @@ export function createFirestoreRepository({
 
     async updateRecommendationBatch(batchId, patch) {
       return updateRecord('recommendationBatches', batchId, patch);
+    },
+
+    async deleteRecommendationBatch(batchId) {
+      return deleteRecord('recommendationBatches', batchId);
     },
 
     async getLatestPublishedRecommendationBatch() {

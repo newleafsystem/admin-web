@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { StatusBadge } from "../components/common.jsx";
+import { ModalShell, StatusBadge } from "../components/common.jsx";
 import { downloadArtifactFile } from "../api.js";
 
 const MAX_PROMPT_ROWS = 25;
@@ -57,10 +57,19 @@ const channelLabels = {
   video: "Video"
 };
 
+const cleanupPlatforms = [
+  { id: "youtube", label: "Remove from YouTube" },
+  { id: "x", label: "Remove related tweets" },
+  { id: "linkedin", label: "Remove LinkedIn posts" },
+  { id: "facebook", label: "Remove Facebook posts" },
+  { id: "instagram", label: "Remove Instagram posts" }
+];
+
 export function Recommendations({
   batches = [],
   onApprove,
   onCreate,
+  onDelete,
   onGenerate,
   onOpenScriptJob,
   onPublish,
@@ -70,6 +79,7 @@ export function Recommendations({
   const [generation, setGeneration] = useState(emptyGenerationState);
   const [artifactDownloads, setArtifactDownloads] = useState({});
   const [artifactDownloadError, setArtifactDownloadError] = useState(null);
+  const [deleteDialog, setDeleteDialog] = useState(null);
   const sortedBatches = useMemo(
     () => [...batches].sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt))),
     [batches]
@@ -246,6 +256,81 @@ export function Recommendations({
       }));
     } catch (error) {
       setDraft((current) => ({ ...current, error: error.message, message: null }));
+    }
+  }
+
+  function requestBatchDelete(batch) {
+    setDeleteDialog({
+      batch,
+      options: defaultDeleteOptions(batch),
+      error: null,
+      isDeleting: false
+    });
+  }
+
+  function cancelBatchDelete() {
+    setDeleteDialog(null);
+  }
+
+  function toggleDeleteOption(option) {
+    setDeleteDialog((current) => {
+      if (!current) return current;
+      const nextOptions = {
+        ...current.options,
+        [option]: !current.options[option]
+      };
+      if (option === "removeVideoJob" && nextOptions.removeVideoJob) {
+        nextOptions.removeOutputArtifacts = true;
+      }
+      if (option === "removeOutputArtifacts" && current.options.removeVideoJob) {
+        nextOptions.removeOutputArtifacts = true;
+      }
+      return {
+        ...current,
+        error: null,
+        options: nextOptions
+      };
+    });
+  }
+
+  function toggleDeletePlatform(platformId) {
+    setDeleteDialog((current) => {
+      if (!current) return current;
+      const platforms = current.options.platforms.includes(platformId)
+        ? current.options.platforms.filter((id) => id !== platformId)
+        : [...current.options.platforms, platformId];
+      return {
+        ...current,
+        error: null,
+        options: {
+          ...current.options,
+          platforms
+        }
+      };
+    });
+  }
+
+  async function confirmBatchDelete() {
+    if (!deleteDialog) return;
+    setDeleteDialog((current) => current ? { ...current, isDeleting: true, error: null } : current);
+    try {
+      const result = await onDelete(deleteDialog.batch.id, {
+        reason: "admin_deleted_recommendation_batch",
+        removeRecommendation: deleteDialog.options.removeRecommendation,
+        removeVideoJob: deleteDialog.options.removeVideoJob,
+        removeOutputArtifacts: deleteDialog.options.removeOutputArtifacts,
+        platforms: deleteDialog.options.platforms
+      });
+      setDeleteDialog(null);
+      setDraft((current) => ({
+        ...current,
+        message: result.recommendationBatch
+          ? `${result.recommendationBatch.title} was archived.`
+          : `${deleteDialog.batch.title || deleteDialog.batch.tradeDate} was removed.`,
+        error: null
+      }));
+    } catch (error) {
+      setDeleteDialog((current) => current ? { ...current, isDeleting: false, error: error.message } : current);
     }
   }
 
@@ -532,6 +617,11 @@ export function Recommendations({
                     {batch.status === "approved" && (
                       <button type="button" onClick={() => runBatchAction(onPublish, batch.id)}>Publish</button>
                     )}
+                    {(batch.status === "published" || batch.status === "approved" || batch.scriptJobId) && onDelete && (
+                      <button className="danger" type="button" onClick={() => requestBatchDelete(batch)}>
+                        {batch.status === "published" ? "Unpublish / delete" : "Delete"}
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -583,6 +673,16 @@ export function Recommendations({
           </div>
         )}
       </section>
+
+      {deleteDialog && (
+        <RecommendationDeleteDialog
+          dialog={deleteDialog}
+          onCancel={cancelBatchDelete}
+          onConfirm={confirmBatchDelete}
+          onToggleOption={toggleDeleteOption}
+          onTogglePlatform={toggleDeletePlatform}
+        />
+      )}
     </div>
   );
 }
@@ -596,6 +696,110 @@ const outputLabels = {
 
 function hasOutputArtifacts(outputArtifacts = {}) {
   return Object.values(outputArtifacts ?? {}).some((artifact) => artifact?.artifactId);
+}
+
+function defaultDeleteOptions(batch) {
+  return {
+    removeRecommendation: true,
+    removeVideoJob: Boolean(batch.scriptJobId),
+    removeOutputArtifacts: Boolean(batch.scriptJobId) || hasOutputArtifacts(batch.outputArtifacts),
+    platforms: cleanupPlatforms.map((platform) => platform.id)
+  };
+}
+
+function RecommendationDeleteDialog({
+  dialog,
+  onCancel,
+  onConfirm,
+  onToggleOption,
+  onTogglePlatform
+}) {
+  const { batch, options, error, isDeleting } = dialog;
+  return (
+    <ModalShell
+      className="confirm-dialog wide-dialog"
+      closeOnBackdrop={!isDeleting}
+      closeOnEscape={!isDeleting}
+      labelledBy="delete-recommendation-title"
+      onClose={isDeleting ? undefined : onCancel}
+    >
+      <div className="modal-header">
+        <div>
+          <p className="eyebrow">Cleanup</p>
+          <h2 id="delete-recommendation-title">Unpublish Recommendation</h2>
+        </div>
+        <button aria-label="Close cleanup dialog" className="modal-close" disabled={isDeleting} type="button" onClick={onCancel}>
+          x
+        </button>
+      </div>
+      <div className="modal-body">
+        <p className="confirm-copy">
+          Choose what should be removed for {batch.title || batch.tradeDate}. Live provider removals use stored publication records, then the recommendation can be removed from Firebase.
+        </p>
+        <div className="recommendation-delete-options">
+          <label className="checkbox-line">
+            <input
+              checked={options.removeRecommendation}
+              disabled={isDeleting}
+              type="checkbox"
+              onChange={() => onToggleOption("removeRecommendation")}
+            />
+            <span>
+              Delete recommendation record from Firebase
+              <small>Removes it from the preview site and the admin batch list.</small>
+            </span>
+          </label>
+          <label className="checkbox-line">
+            <input
+              checked={options.removeVideoJob}
+              disabled={isDeleting || !batch.scriptJobId}
+              type="checkbox"
+              onChange={() => onToggleOption("removeVideoJob")}
+            />
+            <span>
+              Delete generated video workflow
+              <small>Removes the script-ready job, provider job records, publish plans, and generated artifacts tied to that workflow.</small>
+            </span>
+          </label>
+          <label className="checkbox-line">
+            <input
+              checked={options.removeOutputArtifacts}
+              disabled={isDeleting || options.removeVideoJob}
+              type="checkbox"
+              onChange={() => onToggleOption("removeOutputArtifacts")}
+            />
+            <span>
+              Delete generated reports and social output
+              <small>Removes PDF, script, social-copy, and archive artifact records when the video workflow is kept.</small>
+            </span>
+          </label>
+        </div>
+        <div className="recommendation-delete-options">
+          {cleanupPlatforms.map((platform) => (
+            <label className="checkbox-line" key={platform.id}>
+              <input
+                checked={options.platforms.includes(platform.id)}
+                disabled={isDeleting}
+                type="checkbox"
+                onChange={() => onTogglePlatform(platform.id)}
+              />
+              <span>
+                {platform.label}
+                <small>Only matching NewLeaf publication records for this recommendation video are touched.</small>
+              </span>
+            </label>
+          ))}
+        </div>
+        {error && <section className="form-error">{error}</section>}
+      </div>
+      <div className="modal-actions">
+        <button disabled={isDeleting} type="button" onClick={onCancel}>Cancel</button>
+        <button className="danger" disabled={isDeleting} type="button" onClick={onConfirm}>
+          {isDeleting ? "Removing..." : "Remove selected items"}
+        </button>
+      </div>
+    </ModalShell>
+  );
 }
 
 function draftFromBatch(batch) {

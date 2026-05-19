@@ -86,6 +86,25 @@ export function createRecommendationBatchesRouter({ recommendationBatchService }
     }),
   );
 
+  router.post(
+    '/recommendation-batches/:batchId/delete',
+    requireRole('admin'),
+    asyncHandler(async (req, res) => {
+      const body = req.body ? requireObject(req.body) : {};
+      rejectUnknownFields(body, [
+        'reason',
+        'removeRecommendation',
+        'removeVideoJob',
+        'removeOutputArtifacts',
+        'platforms',
+      ]);
+      const result = await recommendationBatchService.deleteBatch(req.params.batchId, body, {
+        actorUid: req.user?.uid ?? null,
+      });
+      res.json(result);
+    }),
+  );
+
   return router;
 }
 

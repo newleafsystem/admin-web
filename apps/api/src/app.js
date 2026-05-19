@@ -67,26 +67,28 @@ export function createApp(options = {}) {
     options.recommendationMarketDataService ?? createRecommendationMarketDataService();
   const recommendationOutputService =
     options.recommendationOutputService ?? createRecommendationOutputService({ repository });
-  const recommendationBatchService =
-    options.recommendationBatchService ??
-    createRecommendationBatchService({
-      repository,
-      jobStateService,
-      recommendationGenerationService,
-      recommendationMarketDataService,
-      recommendationOutputService,
-    });
+  const artifactStorageService = options.artifactStorageService ?? {
+    deleteObjectStorageArtifact,
+    deleteObjectStoragePrefix,
+    shouldUseObjectStorage,
+  };
   const youtubePublisherService =
     options.youtubePublisherService ??
     createYouTubePublisherService({ repository, jobStateService, youtubeOAuthService });
   const publisherService =
     options.publisherService ??
     createSocialPublisherService({ repository, jobStateService, youtubePublisherService });
-  const artifactStorageService = options.artifactStorageService ?? {
-    deleteObjectStorageArtifact,
-    deleteObjectStoragePrefix,
-    shouldUseObjectStorage,
-  };
+  const recommendationBatchService =
+    options.recommendationBatchService ??
+    createRecommendationBatchService({
+      repository,
+      jobStateService,
+      publisherService,
+      artifactStorageService,
+      recommendationGenerationService,
+      recommendationMarketDataService,
+      recommendationOutputService,
+    });
   const services = {
     artifactStorageService,
     repository,
