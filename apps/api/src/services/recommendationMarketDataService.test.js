@@ -19,6 +19,7 @@ const optionSnapshots = {
   AAPL260619C00230000: snapshot({ bid: 0.7, ask: 0.8, delta: 0.1, gamma: 0.01, theta: -0.02, vega: 0.05, iv: 0.29 }),
 };
 
+const fetches = [];
 const service = createRecommendationMarketDataService({
   serviceConfig: {
     alpaca: {
@@ -32,6 +33,7 @@ const service = createRecommendationMarketDataService({
   },
   fetchImpl: async (url, options = {}) => {
     const href = String(url);
+    fetches.push(href);
 
     if (href.includes('/v2/stocks/AAPL/snapshot')) {
       assert.equal(options.headers?.['APCA-API-KEY-ID'], 'alpaca-key');
@@ -121,6 +123,21 @@ assert.equal(draft.recommendation.lifecycle.gammaContext.put_wall, 180);
 assert.equal(draft.recommendation.sentiment.source, 'r2-sentiment-cache');
 assert.equal(draft.recommendation.sentiment.score, 62);
 assert.equal(draft.recommendation.lifecycle.marketData.source, 'alpaca');
+
+const spotOnly = await service.buildRecommendationDraft({
+  promptId: 'prompt_aapl_spot',
+  prompt: 'Generate a recommendation for AAPL with market context.',
+  batch: { tradeDate: '2026-05-19' },
+});
+
+assert.equal(spotOnly.recommendation.symbol, 'AAPL');
+assert.equal(spotOnly.recommendation.price, 200);
+assert.equal(spotOnly.recommendation.strategy, null);
+assert.equal(spotOnly.recommendation.lifecycle.marketData.source, 'alpaca');
+assert.equal(spotOnly.recommendation.lifecycle.marketData.spotPrice, 200);
+assert.equal(spotOnly.recommendation.lifecycle.gammaContext.put_wall, 180);
+assert.match(spotOnly.warnings.join(' '), /No supported options strategy/);
+assert.equal(fetches.filter((href) => href.includes('/v1beta1/options/snapshots/AAPL')).length, 1);
 
 console.log('Recommendation market data service tests passed.');
 

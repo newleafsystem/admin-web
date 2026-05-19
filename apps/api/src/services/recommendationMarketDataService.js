@@ -84,13 +84,6 @@ export function createRecommendationMarketDataService({
     if (!intent.symbol) {
       return { recommendation: null, intent, warnings: ['No ticker symbol could be parsed from the prompt.'] };
     }
-    if (!intent.strategyKey) {
-      return {
-        recommendation: null,
-        intent,
-        warnings: [`No supported options strategy could be parsed for ${intent.symbol}.`],
-      };
-    }
     if (!hasAlpacaConfig(serviceConfig)) {
       return {
         recommendation: null,
@@ -104,29 +97,75 @@ export function createRecommendationMarketDataService({
     }
 
     const snapshot = await fetchStockSnapshot(intent.symbol);
-    const chain = await fetchOptionChain(intent.symbol, intent.expiry);
-    const calls = chain.filter((contract) => contract.type === 'call').sort(sortByStrike);
-    const puts = chain.filter((contract) => contract.type === 'put').sort(sortByStrike);
-    if (calls.length < 2 || puts.length < 2) {
-      return {
-        recommendation: null,
-        intent,
-        warnings: [`Not enough option contracts were returned for ${intent.symbol} ${intent.expiry}.`],
-      };
-    }
-
+    const calculatedAt = timestampFromClock(clock);
     const [gammaContext, sentimentContext] = await Promise.all([
       fetchGammaContext(intent.symbol),
       fetchSentimentContext(intent.symbol),
     ]);
-    const strategy = buildStrategyFromMarketData({
-      strategyKey: intent.strategyKey,
-      spot: snapshot.price,
-      calls,
-      puts,
-      expiry: intent.expiry,
-      asOfDate: clock(),
-    });
+
+    if (!intent.strategyKey) {
+      warnings.push(`No supported options strategy could be parsed for ${intent.symbol}.`);
+      return {
+        recommendation: buildSpotPriceDraft({
+          intent,
+          prompt,
+          snapshot,
+          gammaContext,
+          sentimentContext,
+          warnings,
+          calculatedAt,
+        }),
+        intent,
+        warnings,
+      };
+    }
+
+    const chain = await fetchOptionChain(intent.symbol, intent.expiry);
+    const calls = chain.filter((contract) => contract.type === 'call').sort(sortByStrike);
+    const puts = chain.filter((contract) => contract.type === 'put').sort(sortByStrike);
+    if (calls.length < 2 || puts.length < 2) {
+      warnings.push(`Not enough option contracts were returned for ${intent.symbol} ${intent.expiry}.`);
+      return {
+        recommendation: buildSpotPriceDraft({
+          intent,
+          prompt,
+          snapshot,
+          gammaContext,
+          sentimentContext,
+          warnings,
+          calculatedAt,
+        }),
+        intent,
+        warnings,
+      };
+    }
+
+    let strategy = null;
+    try {
+      strategy = buildStrategyFromMarketData({
+        strategyKey: intent.strategyKey,
+        spot: snapshot.price,
+        calls,
+        puts,
+        expiry: intent.expiry,
+        asOfDate: clock(),
+      });
+    } catch (error) {
+      warnings.push(error.message ?? `Could not calculate ${intent.strategy} metrics for ${intent.symbol}.`);
+      return {
+        recommendation: buildSpotPriceDraft({
+          intent,
+          prompt,
+          snapshot,
+          gammaContext,
+          sentimentContext,
+          warnings,
+          calculatedAt,
+        }),
+        intent,
+        warnings,
+      };
+    }
 
     const recommendation = buildRecommendationFromStrategy({
       intent,
@@ -136,6 +175,7 @@ export function createRecommendationMarketDataService({
       gammaContext,
       sentimentContext,
       warnings,
+      calculatedAt,
     });
 
     return { recommendation, intent, warnings };
@@ -510,6 +550,7 @@ function buildRecommendationFromStrategy({
   gammaContext,
   sentimentContext,
   warnings,
+  calculatedAt,
 }) {
   const gammaAnalysis = gammaContext?.analysis ?? gammaContext ?? null;
   const shortLegs = strategy.legs.filter((leg) => leg.action === 'SELL');
@@ -545,12 +586,8 @@ function buildRecommendationFromStrategy({
         confidence: gammaAnalysis ? 'medium' : 'low',
       },
       marketData: {
-        source: 'alpaca',
-        spotPrice: snapshot.price,
-        priceChange: snapshot.change,
-        priceChangePercent: snapshot.changePercent,
+        ...marketDataSummary(snapshot, calculatedAt),
         optionFeed: DEFAULT_OPTION_FEED,
-        calculatedAt: new Date().toISOString(),
       },
       gammaContext: gammaAnalysis ?? {},
       sentimentContext: sentimentContext ?? {},
@@ -579,6 +616,46 @@ function buildRecommendationFromStrategy({
     })),
     greeks: strategy.greeks,
     breakevens: strategy.breakevens,
+  };
+}
+
+function buildSpotPriceDraft({
+  intent,
+  prompt,
+  snapshot,
+  gammaContext,
+  sentimentContext,
+  warnings,
+  calculatedAt,
+}) {
+  const gammaAnalysis = gammaContext?.analysis ?? gammaContext ?? null;
+  return {
+    sourcePromptId: intent.promptId,
+    symbol: intent.symbol,
+    strategy: intent.strategy,
+    direction: intent.direction,
+    price: snapshot.price,
+    expiry: intent.expiry,
+    thesis: `${intent.symbol} live market price was fetched from Alpaca; option structure and final thesis still require AI generation or admin review.`,
+    riskNotes: 'Educational only. Live spot price does not validate a strategy, liquidity, event risk, or suitability.',
+    sentiment: sentimentContext ?? {},
+    lifecycle: {
+      marketData: marketDataSummary(snapshot, calculatedAt),
+      gammaContext: gammaAnalysis ?? {},
+      sentimentContext: sentimentContext ?? {},
+      prompt,
+      warnings,
+    },
+  };
+}
+
+function marketDataSummary(snapshot, calculatedAt) {
+  return {
+    source: 'alpaca',
+    spotPrice: snapshot.price,
+    priceChange: snapshot.change,
+    priceChangePercent: snapshot.changePercent,
+    calculatedAt,
   };
 }
 
@@ -783,6 +860,15 @@ function roundNumber(value, digits = 2) {
 
 function roundBreakevens(breakevens = {}) {
   return Object.fromEntries(Object.entries(breakevens).map(([key, value]) => [key, roundNumber(value, 2)]));
+}
+
+function timestampFromClock(clock) {
+  const value = clock();
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? new Date().toISOString() : parsed.toISOString();
 }
 
 function clamp(value, min, max) {

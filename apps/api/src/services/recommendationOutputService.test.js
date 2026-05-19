@@ -73,6 +73,10 @@ try {
   const pdfPath = path.resolve(tempDir, pdfArtifact.storageKey);
   const pdfBytes = await fsp.readFile(pdfPath);
   assert.equal(pdfBytes.subarray(0, 8).toString('utf8'), '%PDF-1.4');
+  const pdfText = pdfBytes.toString('latin1');
+  assert.match(pdfText, /Report Summary/);
+  assert.match(pdfText, /Reference Price/);
+  assert.match(pdfText, /Risk Framing/);
 
   const second = await service.ensureOutputs({
     batch: {

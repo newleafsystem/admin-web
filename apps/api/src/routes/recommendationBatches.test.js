@@ -49,6 +49,27 @@ const recommendationGenerationService = {
 const recommendationMarketDataService = {
   async buildRecommendationDraft({ prompt, promptId }) {
     marketDataCalls.push({ prompt, promptId });
+    if (prompt.includes('AAPL')) {
+      return {
+        recommendation: {
+          sourcePromptId: promptId,
+          symbol: 'AAPL',
+          price: 206.45,
+          lifecycle: {
+            marketData: {
+              source: 'alpaca',
+              spotPrice: 206.45,
+              priceChange: 1.25,
+              priceChangePercent: 0.61,
+              calculatedAt: '2026-05-18T00:00:00.000Z',
+            },
+            warnings: ['No supported options strategy could be parsed for AAPL.'],
+          },
+        },
+        intent: { symbol: 'AAPL' },
+        warnings: ['No supported options strategy could be parsed for AAPL.'],
+      };
+    }
     if (!prompt.includes('NVDA')) {
       return {
         recommendation: null,
@@ -263,6 +284,7 @@ try {
   assert.equal(generated.body.recommendationBatch.status, 'draft');
   assert.equal(generated.body.recommendationBatch.recommendations.length, 2);
   assert.equal(generated.body.recommendationBatch.recommendations[0].symbol, 'MSFT');
+  assert.equal(generated.body.recommendationBatch.recommendations[0].price, null);
   assert.equal(generated.body.recommendationBatch.recommendations[0].rewardRisk, null);
   assert.equal(generated.body.recommendationBatch.recommendations[0].oddsOfProfit, null);
   assert.equal(generated.body.recommendationBatch.recommendations[0].maxProfit, null);
@@ -298,6 +320,32 @@ try {
   assert.equal(generationCalls[1].existingRecommendations.length, 2);
   assert.equal(generationCalls[1].marketDrafts.length, 1);
   assert.equal(marketDataCalls.length, 3);
+
+  const appendedSpotPrice = await json({
+    method: 'POST',
+    path: '/api/v1/recommendation-batches/generate',
+    body: {
+      tradeDate: '2026-05-18',
+      prompts: [
+        { id: 'prompt_aapl', prompt: 'Generate an AAPL defined-risk idea.' },
+      ],
+    },
+  });
+  assert.equal(appendedSpotPrice.status, 200);
+  assert.equal(appendedSpotPrice.body.recommendationBatch.id, generatedBatchId);
+  assert.equal(appendedSpotPrice.body.recommendationBatch.recommendations.length, 4);
+  assert.equal(appendedSpotPrice.body.recommendationBatch.recommendations[3].symbol, 'AAPL');
+  assert.equal(appendedSpotPrice.body.recommendationBatch.recommendations[3].price, 206.45);
+  assert.equal(appendedSpotPrice.body.recommendationBatch.recommendations[3].rewardRisk, null);
+  assert.equal(
+    appendedSpotPrice.body.recommendationBatch.recommendations[3].lifecycle.marketDataDraft.source,
+    'newleaf-market-data-service',
+  );
+  assert.equal(appendedSpotPrice.body.recommendationBatch.recommendations[3].lifecycle.marketData.source, 'alpaca');
+  assert.equal(generationCalls.length, 3);
+  assert.equal(generationCalls[2].existingRecommendations.length, 3);
+  assert.equal(generationCalls[2].marketDrafts.length, 1);
+  assert.equal(marketDataCalls.length, 4);
 
   const listAfterGeneration = await json({
     method: 'GET',

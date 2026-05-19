@@ -996,6 +996,37 @@ function mergeMarketDraftsIntoGenerated(rawRecommendations, marketDrafts, prompt
 function mergeRecommendationWithMarketDraft(item, draft) {
   const itemLifecycle = normalizePlainObject(item.lifecycle);
   const draftLifecycle = normalizePlainObject(draft.lifecycle);
+  const marketDataDraftSummary = {
+    source: 'newleaf-market-data-service',
+    sourcePromptId: draft.sourcePromptId,
+    symbol: draft.symbol,
+    strategy: draft.strategy ?? null,
+  };
+
+  if (!hasCalculatedMarketDraft(draft, draftLifecycle)) {
+    return {
+      ...item,
+      sourcePromptId: draft.sourcePromptId ?? item.sourcePromptId,
+      symbol: draft.symbol ?? item.symbol,
+      strategy: draft.strategy ?? item.strategy,
+      direction: draft.direction ?? item.direction,
+      price: draft.price ?? item.price,
+      expiry: draft.expiry ?? item.expiry,
+      sentiment: {
+        ...normalizePlainObject(item.sentiment),
+        ...normalizePlainObject(draft.sentiment),
+      },
+      lifecycle: {
+        ...itemLifecycle,
+        marketDataDraft: marketDataDraftSummary,
+        marketData: draftLifecycle.marketData ?? itemLifecycle.marketData,
+        gammaContext: draftLifecycle.gammaContext ?? itemLifecycle.gammaContext,
+        sentimentContext: draftLifecycle.sentimentContext ?? itemLifecycle.sentimentContext,
+        warnings: mergeLifecycleWarnings(itemLifecycle.warnings, draftLifecycle.warnings),
+      },
+    };
+  }
+
   return {
     ...item,
     sourcePromptId: draft.sourcePromptId ?? item.sourcePromptId,
@@ -1023,11 +1054,7 @@ function mergeRecommendationWithMarketDraft(item, draft) {
     },
     lifecycle: {
       ...itemLifecycle,
-      marketDataDraft: {
-        sourcePromptId: draft.sourcePromptId,
-        symbol: draft.symbol,
-        strategy: draft.strategy,
-      },
+      marketDataDraft: marketDataDraftSummary,
       metricAssumptions: draftLifecycle.metricAssumptions,
       marketData: draftLifecycle.marketData,
       gammaContext: draftLifecycle.gammaContext,
@@ -1036,6 +1063,27 @@ function mergeRecommendationWithMarketDraft(item, draft) {
       warnings: draftLifecycle.warnings,
     },
   };
+}
+
+function hasCalculatedMarketDraft(draft, lifecycle) {
+  return Boolean(
+    draft.strategy &&
+    draft.direction &&
+    (
+      Object.keys(normalizePlainObject(lifecycle.metricAssumptions)).length > 0 ||
+      (Array.isArray(draft.legs) && draft.legs.length > 0)
+    ),
+  );
+}
+
+function mergeLifecycleWarnings(left, right) {
+  const values = [
+    ...(Array.isArray(left) ? left : []),
+    ...(Array.isArray(right) ? right : []),
+  ]
+    .map((value) => cleanString(value, { maxLength: 500 }))
+    .filter(Boolean);
+  return values.length > 0 ? Array.from(new Set(values)) : undefined;
 }
 
 function normalizeGeneratedRecommendations(rawRecommendations, { existingRecommendations, prompts, timestamp }) {
@@ -1100,24 +1148,40 @@ function withMetricAssumptions(item, { sourcePromptId, timestamp }) {
 }
 
 function stripUnsupportedGeneratedMetrics(item, lifecycle) {
-  if (!hasGeneratedQuantitativeMetrics(item) || hasMetricSupport(item, lifecycle)) {
-    return {};
+  const patch = {};
+  const lifecyclePatch = {};
+
+  if (hasGeneratedQuantitativeMetrics(item) && !hasMetricSupport(item, lifecycle)) {
+    Object.assign(patch, {
+      rewardRisk: null,
+      oddsOfProfit: null,
+      probabilityOfProfit: null,
+      maxProfit: null,
+      maxLoss: null,
+      netCredit: null,
+      netDebit: null,
+    });
+    lifecyclePatch.metricWarning =
+      'AI returned quantitative metrics without per-prompt assumptions, so NewLeaf withheld those values for admin review.';
   }
 
-  return {
-    rewardRisk: null,
-    oddsOfProfit: null,
-    probabilityOfProfit: null,
-    maxProfit: null,
-    maxLoss: null,
-    netCredit: null,
-    netDebit: null,
-    lifecycle: {
+  if (hasGeneratedMarketPrice(item) && !hasTrustedMarketPrice(lifecycle)) {
+    Object.assign(patch, {
+      price: null,
+      underlyingPrice: null,
+    });
+    lifecyclePatch.priceWarning =
+      'AI returned a market price without a trusted market-data draft, so NewLeaf withheld the price for admin review.';
+  }
+
+  if (Object.keys(lifecyclePatch).length > 0) {
+    patch.lifecycle = {
       ...lifecycle,
-      metricWarning:
-        'AI returned quantitative metrics without per-prompt assumptions, so NewLeaf withheld those values for admin review.',
-    },
-  };
+      ...lifecyclePatch,
+    };
+  }
+
+  return patch;
 }
 
 function hasGeneratedQuantitativeMetrics(item) {
@@ -1130,6 +1194,21 @@ function hasGeneratedQuantitativeMetrics(item) {
     item.netDebit,
   ]
     .some((value) => value !== null && value !== undefined && value !== '');
+}
+
+function hasGeneratedMarketPrice(item) {
+  return [item.price, item.underlyingPrice, item.currentPrice]
+    .some((value) => value !== null && value !== undefined && value !== '');
+}
+
+function hasTrustedMarketPrice(lifecycle) {
+  const marketData = normalizePlainObject(lifecycle.marketData);
+  const draft = normalizePlainObject(lifecycle.marketDataDraft);
+  return (
+    draft.source === 'newleaf-market-data-service' &&
+    marketData.source === 'alpaca' &&
+    Number.isFinite(Number(marketData.spotPrice))
+  );
 }
 
 function hasMetricSupport(item, lifecycle) {
