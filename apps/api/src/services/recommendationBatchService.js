@@ -452,25 +452,90 @@ function normalizeGeneratedRecommendations(rawRecommendations, { existingRecomme
     });
     const sourcePromptId =
       cleanString(item.sourcePromptId ?? item.promptId, { maxLength: 80 }) ?? prompts[index]?.id ?? null;
+    const lifecycle = withMetricAssumptions(item, {
+      sourcePromptId,
+      timestamp,
+    });
+    const metricPatch = stripUnsupportedGeneratedMetrics(item, lifecycle);
     return normalizeRecommendation(
       {
         ...item,
+        ...metricPatch,
         id,
         tileId: cleanString(item.tileId, { maxLength: 120 }) ?? id,
         symbol,
         sortOrder,
-        lifecycle: {
-          ...normalizePlainObject(item.lifecycle),
-          generation: {
-            source: 'ai',
-            generatedAt: timestamp,
-            sourcePromptId,
-          },
-        },
+        lifecycle: metricPatch.lifecycle ?? lifecycle,
       },
       index,
     );
   });
+}
+
+function withMetricAssumptions(item, { sourcePromptId, timestamp }) {
+  const lifecycle = normalizePlainObject(item.lifecycle);
+  const metricAssumptions = firstPlainObject(
+    lifecycle.metricAssumptions,
+    item.metricAssumptions,
+    item.metricsAssumptions,
+    item.metricBasis,
+    item.metricsBasis,
+    item.metricsRationale,
+  );
+
+  return {
+    ...lifecycle,
+    ...(metricAssumptions ? { metricAssumptions } : {}),
+    generation: {
+      ...normalizePlainObject(lifecycle.generation),
+      source: 'ai',
+      generatedAt: timestamp,
+      sourcePromptId,
+    },
+  };
+}
+
+function stripUnsupportedGeneratedMetrics(item, lifecycle) {
+  if (!hasGeneratedQuantitativeMetrics(item) || hasMetricSupport(item, lifecycle)) {
+    return {};
+  }
+
+  return {
+    rewardRisk: null,
+    oddsOfProfit: null,
+    probabilityOfProfit: null,
+    maxProfit: null,
+    lifecycle: {
+      ...lifecycle,
+      metricWarning:
+        'AI returned quantitative metrics without per-prompt assumptions, so NewLeaf withheld those values for admin review.',
+    },
+  };
+}
+
+function hasGeneratedQuantitativeMetrics(item) {
+  return [item.rewardRisk, item.oddsOfProfit ?? item.probabilityOfProfit, item.maxProfit]
+    .some((value) => value !== null && value !== undefined && value !== '');
+}
+
+function hasMetricSupport(item, lifecycle) {
+  if (Object.keys(normalizePlainObject(lifecycle.metricAssumptions)).length > 0) {
+    return true;
+  }
+  return Array.isArray(item.legs) && item.legs.some((leg) =>
+    ['premium', 'credit', 'debit', 'price', 'mid', 'netCredit', 'netDebit', 'width', 'maxLoss']
+      .some((field) => leg?.[field] !== null && leg?.[field] !== undefined && leg?.[field] !== ''),
+  );
+}
+
+function firstPlainObject(...values) {
+  for (const value of values) {
+    const normalized = normalizePlainObject(value);
+    if (Object.keys(normalized).length > 0) {
+      return normalized;
+    }
+  }
+  return null;
 }
 
 function uniqueRecommendationId({ requestedId, symbol, sortOrder, usedIds }) {

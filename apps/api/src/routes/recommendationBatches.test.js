@@ -177,6 +177,13 @@ try {
   assert.equal(generated.body.recommendationBatch.status, 'draft');
   assert.equal(generated.body.recommendationBatch.recommendations.length, 2);
   assert.equal(generated.body.recommendationBatch.recommendations[0].symbol, 'MSFT');
+  assert.equal(generated.body.recommendationBatch.recommendations[0].rewardRisk, null);
+  assert.equal(generated.body.recommendationBatch.recommendations[0].oddsOfProfit, null);
+  assert.equal(generated.body.recommendationBatch.recommendations[0].maxProfit, null);
+  assert.match(
+    generated.body.recommendationBatch.recommendations[0].lifecycle.metricWarning,
+    /without per-prompt assumptions/,
+  );
   assert.equal(generationCalls.length, 1);
   assert.equal(generationCalls[0].existingRecommendations.length, 0);
   const generatedBatchId = generated.body.recommendationBatch.id;
