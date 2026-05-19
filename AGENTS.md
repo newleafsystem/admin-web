@@ -32,6 +32,17 @@ The admin UI is an operations console. Keep screens compact, direct, and action-
 - Local persistence: `.local-data` in development.
 - Video rendering: FFmpeg invoked through `child_process`, not a wrapper library.
 
+## Cross-Platform Compatibility
+
+- Treat Windows and macOS as first-class local development targets for admin-web and NewLeaf work.
+- Prefer Node.js scripts and cross-platform npm commands over shell-specific scripts when adding automation.
+- When OS-specific scripts are unavoidable, provide or preserve both Windows PowerShell and macOS/Linux shell paths, or gate behavior with clear OS detection.
+- Use Node `path` and `URL` APIs instead of hardcoded path separators. Normalize storage keys and URLs deliberately, not by accident.
+- Avoid assumptions that differ by OS, including case-sensitive filesystems, executable extensions, path length, temp directories, line endings, and default shell behavior.
+- UI behavior must work in major browsers on both platforms. Be careful with scrollbars, hover/focus timing, file downloads, popups, and pointer or trackpad interactions.
+- For FFmpeg and media tooling, support configurable binary and font paths such as `FFMPEG_PATH`, `FFPROBE_PATH`, and `FFMPEG_FONT_FILE`.
+- Verification notes should mention when a change was only checked on one OS and what should be smoke-tested on the other.
+
 ## Repository Map
 
 ```text
