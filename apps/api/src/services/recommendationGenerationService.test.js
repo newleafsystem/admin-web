@@ -64,6 +64,29 @@ const result = await service.generateRecommendations({
   },
   existingRecommendations: [],
   maxRecommendations: 50,
+  marketDrafts: [
+    {
+      sourcePromptId: 'prompt_aapl',
+      symbol: 'AAPL',
+      strategy: 'Bull Put Spread',
+      direction: 'BULLISH',
+      price: 200,
+      expiry: '2026-06-19',
+      dte: 31,
+      rewardRisk: 0.6,
+      oddsOfProfit: 62,
+      maxProfit: 300,
+      maxLoss: 500,
+      netCredit: 3,
+      legs: [{ action: 'SELL', type: 'PUT', strike: 190, premium: 3 }],
+      lifecycle: {
+        metricAssumptions: {
+          source: 'alpaca-option-chain-r2-gamma-deterministic-calculation',
+        },
+        gammaContext: { put_wall: 180 },
+      },
+    },
+  ],
 });
 
 assert.equal(result.model, 'test-recommendation-model');
@@ -74,8 +97,12 @@ const systemMessage = requestPayload.messages.find((message) => message.role ===
 const userMessage = JSON.parse(requestPayload.messages.find((message) => message.role === 'user')?.content ?? '{}');
 assert.match(systemMessage, /Every quantitative field must be estimated/);
 assert.match(systemMessage, /Do not reuse a static metric set/);
+assert.match(systemMessage, /Preserve marketDataDraft numeric fields exactly/);
+assert.equal(userMessage.marketDataDrafts[0].sourcePromptId, 'prompt_aapl');
+assert.equal(userMessage.marketDataDrafts[0].maxLoss, 500);
 assert.equal(userMessage.constraints.quantitativeMetrics.noHardcodedDefaults, true);
 assert.equal(userMessage.constraints.quantitativeMetrics.requireMetricAssumptionsWhenMetricsPresent, true);
+assert.equal(userMessage.constraints.quantitativeMetrics.preserveProvidedMarketDataDrafts, true);
 assert.ok(userMessage.outputSchema.recommendations[0].lifecycle.metricAssumptions);
 
 console.log('Recommendation generation service tests passed.');

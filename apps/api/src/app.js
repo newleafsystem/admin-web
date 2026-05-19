@@ -34,6 +34,7 @@ import { createSocialPublisherService } from './services/socialPublisherService.
 import { startPublicationSyncScheduler } from './services/publicationSyncScheduler.js';
 import { createRecommendationBatchService } from './services/recommendationBatchService.js';
 import { createRecommendationGenerationService } from './services/recommendationGenerationService.js';
+import { createRecommendationMarketDataService } from './services/recommendationMarketDataService.js';
 import { createRecommendationOutputService } from './services/recommendationOutputService.js';
 import { createYouTubeOAuthService } from './services/youtubeOAuthService.js';
 import { createYouTubePublisherService } from './services/youtubePublisherService.js';
@@ -62,6 +63,8 @@ export function createApp(options = {}) {
   const watchlistService = options.watchlistService ?? createWatchlistService({ repository });
   const recommendationGenerationService =
     options.recommendationGenerationService ?? createRecommendationGenerationService();
+  const recommendationMarketDataService =
+    options.recommendationMarketDataService ?? createRecommendationMarketDataService();
   const recommendationOutputService =
     options.recommendationOutputService ?? createRecommendationOutputService({ repository });
   const recommendationBatchService =
@@ -70,6 +73,7 @@ export function createApp(options = {}) {
       repository,
       jobStateService,
       recommendationGenerationService,
+      recommendationMarketDataService,
       recommendationOutputService,
     });
   const youtubePublisherService =
@@ -101,6 +105,7 @@ export function createApp(options = {}) {
     watchlistService,
     recommendationBatchService,
     recommendationGenerationService,
+    recommendationMarketDataService,
     recommendationOutputService,
   };
 

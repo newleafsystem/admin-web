@@ -9,13 +9,15 @@ const { createInMemoryRepository } = await import('../lib/repository.js');
 
 const repository = createInMemoryRepository();
 const generationCalls = [];
+const marketDataCalls = [];
 const outputCalls = [];
 const recommendationGenerationService = {
-  async generateRecommendations({ prompts, batch, existingRecommendations }) {
+  async generateRecommendations({ prompts, batch, existingRecommendations, marketDrafts = [] }) {
     generationCalls.push({
       prompts,
       batch,
       existingRecommendations,
+      marketDrafts,
     });
     return {
       provider: 'test',
@@ -41,6 +43,52 @@ const recommendationGenerationService = {
     };
   },
 };
+const recommendationMarketDataService = {
+  async buildRecommendationDraft({ prompt, promptId }) {
+    marketDataCalls.push({ prompt, promptId });
+    if (!prompt.includes('NVDA')) {
+      return {
+        recommendation: null,
+        intent: { symbol: prompt.match(/\b[A-Z]{2,6}\b/)?.[0] ?? null },
+        warnings: ['No calculated market draft for this test prompt.'],
+      };
+    }
+    return {
+      recommendation: {
+        sourcePromptId: promptId,
+        symbol: 'NVDA',
+        strategy: 'Iron Condor',
+        direction: 'NEUTRAL',
+        price: 910,
+        expiry: '2026-06-19',
+        dte: 32,
+        rewardRisk: 0.6,
+        oddsOfProfit: 63,
+        maxProfit: 375,
+        maxLoss: 625,
+        netCredit: 3.75,
+        thesis: 'NVDA has calculated option-chain metrics.',
+        riskNotes: 'Breakouts through the short strikes would pressure the setup.',
+        legs: [
+          { action: 'BUY', type: 'PUT', strike: 820, premium: 1 },
+          { action: 'SELL', type: 'PUT', strike: 830, premium: 3 },
+        ],
+        lifecycle: {
+          metricAssumptions: {
+            source: 'alpaca-option-chain-r2-gamma-deterministic-calculation',
+            structure: 'Calculated test iron condor',
+            probabilityBasis: 'Computed test probability',
+            confidence: 'medium',
+          },
+          gammaContext: { call_wall: 950 },
+          calculation: { maxLoss: 625 },
+        },
+      },
+      intent: { symbol: 'NVDA' },
+      warnings: [],
+    };
+  },
+};
 const recommendationOutputService = {
   async ensureOutputs({ batch, publicData, scriptJob }) {
     outputCalls.push({
@@ -61,6 +109,7 @@ const recommendationOutputService = {
 const app = createApp({
   repository,
   recommendationGenerationService,
+  recommendationMarketDataService,
   recommendationOutputService,
   autoResumeQueuedUploads: false,
   autoSyncPublications: false,
@@ -186,6 +235,7 @@ try {
   );
   assert.equal(generationCalls.length, 1);
   assert.equal(generationCalls[0].existingRecommendations.length, 0);
+  assert.equal(generationCalls[0].marketDrafts.length, 0);
   const generatedBatchId = generated.body.recommendationBatch.id;
 
   const appended = await json({
@@ -194,7 +244,7 @@ try {
     body: {
       tradeDate: '2026-05-18',
       prompts: [
-        { id: 'prompt_nvda', prompt: 'Generate a NVDA defined-risk idea.' },
+        { id: 'prompt_nvda', prompt: 'Generate a NVDA iron condor expiring 2026-06-19.' },
       ],
     },
   });
@@ -202,8 +252,15 @@ try {
   assert.equal(appended.body.recommendationBatch.id, generatedBatchId);
   assert.equal(appended.body.recommendationBatch.recommendations.length, 3);
   assert.equal(appended.body.recommendationBatch.recommendations[2].symbol, 'NVDA');
+  assert.equal(appended.body.recommendationBatch.recommendations[2].strategy, 'Iron Condor');
+  assert.equal(appended.body.recommendationBatch.recommendations[2].rewardRisk, 0.6);
+  assert.equal(appended.body.recommendationBatch.recommendations[2].maxProfit, 375);
+  assert.equal(appended.body.recommendationBatch.recommendations[2].maxLoss, 625);
+  assert.equal(appended.body.recommendationBatch.recommendations[2].lifecycle.metricAssumptions.source, 'alpaca-option-chain-r2-gamma-deterministic-calculation');
   assert.equal(generationCalls.length, 2);
   assert.equal(generationCalls[1].existingRecommendations.length, 2);
+  assert.equal(generationCalls[1].marketDrafts.length, 1);
+  assert.equal(marketDataCalls.length, 3);
 
   const listAfterGeneration = await json({
     method: 'GET',

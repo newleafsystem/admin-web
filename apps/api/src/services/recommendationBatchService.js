@@ -10,6 +10,7 @@ export function createRecommendationBatchService({
   repository,
   jobStateService,
   recommendationGenerationService,
+  recommendationMarketDataService,
   recommendationOutputService,
   clock = () => new Date().toISOString(),
 } = {}) {
@@ -104,14 +105,25 @@ export function createRecommendationBatchService({
       });
     }
 
+    const marketDataResult = await buildMarketDataDrafts({
+      service: recommendationMarketDataService,
+      prompts: request.prompts,
+      batch: batchContext,
+    });
     const generated = await recommendationGenerationService.generateRecommendations({
       prompts: request.prompts,
       batch: batchContext,
       existingRecommendations,
       maxRecommendations: MAX_RECOMMENDATIONS_PER_BATCH,
+      marketDrafts: marketDataResult.drafts,
     });
-    const generatedRecommendations = normalizeGeneratedRecommendations(
+    const mergedRecommendations = mergeMarketDraftsIntoGenerated(
       generated.recommendations.slice(0, remainingSlots),
+      marketDataResult.drafts,
+      request.prompts,
+    );
+    const generatedRecommendations = normalizeGeneratedRecommendations(
+      mergedRecommendations,
       {
         existingRecommendations,
         prompts: request.prompts,
@@ -131,6 +143,11 @@ export function createRecommendationBatchService({
       promptCount: request.prompts.length,
       generatedCount: generatedRecommendations.length,
       appendedToBatchId: existing?.id ?? null,
+      marketData: {
+        calculatedCount: marketDataResult.drafts.length,
+        warningCount: marketDataResult.warnings.length,
+        warnings: marketDataResult.warnings.slice(0, 20),
+      },
     };
     const normalized = normalizeBatchInput(
       {
@@ -434,6 +451,104 @@ function batchContextForGeneration(existing, request, timestamp) {
   };
 }
 
+async function buildMarketDataDrafts({ service, prompts, batch }) {
+  if (!service?.buildRecommendationDraft) {
+    return { drafts: [], warnings: [] };
+  }
+
+  const drafts = [];
+  const warnings = [];
+  for (const prompt of prompts) {
+    try {
+      const result = await service.buildRecommendationDraft({
+        prompt: prompt.prompt,
+        promptId: prompt.id,
+        batch,
+      });
+      if (result?.recommendation) {
+        drafts.push(result.recommendation);
+      }
+      for (const warning of result?.warnings ?? []) {
+        warnings.push({
+          promptId: prompt.id,
+          symbol: result?.intent?.symbol ?? null,
+          warning,
+        });
+      }
+    } catch (error) {
+      warnings.push({
+        promptId: prompt.id,
+        warning: error.message ?? 'Market data calculation failed.',
+      });
+    }
+  }
+
+  return { drafts, warnings };
+}
+
+function mergeMarketDraftsIntoGenerated(rawRecommendations, marketDrafts, prompts) {
+  if (!Array.isArray(marketDrafts) || marketDrafts.length === 0) {
+    return rawRecommendations;
+  }
+
+  const byPromptId = new Map(
+    marketDrafts
+      .filter((draft) => draft.sourcePromptId)
+      .map((draft) => [draft.sourcePromptId, draft]),
+  );
+  return rawRecommendations.map((item, index) => {
+    const sourcePromptId =
+      cleanString(item.sourcePromptId ?? item.promptId, { maxLength: 80 }) ?? prompts[index]?.id ?? null;
+    const draft = byPromptId.get(sourcePromptId);
+    return draft ? mergeRecommendationWithMarketDraft(item, draft) : item;
+  });
+}
+
+function mergeRecommendationWithMarketDraft(item, draft) {
+  const itemLifecycle = normalizePlainObject(item.lifecycle);
+  const draftLifecycle = normalizePlainObject(draft.lifecycle);
+  return {
+    ...item,
+    sourcePromptId: draft.sourcePromptId ?? item.sourcePromptId,
+    symbol: draft.symbol,
+    strategy: draft.strategy,
+    direction: draft.direction,
+    price: draft.price,
+    expiry: draft.expiry,
+    dte: draft.dte,
+    rewardRisk: draft.rewardRisk,
+    oddsOfProfit: draft.oddsOfProfit,
+    maxProfit: draft.maxProfit,
+    maxLoss: draft.maxLoss,
+    netCredit: draft.netCredit,
+    legs: draft.legs,
+    greeks: draft.greeks,
+    breakevens: draft.breakevens,
+    ivContext: {
+      ...normalizePlainObject(item.ivContext),
+      ...normalizePlainObject(draft.ivContext),
+    },
+    sentiment: {
+      ...normalizePlainObject(item.sentiment),
+      ...normalizePlainObject(draft.sentiment),
+    },
+    lifecycle: {
+      ...itemLifecycle,
+      marketDataDraft: {
+        sourcePromptId: draft.sourcePromptId,
+        symbol: draft.symbol,
+        strategy: draft.strategy,
+      },
+      metricAssumptions: draftLifecycle.metricAssumptions,
+      marketData: draftLifecycle.marketData,
+      gammaContext: draftLifecycle.gammaContext,
+      sentimentContext: draftLifecycle.sentimentContext,
+      calculation: draftLifecycle.calculation,
+      warnings: draftLifecycle.warnings,
+    },
+  };
+}
+
 function normalizeGeneratedRecommendations(rawRecommendations, { existingRecommendations, prompts, timestamp }) {
   const usedIds = new Set(existingRecommendations.map((item) => item.id).filter(Boolean));
   const maxSortOrder = existingRecommendations.reduce(
@@ -505,6 +620,9 @@ function stripUnsupportedGeneratedMetrics(item, lifecycle) {
     oddsOfProfit: null,
     probabilityOfProfit: null,
     maxProfit: null,
+    maxLoss: null,
+    netCredit: null,
+    netDebit: null,
     lifecycle: {
       ...lifecycle,
       metricWarning:
@@ -514,7 +632,14 @@ function stripUnsupportedGeneratedMetrics(item, lifecycle) {
 }
 
 function hasGeneratedQuantitativeMetrics(item) {
-  return [item.rewardRisk, item.oddsOfProfit ?? item.probabilityOfProfit, item.maxProfit]
+  return [
+    item.rewardRisk,
+    item.oddsOfProfit ?? item.probabilityOfProfit,
+    item.maxProfit,
+    item.maxLoss,
+    item.netCredit,
+    item.netDebit,
+  ]
     .some((value) => value !== null && value !== undefined && value !== '');
 }
 
@@ -613,6 +738,7 @@ function normalizeRecommendation(item = {}, index = 0) {
   const id = cleanString(item.id, { maxLength: 120 }) ?? `pick_${sortOrder}_${symbol.toLowerCase()}`;
   const direction = cleanBatchDirection(item.direction);
   const maxProfit = cleanNumber(item.maxProfit, null, 0, 100000000);
+  const maxLoss = cleanNumber(item.maxLoss, null, 0, 100000000);
   const rewardRisk = cleanNumber(item.rewardRisk, null, 0, 1000);
   const oddsOfProfit = cleanNumber(item.oddsOfProfit ?? item.probabilityOfProfit, null, 0, 100);
 
@@ -624,9 +750,13 @@ function normalizeRecommendation(item = {}, index = 0) {
     direction,
     price: cleanNumber(item.price ?? item.underlyingPrice, null, 0, 10000000),
     expiry: cleanString(item.expiry, { maxLength: 40 }) ?? '',
+    dte: cleanNumber(item.dte, null, 0, 10000),
     rewardRisk,
     oddsOfProfit,
     maxProfit,
+    maxLoss,
+    netCredit: cleanNumber(item.netCredit, null, 0, 100000000),
+    netDebit: cleanNumber(item.netDebit, null, 0, 100000000),
     thesis,
     riskNotes: cleanString(item.riskNotes ?? item.risk, { maxLength: 1400 }) ?? '',
     entry: cleanString(item.entry, { maxLength: 900 }) ?? '',
@@ -635,6 +765,8 @@ function normalizeRecommendation(item = {}, index = 0) {
     sentiment: normalizePlainObject(item.sentiment),
     lifecycle: normalizePlainObject(item.lifecycle),
     legs: Array.isArray(item.legs) ? item.legs.map(normalizePlainObject) : [],
+    greeks: normalizePlainObject(item.greeks),
+    breakevens: normalizePlainObject(item.breakevens),
     sortOrder,
   };
 }

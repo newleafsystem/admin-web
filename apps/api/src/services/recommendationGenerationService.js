@@ -13,6 +13,7 @@ export function createRecommendationGenerationService({
     batch,
     existingRecommendations = [],
     maxRecommendations = 50,
+    marketDrafts = [],
   } = {}) {
     assertSupportedProvider(serviceConfig);
     const model = serviceConfig.model ?? DEFAULT_MODEL;
@@ -21,6 +22,7 @@ export function createRecommendationGenerationService({
       batch,
       existingRecommendations,
       maxRecommendations,
+      marketDrafts,
     });
     const rawText = await callOpenAI({
       apiKey: serviceConfig.apiKey,
@@ -60,12 +62,21 @@ function assertSupportedProvider(serviceConfig = {}) {
   }
 }
 
-function buildPrompt({ prompts = [], batch = {}, existingRecommendations = [], maxRecommendations }) {
+function buildPrompt({
+  prompts = [],
+  batch = {},
+  existingRecommendations = [],
+  maxRecommendations,
+  marketDrafts = [],
+}) {
   return {
     system: [
       'You generate educational, risk-aware options recommendation drafts for the NewLeaf System admin console.',
       'Return only valid JSON. Do not use markdown or prose outside JSON.',
       'Create one recommendation object per prompt row. Do not duplicate existing recommendation symbols unless the prompt explicitly asks for it.',
+      'When marketDataDrafts are provided, treat their symbol, strategy, direction, price, expiry, legs, maxProfit, maxLoss, rewardRisk, oddsOfProfit, breakevens, and Greeks as the source of truth.',
+      'Preserve marketDataDraft numeric fields exactly; do not recalculate, round differently, or replace them with AI-estimated values.',
+      'Use Alpaca option-chain calculations, R2 gamma context, and supplied market context to write the thesis, risk notes, entry, exit, IV context, and sentiment context.',
       'Every quantitative field must be estimated for that specific recommendation, not copied from examples or defaults.',
       'Do not reuse a static metric set across rows, and do not invent filler values such as 1.5 reward/risk, 65 probability, or 150 max profit unless the prompt-specific assumptions justify them.',
       'When you provide rewardRisk, oddsOfProfit, maxProfit, or option legs, include lifecycle.metricAssumptions describing the model-estimated structure, premium/debit/credit assumptions, max loss or width, and probability basis.',
@@ -93,6 +104,33 @@ function buildPrompt({ prompts = [], batch = {}, existingRecommendations = [], m
         row: index + 1,
         prompt: item.prompt,
       })),
+      marketDataDrafts: marketDrafts.map((item) => ({
+        sourcePromptId: item.sourcePromptId,
+        symbol: item.symbol,
+        strategy: item.strategy,
+        direction: item.direction,
+        price: item.price,
+        expiry: item.expiry,
+        dte: item.dte,
+        rewardRisk: item.rewardRisk,
+        oddsOfProfit: item.oddsOfProfit,
+        maxProfit: item.maxProfit,
+        maxLoss: item.maxLoss,
+        netCredit: item.netCredit,
+        breakevens: item.breakevens,
+        greeks: item.greeks,
+        legs: item.legs,
+        ivContext: item.ivContext,
+        sentiment: item.sentiment,
+        lifecycle: {
+          metricAssumptions: item.lifecycle?.metricAssumptions,
+          marketData: item.lifecycle?.marketData,
+          gammaContext: item.lifecycle?.gammaContext,
+          sentimentContext: item.lifecycle?.sentimentContext,
+          calculation: item.lifecycle?.calculation,
+          warnings: item.lifecycle?.warnings,
+        },
+      })),
       outputSchema: {
         recommendations: [
           {
@@ -105,6 +143,8 @@ function buildPrompt({ prompts = [], batch = {}, existingRecommendations = [], m
             rewardRisk: 'Number when useful, otherwise null',
             oddsOfProfit: '0-100 model-estimated probability when useful, otherwise null',
             maxProfit: 'Number when useful, otherwise null',
+            maxLoss: 'Number when useful, otherwise null',
+            netCredit: 'Number for credit strategies when useful, otherwise null',
             thesis: '2-4 concise sentences with risk-aware reasoning',
             riskNotes: 'Clear invalidation, loss, liquidity, event, or volatility risk',
             entry: 'Actionable but non-guaranteed entry guidance',
@@ -128,10 +168,13 @@ function buildPrompt({ prompts = [], batch = {}, existingRecommendations = [], m
         recommendationCount: prompts.length,
         requireSymbolStrategyThesis: true,
         quantitativeMetrics: {
-          source: 'AI-estimated per prompt row',
+          source: marketDrafts.length
+            ? 'Use marketDataDrafts first. Otherwise AI-estimated per prompt row.'
+            : 'AI-estimated per prompt row',
           noHardcodedDefaults: true,
           requireMetricAssumptionsWhenMetricsPresent: true,
           unsupportedMetricValue: null,
+          preserveProvidedMarketDataDrafts: true,
         },
         publicCompliance: 'Educational only. No guaranteed-profit claims.',
       },
