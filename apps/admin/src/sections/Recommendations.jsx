@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { StatusBadge } from "../components/common.jsx";
-import { API_BASE_URL } from "../config.js";
+import { downloadArtifactFile } from "../api.js";
 
 const MAX_PROMPT_ROWS = 25;
 
@@ -68,6 +68,8 @@ export function Recommendations({
 }) {
   const [draft, setDraft] = useState(emptyDraft);
   const [generation, setGeneration] = useState(emptyGenerationState);
+  const [artifactDownloads, setArtifactDownloads] = useState({});
+  const [artifactDownloadError, setArtifactDownloadError] = useState(null);
   const sortedBatches = useMemo(
     () => [...batches].sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt))),
     [batches]
@@ -244,6 +246,25 @@ export function Recommendations({
       }));
     } catch (error) {
       setDraft((current) => ({ ...current, error: error.message, message: null }));
+    }
+  }
+
+  async function downloadOutputArtifact(artifact, label) {
+    const artifactId = artifact?.artifactId ?? artifact?.id;
+    if (!artifactId) return;
+
+    setArtifactDownloadError(null);
+    setArtifactDownloads((current) => ({ ...current, [artifactId]: true }));
+    try {
+      await downloadArtifactFile(artifact);
+    } catch (error) {
+      setArtifactDownloadError(error.message || `Unable to download ${label}.`);
+    } finally {
+      setArtifactDownloads((current) => {
+        const next = { ...current };
+        delete next[artifactId];
+        return next;
+      });
     }
   }
 
@@ -483,6 +504,7 @@ export function Recommendations({
           </div>
           <span className="muted">{sortedBatches.length} batches</span>
         </div>
+        {artifactDownloadError && <section className="form-error">{artifactDownloadError}</section>}
 
         {sortedBatches.length === 0 ? (
           <div className="empty-inline">No recommendation batches have been created yet.</div>
@@ -541,15 +563,17 @@ export function Recommendations({
                   <div className="recommendation-output-row">
                     {Object.entries(outputLabels).map(([key, label]) => {
                       const artifact = batch.outputArtifacts?.[key];
-                      return artifact?.artifactId ? (
-                        <a
-                          href={`${API_BASE_URL}/assets/${encodeURIComponent(artifact.artifactId)}/content`}
+                      const artifactId = artifact?.artifactId ?? artifact?.id;
+                      const isDownloading = Boolean(artifactId && artifactDownloads[artifactId]);
+                      return artifactId ? (
+                        <button
+                          disabled={isDownloading}
                           key={key}
-                          rel="noreferrer"
-                          target="_blank"
+                          type="button"
+                          onClick={() => downloadOutputArtifact(artifact, label)}
                         >
-                          {label}
-                        </a>
+                          {isDownloading ? "Downloading..." : label}
+                        </button>
                       ) : null;
                     })}
                   </div>

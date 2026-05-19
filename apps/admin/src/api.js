@@ -127,6 +127,28 @@ export async function uploadLocalVideo(jobId, file) {
   return body.artifact;
 }
 
+export async function downloadArtifactFile(artifact) {
+  const artifactId = artifact?.artifactId ?? artifact?.id;
+  if (!artifactId) {
+    throw new Error("Unable to download artifact: artifact id is missing.");
+  }
+
+  const response = await apiFetch(`${API_BASE_URL}/assets/${encodeURIComponent(artifactId)}/content?download=1`);
+  if (!response.ok) {
+    const body = await readJson(response);
+    assertOk(response, body, "Unable to download artifact");
+  }
+
+  const blob = await response.blob();
+  const filename =
+    filenameFromContentDisposition(response.headers.get("content-disposition")) ??
+    artifact.filename ??
+    artifact.metadata?.filename ??
+    `${artifact.kind ?? "artifact"}.bin`;
+  triggerBrowserDownload(blob, sanitizeDownloadFilename(filename));
+  return { filename, sizeBytes: blob.size };
+}
+
 export async function uploadVideoAssemblySegment(jobId, heygenVideoId, file) {
   const params = new URLSearchParams({
     filename: file.name,
@@ -848,6 +870,40 @@ function assertOk(response, body, fallbackMessage) {
   error.status = response.status;
   error.details = body;
   throw error;
+}
+
+function filenameFromContentDisposition(value) {
+  const header = String(value ?? "");
+  const utf8Match = header.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8Match) {
+    try {
+      return decodeURIComponent(utf8Match[1].trim());
+    } catch {
+      return utf8Match[1].trim();
+    }
+  }
+  const quotedMatch = header.match(/filename="([^"]+)"/i);
+  if (quotedMatch) return quotedMatch[1].trim();
+  const plainMatch = header.match(/filename=([^;]+)/i);
+  return plainMatch?.[1]?.trim() ?? null;
+}
+
+function triggerBrowserDownload(blob, filename) {
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+function sanitizeDownloadFilename(value) {
+  return String(value ?? "download.bin")
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .trim() || "download.bin";
 }
 
 function normalizeSocialAccount(account) {

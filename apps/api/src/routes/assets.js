@@ -170,6 +170,10 @@ export function createAssetsRouter({ repository }) {
       const artifact = await repository.getArtifact(req.params.artifactId);
       if (!artifact) throw notFound('Artifact not found', { artifactId: req.params.artifactId });
 
+      if (isDownloadRequest(req.query.download)) {
+        res.set('Content-Disposition', attachmentDisposition(artifact));
+      }
+
       if (artifact.storageProvider === 'provider-url' && /^https?:\/\//i.test(artifact.storageKey)) {
         return res.redirect(302, artifact.storageKey);
       }
@@ -274,4 +278,17 @@ function safePathSegment(value) {
 function isPathInside(rootDir, filePath) {
   const relative = path.relative(rootDir, filePath);
   return relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+}
+
+function isDownloadRequest(value) {
+  return ['1', 'true', 'yes', 'download'].includes(String(value ?? '').trim().toLowerCase());
+}
+
+function attachmentDisposition(artifact) {
+  const filename = sanitizeFilename(
+    artifact.metadata?.filename ??
+      path.basename(String(artifact.storageKey ?? '')) ??
+      `${artifact.id ?? 'artifact'}.bin`,
+  );
+  return `attachment; filename="${filename.replace(/["\\]+/g, '_')}"`;
 }
