@@ -105,6 +105,8 @@ const recommendationMarketDataService = {
             confidence: 'medium',
           },
           gammaContext: { call_wall: 950 },
+          technicalIndicators: { rsi14: 54, smaTrend: 'neutral' },
+          strategyAdvisor: { modelMode: 'budget-qwq', score: 82 },
           calculation: { maxLoss: 625 },
         },
       },
@@ -316,6 +318,8 @@ try {
   assert.equal(appended.body.recommendationBatch.recommendations[2].maxProfit, 375);
   assert.equal(appended.body.recommendationBatch.recommendations[2].maxLoss, 625);
   assert.equal(appended.body.recommendationBatch.recommendations[2].lifecycle.metricAssumptions.source, 'alpaca-option-chain-r2-gamma-deterministic-calculation');
+  assert.equal(appended.body.recommendationBatch.recommendations[2].lifecycle.technicalIndicators.rsi14, 54);
+  assert.equal(appended.body.recommendationBatch.recommendations[2].lifecycle.strategyAdvisor.score, 82);
   assert.equal(generationCalls.length, 2);
   assert.equal(generationCalls[1].existingRecommendations.length, 2);
   assert.equal(generationCalls[1].marketDrafts.length, 1);

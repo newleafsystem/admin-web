@@ -1041,6 +1041,7 @@ function mergeRecommendationWithMarketDraft(item, draft) {
     maxProfit: draft.maxProfit,
     maxLoss: draft.maxLoss,
     netCredit: draft.netCredit,
+    netDebit: draft.netDebit,
     legs: draft.legs,
     greeks: draft.greeks,
     breakevens: draft.breakevens,
@@ -1060,6 +1061,8 @@ function mergeRecommendationWithMarketDraft(item, draft) {
       gammaContext: draftLifecycle.gammaContext,
       sentimentContext: draftLifecycle.sentimentContext,
       calculation: draftLifecycle.calculation,
+      technicalIndicators: draftLifecycle.technicalIndicators,
+      strategyAdvisor: draftLifecycle.strategyAdvisor,
       warnings: draftLifecycle.warnings,
     },
   };
@@ -1204,9 +1207,10 @@ function hasGeneratedMarketPrice(item) {
 function hasTrustedMarketPrice(lifecycle) {
   const marketData = normalizePlainObject(lifecycle.marketData);
   const draft = normalizePlainObject(lifecycle.marketDataDraft);
+  const trustedSource = ['alpaca', 'newleaf-api'].includes(marketData.source);
   return (
     draft.source === 'newleaf-market-data-service' &&
-    marketData.source === 'alpaca' &&
+    trustedSource &&
     Number.isFinite(Number(marketData.spotPrice))
   );
 }

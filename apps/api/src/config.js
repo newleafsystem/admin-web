@@ -86,6 +86,13 @@ export const config = Object.freeze({
     mediaOriginUrl: readOptionalString('PUBLIC_MEDIA_ORIGIN_URL'),
     cacheMaxAgeSec: readNumber('PUBLIC_ASSET_CACHE_MAX_AGE_SEC', 300),
   },
+  marketApi: {
+    baseUrl: readOptionalString('NEWLEAF_MARKET_API_BASE_URL') ??
+      readOptionalString('NEWLEAF_API_BASE_URL') ??
+      'https://us-central1-newleaf-trading.cloudfunctions.net/api',
+    apiKey: readOptionalString('NEWLEAF_MARKET_API_KEY') ?? readOptionalString('NEWLEAF_API_KEY'),
+    modelMode: readOptionalString('NEWLEAF_MARKET_API_MODEL_MODE') ?? 'budget-qwq',
+  },
   ai: {
     provider: readOptionalString('AI_PROVIDER') ?? (readOptionalString('OPENAI_API_KEY') ? 'openai' : null),
     apiKey: readOptionalString('AI_API_KEY') ?? readOptionalString('OPENAI_API_KEY'),
