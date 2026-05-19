@@ -5,6 +5,7 @@ import path from 'node:path';
 
 process.env.NEWLEAF_SKIP_DOTENV = '1';
 process.env.NODE_ENV = 'test';
+process.env.GCS_BUCKET = '';
 
 const { createInMemoryRepository } = await import('../lib/repository.js');
 const { createRecommendationOutputService } = await import('./recommendationOutputService.js');
