@@ -4,6 +4,8 @@ import path from 'node:path';
 import { config } from '../config.js';
 import {
   buildObjectStorageKey,
+  downloadObjectStorageArtifactBuffer,
+  isObjectStorageProvider,
   sanitizeFilename,
   shouldUseObjectStorage,
   uploadBufferToObjectStorage,
@@ -81,13 +83,19 @@ export function createRecommendationOutputService({
   async function ensureArtifact(existingSummary, context, type, buildBuffer) {
     const reusable = await getReusableArtifact(existingSummary);
     if (reusable) {
-      return reusable;
+      const mirrored = await ensurePublicPdfMirrorForArtifact({
+        existingSummary,
+        artifact: reusable,
+        context,
+        type,
+      });
+      return attachPublicMirror(reusable, mirrored);
     }
 
     const filename = outputFilename(type.filename, context.publicData);
     const buffer = await buildBuffer();
     const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
-    return storeBufferArtifact({
+    const artifact = await storeBufferArtifact({
       jobId: context.scriptJob.id,
       batchId: context.publicData.recommendationBatchId,
       kind: type.kind,
@@ -105,6 +113,14 @@ export function createRecommendationOutputService({
         generatedBy: context.actorUid,
       },
     });
+    const mirrored = await ensurePublicPdfMirrorForBuffer({
+      artifact,
+      buffer,
+      checksum,
+      context,
+      type,
+    });
+    return attachPublicMirror(artifact, mirrored);
   }
 
   async function getReusableArtifact(summary) {
@@ -189,6 +205,125 @@ export function createRecommendationOutputService({
         localPath: filePath,
       },
     });
+  }
+
+  async function ensurePublicPdfMirrorForArtifact({ existingSummary, artifact, context, type }) {
+    if (type.kind !== OUTPUT_TYPES.pdf.kind || !shouldUseObjectStorage()) {
+      return null;
+    }
+    const existingPublicArtifactId = existingSummary?.publicArtifact?.artifactId ?? existingSummary?.publicArtifact?.id;
+    if (existingPublicArtifactId) {
+      const existingPublicArtifact = await repository.getArtifact(existingPublicArtifactId);
+      if (existingPublicArtifact) {
+        const buffer = await readArtifactBuffer(artifact);
+        await uploadBufferToObjectStorage({
+          storageKey: existingPublicArtifact.storageKey,
+          buffer,
+          mimeType: existingPublicArtifact.mimeType ?? type.mimeType,
+          cacheControl: 'public, max-age=300',
+          contentDisposition: `attachment; filename="${existingPublicArtifact.metadata?.filename ?? path.basename(existingPublicArtifact.storageKey)}"`,
+        });
+        for (const storageKey of existingPublicArtifact.metadata?.additionalStorageKeys ?? []) {
+          await uploadBufferToObjectStorage({
+            storageKey,
+            buffer,
+            mimeType: existingPublicArtifact.mimeType ?? type.mimeType,
+            cacheControl: 'public, max-age=86400',
+            contentDisposition: `attachment; filename="${existingPublicArtifact.metadata?.filename ?? path.basename(existingPublicArtifact.storageKey)}"`,
+          });
+        }
+        return {
+          publicArtifact: existingPublicArtifact,
+          latestStorageKey: existingPublicArtifact.storageKey,
+          datedStorageKey: existingPublicArtifact.metadata?.additionalStorageKeys?.[0] ?? null,
+          publicDataPath: existingPublicArtifact.metadata?.publicDataPath ?? existingPublicArtifact.storageKey,
+          filename: existingPublicArtifact.metadata?.filename ?? path.basename(existingPublicArtifact.storageKey),
+        };
+      }
+    }
+    const buffer = await readArtifactBuffer(artifact);
+    const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
+    return ensurePublicPdfMirrorForBuffer({
+      artifact,
+      buffer,
+      checksum,
+      context,
+      type,
+    });
+  }
+
+  async function ensurePublicPdfMirrorForBuffer({ artifact, buffer, checksum, context, type }) {
+    if (type.kind !== OUTPUT_TYPES.pdf.kind || !shouldUseObjectStorage()) {
+      return null;
+    }
+    const mirror = buildPublicPdfMirror(context.publicData);
+    if (!mirror) return null;
+    const cacheControl = 'public, max-age=300';
+    const contentDisposition = `attachment; filename="${mirror.latestFilename}"`;
+    const latest = await uploadBufferToObjectStorage({
+      storageKey: mirror.latestStorageKey,
+      buffer,
+      mimeType: type.mimeType,
+      cacheControl,
+      contentDisposition,
+    });
+    await uploadBufferToObjectStorage({
+      storageKey: mirror.datedStorageKey,
+      buffer,
+      mimeType: type.mimeType,
+      cacheControl: 'public, max-age=86400',
+      contentDisposition,
+    });
+    const publicArtifact = await repository.createArtifact({
+      jobId: artifact.jobId,
+      kind: 'recommendation_pdf_public',
+      storageProvider: latest.storageProvider,
+      storageKey: latest.storageKey,
+      mimeType: type.mimeType,
+      sizeBytes: latest.sizeBytes,
+      checksum,
+      metadata: {
+        recommendationBatchId: context.publicData.recommendationBatchId,
+        recommendationId: context.publicData.recommendationId ?? context.publicData.recommendations?.[0]?.id ?? null,
+        recommendationSymbol: mirror.symbol,
+        tradeDate: context.publicData.tradeDate,
+        outputType: 'recommendation_pdf_public',
+        generatedAt: context.timestamp,
+        generatedBy: context.actorUid,
+        filename: mirror.latestFilename,
+        publicDataPath: mirror.publicDataPath,
+        latestStorageKey: mirror.latestStorageKey,
+        datedStorageKey: mirror.datedStorageKey,
+        additionalStorageKeys: [mirror.datedStorageKey],
+        bucket: latest.metadata?.bucket ?? null,
+        objectGeneration: latest.metadata?.objectGeneration ?? null,
+      },
+    });
+    return {
+      publicArtifact,
+      latestStorageKey: mirror.latestStorageKey,
+      datedStorageKey: mirror.datedStorageKey,
+      publicDataPath: mirror.publicDataPath,
+      filename: mirror.latestFilename,
+    };
+  }
+
+  async function readArtifactBuffer(artifact) {
+    if (isObjectStorageProvider(artifact.storageProvider)) {
+      return downloadObjectStorageArtifactBuffer(artifact);
+    }
+    if (artifact.storageProvider !== 'local-disk') {
+      throw badRequest('Recommendation artifact cannot be mirrored from this storage provider', {
+        artifactId: artifact.id,
+        storageProvider: artifact.storageProvider,
+      });
+    }
+    const rootDir = path.resolve(process.cwd(), serviceConfig.localDataDir);
+    const filePath = path.resolve(rootDir, artifact.storageKey);
+    if (!isPathInside(rootDir, filePath)) {
+      throw badRequest('Invalid recommendation artifact path');
+    }
+    return fsp.readFile(filePath);
   }
 
   return {
@@ -842,7 +977,7 @@ function normalizePdfText(value) {
 }
 
 function artifactSummary(artifact) {
-  return {
+  const summary = {
     artifactId: artifact.id,
     kind: artifact.kind,
     mimeType: artifact.mimeType,
@@ -853,6 +988,46 @@ function artifactSummary(artifact) {
     filename: artifact.metadata?.filename ?? null,
     createdAt: artifact.createdAt ?? null,
     updatedAt: artifact.updatedAt ?? null,
+  };
+  const publicMirror = artifact.publicMirror ?? null;
+  const publicArtifact = artifact.publicArtifact ?? null;
+  if (publicMirror?.publicDataPath || artifact.metadata?.publicDataPath) {
+    summary.publicDataPath = publicMirror?.publicDataPath ?? artifact.metadata.publicDataPath;
+    summary.publicStorageKey = publicMirror?.latestStorageKey ?? artifact.metadata.latestStorageKey ?? artifact.storageKey;
+    summary.publicDatedStorageKey = publicMirror?.datedStorageKey ?? artifact.metadata.datedStorageKey ?? null;
+  }
+  if (publicArtifact) {
+    summary.publicArtifact = {
+      artifactId: publicArtifact.id,
+      kind: publicArtifact.kind,
+      mimeType: publicArtifact.mimeType,
+      sizeBytes: publicArtifact.sizeBytes ?? null,
+      checksum: publicArtifact.checksum ?? null,
+      storageProvider: publicArtifact.storageProvider,
+      storageKey: publicArtifact.storageKey,
+      filename: publicArtifact.metadata?.filename ?? null,
+      publicDataPath: publicArtifact.metadata?.publicDataPath ?? publicArtifact.storageKey,
+      additionalStorageKeys: Array.isArray(publicArtifact.metadata?.additionalStorageKeys)
+        ? publicArtifact.metadata.additionalStorageKeys
+        : [],
+      createdAt: publicArtifact.createdAt ?? null,
+      updatedAt: publicArtifact.updatedAt ?? null,
+    };
+  }
+  return summary;
+}
+
+function attachPublicMirror(artifact, mirror) {
+  if (!mirror) return artifact;
+  return {
+    ...artifact,
+    publicMirror: {
+      latestStorageKey: mirror.latestStorageKey,
+      datedStorageKey: mirror.datedStorageKey,
+      publicDataPath: mirror.publicDataPath,
+      filename: mirror.filename,
+    },
+    publicArtifact: mirror.publicArtifact,
   };
 }
 
@@ -876,6 +1051,38 @@ function outputFilename(baseFilename, publicData) {
     ? `${scope}-recommendation-report.pdf`
     : `${scope}-${baseFilename}`;
   return sanitizeFilename(name);
+}
+
+function buildPublicPdfMirror(publicData) {
+  const pick = Array.isArray(publicData.recommendations) && publicData.recommendations.length === 1
+    ? publicData.recommendations[0]
+    : null;
+  const symbol = String(publicData.recommendationSymbol ?? pick?.symbol ?? '').trim().toUpperCase();
+  if (!symbol || !/^[A-Z0-9^][A-Z0-9.\-^=]{0,23}$/.test(symbol)) {
+    return null;
+  }
+  const strategySlug = strategyPublicSlug(pick?.strategy ?? 'Recommendation');
+  const datedSuffix = String(publicData.tradeDate ?? publicData.weekId ?? new Date().toISOString().slice(0, 10))
+    .replace(/[^0-9A-Za-z-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'dated';
+  const latestFilename = sanitizeFilename(`${symbol}-${strategySlug}-latest.pdf`);
+  const datedFilename = sanitizeFilename(`${symbol}-${strategySlug}-${datedSuffix}.pdf`);
+  const directory = `reports/pdf/${safePathSegment(symbol)}`;
+  return {
+    symbol,
+    latestFilename,
+    datedFilename,
+    latestStorageKey: `${directory}/${latestFilename}`,
+    datedStorageKey: `${directory}/${datedFilename}`,
+    publicDataPath: `${directory}/${latestFilename}`,
+  };
+}
+
+function strategyPublicSlug(value) {
+  return String(value ?? 'Recommendation')
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'Recommendation';
 }
 
 function formatMoney(value) {

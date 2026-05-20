@@ -29,12 +29,20 @@ export function buildObjectStorageJobPrefix(jobId) {
   return `uploads/${safeObjectSegment(jobId)}/`;
 }
 
-export async function uploadBufferToObjectStorage({ storageKey, buffer, mimeType }) {
+export async function uploadBufferToObjectStorage({
+  storageKey,
+  buffer,
+  mimeType,
+  cacheControl = null,
+  contentDisposition = null,
+}) {
   const file = objectStorageBucket().file(assertSafeObjectKey(storageKey));
   await file.save(buffer, {
     resumable: false,
     metadata: {
       contentType: mimeType || 'application/octet-stream',
+      ...(cacheControl ? { cacheControl } : {}),
+      ...(contentDisposition ? { contentDisposition } : {}),
     },
   });
   const [metadata] = await file.getMetadata();
@@ -47,6 +55,18 @@ export async function uploadBufferToObjectStorage({ storageKey, buffer, mimeType
       objectGeneration: metadata.generation ?? null,
     },
   };
+}
+
+export async function downloadObjectStorageArtifactBuffer(artifact) {
+  if (!isObjectStorageProvider(artifact?.storageProvider)) {
+    throw conflict('Artifact is not stored in object storage', {
+      artifactId: artifact?.id ?? null,
+      storageProvider: artifact?.storageProvider ?? null,
+    });
+  }
+  const file = objectStorageBucket().file(assertSafeObjectKey(artifact.storageKey));
+  const [buffer] = await file.download();
+  return buffer;
 }
 
 export async function uploadFileToObjectStorage({ storageKey, filePath, mimeType }) {
@@ -79,8 +99,29 @@ export async function getObjectStorageMetadata(artifact) {
 }
 
 export async function streamObjectStorageArtifact({ artifact, range = null, response }) {
-  const file = objectStorageBucket().file(assertSafeObjectKey(artifact.storageKey));
-  const metadata = await getObjectStorageMetadata(artifact);
+  return streamObjectStorageKey({
+    storageKey: artifact.storageKey,
+    range,
+    response,
+    fallbackContentType: artifact.mimeType,
+  });
+}
+
+export async function streamObjectStorageKey({
+  storageKey,
+  range = null,
+  response,
+  fallbackContentType = 'application/octet-stream',
+  headOnly = false,
+}) {
+  const file = objectStorageBucket().file(assertSafeObjectKey(storageKey));
+  const [rawMetadata] = await file.getMetadata();
+  const metadata = {
+    sizeBytes: Number(rawMetadata.size ?? 0),
+    contentType: rawMetadata.contentType ?? fallbackContentType,
+    cacheControl: rawMetadata.cacheControl ?? null,
+    contentDisposition: rawMetadata.contentDisposition ?? null,
+  };
   const fileSize = metadata.sizeBytes;
   const contentType = metadata.contentType;
 
@@ -92,8 +133,11 @@ export async function streamObjectStorageArtifact({ artifact, range = null, resp
       'Accept-Ranges': 'bytes',
       'Content-Length': chunkSize,
       'Content-Type': contentType,
+      ...(metadata.cacheControl ? { 'Cache-Control': metadata.cacheControl } : {}),
+      ...(metadata.contentDisposition ? { 'Content-Disposition': metadata.contentDisposition } : {}),
       'X-Content-Type-Options': 'nosniff',
     });
+    if (headOnly) return response.end();
     return file.createReadStream({ start, end }).pipe(response);
   }
 
@@ -101,9 +145,42 @@ export async function streamObjectStorageArtifact({ artifact, range = null, resp
     'Content-Length': fileSize,
     'Accept-Ranges': 'bytes',
     'Content-Type': contentType,
+    ...(metadata.cacheControl ? { 'Cache-Control': metadata.cacheControl } : {}),
+    ...(metadata.contentDisposition ? { 'Content-Disposition': metadata.contentDisposition } : {}),
     'X-Content-Type-Options': 'nosniff',
   });
+  if (headOnly) return response.end();
   return file.createReadStream().pipe(response);
+}
+
+export async function tryStreamObjectStorageKey({
+  storageKey,
+  range = null,
+  response,
+  fallbackContentType = 'application/octet-stream',
+  headOnly = false,
+}) {
+  if (!shouldUseObjectStorage()) {
+    return false;
+  }
+  try {
+    await streamObjectStorageKey({
+      storageKey,
+      range,
+      response,
+      fallbackContentType,
+      headOnly,
+    });
+    return true;
+  } catch (error) {
+    if (isObjectNotFoundError(error)) {
+      return false;
+    }
+    throw badGateway('Unable to stream public object storage asset', {
+      storageKey,
+      status: error.code ?? error.status ?? null,
+    });
+  }
 }
 
 export async function materializeObjectStorageArtifact(artifact, { localDataDir, purpose = 'publisher' } = {}) {
@@ -144,37 +221,43 @@ export async function deleteObjectStorageArtifact(artifact, { ignoreNotFound = t
     };
   }
 
-  const storageKey = assertSafeObjectKey(artifact.storageKey);
+  const storageKeys = [
+    artifact.storageKey,
+    ...normalizeAdditionalStorageKeys(artifact.metadata?.additionalStorageKeys),
+  ].map(assertSafeObjectKey);
   const bucket = objectStorageBucket();
-  const file = bucket.file(storageKey);
+  const deletedKeys = [];
+  const skippedKeys = [];
 
-  try {
-    await file.delete({ ignoreNotFound });
-  } catch (error) {
-    if (ignoreNotFound && isObjectNotFoundError(error)) {
-      return {
-        deleted: false,
-        skipped: true,
-        reason: 'object_not_found',
+  for (const storageKey of storageKeys) {
+    const file = bucket.file(storageKey);
+    try {
+      await file.delete({ ignoreNotFound });
+      deletedKeys.push(storageKey);
+    } catch (error) {
+      if (ignoreNotFound && isObjectNotFoundError(error)) {
+        skippedKeys.push(storageKey);
+        continue;
+      }
+      throw badGateway('Unable to delete artifact from object storage', {
         artifactId: artifact.id,
         storageProvider: artifact.storageProvider,
         storageKey,
-      };
+        status: error.code ?? error.status ?? null,
+      });
     }
-    throw badGateway('Unable to delete artifact from object storage', {
-      artifactId: artifact.id,
-      storageProvider: artifact.storageProvider,
-      storageKey,
-      status: error.code ?? error.status ?? null,
-    });
   }
 
   return {
-    deleted: true,
-    skipped: false,
+    deleted: deletedKeys.length > 0,
+    skipped: deletedKeys.length === 0,
     artifactId: artifact.id,
     storageProvider: artifact.storageProvider,
-    storageKey,
+    storageKey: storageKeys[0],
+    storageKeys,
+    deletedKeys,
+    skippedKeys,
+    reason: deletedKeys.length > 0 ? null : 'object_not_found',
     bucket: objectStorageBucketName(),
   };
 }
@@ -264,6 +347,11 @@ function parseRangeHeader(range, fileSize) {
 
 function safeObjectSegment(value) {
   return String(value ?? 'item').replace(/[^\w.-]+/g, '_') || 'item';
+}
+
+function normalizeAdditionalStorageKeys(value) {
+  if (!Array.isArray(value)) return [];
+  return value.map((item) => String(item ?? '').trim()).filter(Boolean);
 }
 
 function assertPathInside(rootDir, filePath) {

@@ -3,6 +3,7 @@ import { Router } from 'express';
 import { config } from '../config.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { badGateway, badRequest, conflict, notFound } from '../lib/httpErrors.js';
+import { tryStreamObjectStorageKey } from '../lib/assetStorage.js';
 
 const RESPONSE_HEADERS = [
   'accept-ranges',
@@ -123,6 +124,18 @@ function proxyPublicAsset(originResolver, label) {
     }
 
     if (upstream.status === 404) {
+      if (label === 'data') {
+        const servedFromObjectStorage = await tryStreamObjectStorageKey({
+          storageKey: assetPath,
+          range,
+          response: res,
+          fallbackContentType: contentTypeForPublicDataPath(assetPath),
+          headOnly: req.method === 'HEAD',
+        });
+        if (servedFromObjectStorage) {
+          return;
+        }
+      }
       throw notFound('Public asset not found', { assetType: label, assetPath });
     }
 
@@ -150,6 +163,15 @@ function proxyPublicAsset(originResolver, label) {
 
     return Readable.fromWeb(upstream.body).pipe(res);
   });
+}
+
+function contentTypeForPublicDataPath(assetPath) {
+  const lower = String(assetPath ?? '').toLowerCase();
+  if (lower.endsWith('.pdf')) return 'application/pdf';
+  if (lower.endsWith('.json')) return 'application/json';
+  if (lower.endsWith('.md')) return 'text/markdown; charset=utf-8';
+  if (lower.endsWith('.txt')) return 'text/plain; charset=utf-8';
+  return 'application/octet-stream';
 }
 
 function normalizeOrigin(value, label) {
