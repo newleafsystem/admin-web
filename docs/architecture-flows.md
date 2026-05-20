@@ -121,12 +121,12 @@ sequenceDiagram
   Admin->>UI: Approve and publish batch
   UI->>API: POST approve, POST publish
   API->>Repo: Mark published and store public snapshot
-  API->>Repo: Create or reuse PDF, script, social copy, and picks JSON artifacts
+  API->>Repo: Create or reuse per-pick PDF, script, social copy, and picks JSON artifacts
   Client->>API: GET /api/v1/public/recommendations/latest
   API-->>Client: Published picks/invest card data
-  API->>Repo: Create text_to_heygen recommendation video job
+  API->>Repo: Create one text_to_heygen recommendation video job per pick
   API->>Email: Queue weeklyPicks notification channel
-  API->>PDF: Queue batch PDF channel
+  API->>PDF: Queue per-pick PDF channel
   API->>HeyGen: Submit approved script through existing backend flow
   HeyGen-->>API: Webhook or polling completion
   API->>Assembler: Assemble final video when all segments are ready

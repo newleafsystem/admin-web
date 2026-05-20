@@ -617,7 +617,7 @@ export function Recommendations({
                     {batch.status === "approved" && (
                       <button type="button" onClick={() => runBatchAction(onPublish, batch.id)}>Publish</button>
                     )}
-                    {(batch.status === "published" || batch.status === "approved" || batch.scriptJobId) && onDelete && (
+                    {(batch.status === "published" || batch.status === "approved" || hasScriptJobs(batch)) && onDelete && (
                       <button className="danger" type="button" onClick={() => requestBatchDelete(batch)}>
                         {batch.status === "published" ? "Unpublish / delete" : "Delete"}
                       </button>
@@ -640,32 +640,45 @@ export function Recommendations({
                   ))}
                 </div>
 
-                {batch.scriptJobId && (
-                  <div className="recommendation-script-job-row">
-                    <p className="muted">Video script job: {batch.scriptJobId}</p>
-                    <button type="button" onClick={() => onOpenScriptJob?.(batch.scriptJobId)}>
-                      Open video workflow
-                    </button>
+                {hasScriptJobs(batch) && (
+                  <div className="recommendation-script-job-list">
+                    {getScriptJobRows(batch).map((job) => (
+                      <div className="recommendation-script-job-row" key={job.jobId}>
+                        <p className="muted">
+                          {job.symbol ? `${job.symbol} video workflow` : "Video workflow"}: {job.jobId}
+                        </p>
+                        <button type="button" onClick={() => onOpenScriptJob?.(job.jobId)}>
+                          Open workflow
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                {hasOutputArtifacts(batch.outputArtifacts) && (
-                  <div className="recommendation-output-row">
-                    {Object.entries(outputLabels).map(([key, label]) => {
-                      const artifact = batch.outputArtifacts?.[key];
-                      const artifactId = artifact?.artifactId ?? artifact?.id;
-                      const isDownloading = Boolean(artifactId && artifactDownloads[artifactId]);
-                      return artifactId ? (
-                        <button
-                          disabled={isDownloading}
-                          key={key}
-                          type="button"
-                          onClick={() => downloadOutputArtifact(artifact, label)}
-                        >
-                          {isDownloading ? "Downloading..." : label}
-                        </button>
-                      ) : null;
-                    })}
+                {getOutputGroups(batch).length > 0 && (
+                  <div className="recommendation-pick-output-list">
+                    {getOutputGroups(batch).map((group) => (
+                      <div className="recommendation-pick-output-row" key={group.id}>
+                        {group.label && <p className="muted">{group.label}</p>}
+                        <div className="recommendation-output-row">
+                          {Object.entries(outputLabels).map(([key, label]) => {
+                            const artifact = group.outputs?.[key];
+                            const artifactId = artifact?.artifactId ?? artifact?.id;
+                            const isDownloading = Boolean(artifactId && artifactDownloads[artifactId]);
+                            return artifactId ? (
+                              <button
+                                disabled={isDownloading}
+                                key={key}
+                                type="button"
+                                onClick={() => downloadOutputArtifact(artifact, `${group.label || "Recommendation"} ${label}`)}
+                              >
+                                {isDownloading ? "Downloading..." : label}
+                              </button>
+                            ) : null;
+                          })}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </article>
@@ -698,11 +711,48 @@ function hasOutputArtifacts(outputArtifacts = {}) {
   return Object.values(outputArtifacts ?? {}).some((artifact) => artifact?.artifactId);
 }
 
+function hasScriptJobs(batch = {}) {
+  return getScriptJobRows(batch).length > 0;
+}
+
+function getScriptJobRows(batch = {}) {
+  if (Array.isArray(batch.pickJobs) && batch.pickJobs.length > 0) {
+    return batch.pickJobs.filter((item) => item.jobId);
+  }
+  if (Array.isArray(batch.scriptJobIds) && batch.scriptJobIds.length > 0) {
+    return batch.scriptJobIds.map((jobId, index) => ({
+      jobId,
+      symbol: batch.recommendations?.[index]?.symbol ?? ""
+    }));
+  }
+  return batch.scriptJobId ? [{ jobId: batch.scriptJobId, symbol: batch.recommendations?.[0]?.symbol ?? "" }] : [];
+}
+
+function getOutputGroups(batch = {}) {
+  const pickOutputs = Object.entries(batch.pickOutputArtifacts ?? {})
+    .map(([pickId, outputs]) => {
+      const pick = batch.recommendations?.find((item) => item.id === pickId);
+      return {
+        id: pickId,
+        label: pick?.symbol ? `${pick.symbol} outputs` : `Pick outputs`,
+        outputs
+      };
+    })
+    .filter((group) => hasOutputArtifacts(group.outputs));
+
+  if (pickOutputs.length > 0) {
+    return pickOutputs;
+  }
+  return hasOutputArtifacts(batch.outputArtifacts)
+    ? [{ id: "batch", label: "", outputs: batch.outputArtifacts }]
+    : [];
+}
+
 function defaultDeleteOptions(batch) {
   return {
     removeRecommendation: true,
-    removeVideoJob: Boolean(batch.scriptJobId),
-    removeOutputArtifacts: Boolean(batch.scriptJobId) || hasOutputArtifacts(batch.outputArtifacts),
+    removeVideoJob: hasScriptJobs(batch),
+    removeOutputArtifacts: hasScriptJobs(batch) || getOutputGroups(batch).length > 0,
     platforms: cleanupPlatforms.map((platform) => platform.id)
   };
 }
@@ -752,7 +802,7 @@ function RecommendationDeleteDialog({
           <label className="checkbox-line">
             <input
               checked={options.removeVideoJob}
-              disabled={isDeleting || !batch.scriptJobId}
+              disabled={isDeleting || !hasScriptJobs(batch)}
               type="checkbox"
               onChange={() => onToggleOption("removeVideoJob")}
             />

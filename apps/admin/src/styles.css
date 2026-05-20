@@ -3260,6 +3260,29 @@ textarea.script-editor:focus {
   margin: 0;
 }
 
+.recommendation-script-job-list,
+.recommendation-pick-output-list {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+
+.recommendation-script-job-list .recommendation-script-job-row,
+.recommendation-pick-output-list .recommendation-output-row {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.recommendation-pick-output-row {
+  display: grid;
+  gap: 8px;
+}
+
+.recommendation-pick-output-row p {
+  margin: 0;
+}
+
 .recommendation-delete-options {
   display: grid;
   gap: 10px;

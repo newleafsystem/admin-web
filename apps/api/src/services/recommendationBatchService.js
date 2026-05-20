@@ -230,16 +230,29 @@ export function createRecommendationBatchService({
 
     const timestamp = clock();
     const publicData = buildPublicRecommendationBatch(existing, timestamp);
-    const scriptJob = await ensureScriptJob(existing, publicData, { actorUid, timestamp });
-    const outputArtifacts = recommendationOutputService?.ensureOutputs
-      ? await recommendationOutputService.ensureOutputs({
+    const scriptJobs = await ensureScriptJobs(existing, publicData, { actorUid, timestamp });
+    const pickOutputArtifacts = recommendationOutputService?.ensureOutputs
+      ? await ensurePickOutputArtifacts({
           batch: existing,
           publicData,
-          scriptJob,
+          scriptJobs,
           actorUid,
           timestamp,
         })
-      : normalizePlainObject(existing.outputArtifacts);
+      : normalizePlainObject(existing.pickOutputArtifacts);
+    const outputArtifacts = aggregatePickOutputArtifacts({
+      recommendations: publicData.recommendations,
+      pickOutputArtifacts,
+      fallback: existing.outputArtifacts,
+      timestamp,
+    });
+    const primaryScriptJob = scriptJobs[0] ?? null;
+    const scriptJobIds = scriptJobs.map((job) => job.id);
+    const pickJobs = buildPickJobSummaries(publicData.recommendations, scriptJobs);
+    const pdfArtifactIds = collectOutputArtifactIdsByKind(pickOutputArtifacts, 'pdf');
+    const scriptArtifactIds = collectOutputArtifactIdsByKind(pickOutputArtifacts, 'videoScript');
+    const socialArtifactIds = collectOutputArtifactIdsByKind(pickOutputArtifacts, 'socialCopy');
+    const archiveArtifactIds = collectOutputArtifactIdsByKind(pickOutputArtifacts, 'archive');
     const channels = mergeChannels(existing.channels, {
       liveSite: {
         status: 'published',
@@ -253,43 +266,52 @@ export function createRecommendationBatchService({
         actorUid,
       },
       pdf: {
-        status: outputArtifacts.pdf ? 'ready' : existing.channels?.pdf?.status === 'ready' ? 'ready' : 'queued',
+        status: pdfArtifactIds.length > 0 ? 'ready' : existing.channels?.pdf?.status === 'ready' ? 'ready' : 'queued',
         updatedAt: timestamp,
         actorUid,
         artifactId: outputArtifacts.pdf?.artifactId ?? existing.channels?.pdf?.artifactId ?? null,
+        artifactIds: pdfArtifactIds,
       },
       script: {
         status: 'ready',
         updatedAt: timestamp,
         actorUid,
-        jobId: scriptJob.id,
+        jobId: primaryScriptJob?.id ?? existing.channels?.script?.jobId ?? null,
+        jobIds: scriptJobIds,
         artifactId: outputArtifacts.videoScript?.artifactId ?? existing.channels?.script?.artifactId ?? null,
+        artifactIds: scriptArtifactIds,
       },
       social: {
-        status: outputArtifacts.socialCopy ? 'ready' : existing.channels?.social?.status ?? 'not_requested',
+        status: socialArtifactIds.length > 0 ? 'ready' : existing.channels?.social?.status ?? 'not_requested',
         updatedAt: timestamp,
         actorUid,
         artifactId: outputArtifacts.socialCopy?.artifactId ?? existing.channels?.social?.artifactId ?? null,
+        artifactIds: socialArtifactIds,
       },
       archive: {
-        status: outputArtifacts.archive ? 'ready' : existing.channels?.archive?.status ?? 'not_requested',
+        status: archiveArtifactIds.length > 0 ? 'ready' : existing.channels?.archive?.status ?? 'not_requested',
         updatedAt: timestamp,
         actorUid,
         artifactId: outputArtifacts.archive?.artifactId ?? existing.channels?.archive?.artifactId ?? null,
+        artifactIds: archiveArtifactIds,
       },
       video: {
-        status: scriptJob.status ?? 'script_ready',
+        status: primaryScriptJob?.status ?? 'script_ready',
         updatedAt: timestamp,
         actorUid,
-        jobId: scriptJob.id,
+        jobId: primaryScriptJob?.id ?? existing.channels?.video?.jobId ?? null,
+        jobIds: scriptJobIds,
       },
     });
 
     const published = await repository.updateRecommendationBatch(batchId, {
       status: 'published',
       publicData,
-      scriptJobId: scriptJob.id,
+      scriptJobId: primaryScriptJob?.id ?? null,
+      scriptJobIds,
+      pickJobs,
       outputArtifacts,
+      pickOutputArtifacts,
       channels,
       publishedAt: existing.publishedAt ?? timestamp,
       publishedBy: existing.publishedBy ?? actorUid,
@@ -309,30 +331,40 @@ export function createRecommendationBatchService({
       publications: [],
       outputArtifacts: null,
       videoJob: null,
+      videoJobs: [],
       recommendationRecord: null,
     };
-    const scriptJob = existing.scriptJobId ? await repository.getJob(existing.scriptJobId) : null;
+    const scriptJobs = await getRecommendationScriptJobs(existing);
 
-    if (scriptJob && request.platforms.length > 0) {
-      cleanup.publications = await deleteSelectedPublications({
-        jobId: scriptJob.id,
-        platforms: request.platforms,
-        actorUid,
-        reason: request.reason,
-        timestamp,
-      });
+    if (scriptJobs.length > 0 && request.platforms.length > 0) {
+      for (const scriptJob of scriptJobs) {
+        cleanup.publications.push(...await deleteSelectedPublications({
+          jobId: scriptJob.id,
+          platforms: request.platforms,
+          actorUid,
+          reason: request.reason,
+          timestamp,
+        }));
+      }
     }
 
-    if (scriptJob && request.removeVideoJob) {
-      cleanup.videoJob = await deleteRecommendationVideoJob({
-        job: scriptJob,
-        actorUid,
-        reason: request.reason,
-        timestamp,
-      });
+    if (scriptJobs.length > 0 && request.removeVideoJob) {
+      await assertRecommendationVideoJobsCanBeDeleted(scriptJobs);
+      for (const scriptJob of scriptJobs) {
+        cleanup.videoJobs.push(await deleteRecommendationVideoJob({
+          job: scriptJob,
+          actorUid,
+          reason: request.reason,
+          timestamp,
+        }));
+      }
+      cleanup.videoJob = cleanup.videoJobs[0] ?? null;
     } else if (request.removeOutputArtifacts) {
       cleanup.outputArtifacts = await deleteRecommendationOutputArtifacts({
-        outputArtifacts: existing.outputArtifacts,
+        outputArtifacts: {
+          outputArtifacts: existing.outputArtifacts,
+          pickOutputArtifacts: existing.pickOutputArtifacts,
+        },
         actorUid,
         reason: request.reason,
       });
@@ -358,12 +390,15 @@ export function createRecommendationBatchService({
       status: 'archived',
       publicData: null,
       scriptJobId: request.removeVideoJob ? null : existing.scriptJobId,
+      scriptJobIds: request.removeVideoJob ? [] : collectRecommendationScriptJobIds(existing),
+      pickJobs: request.removeVideoJob ? [] : normalizePickJobs(existing.pickJobs),
       outputArtifacts: request.removeOutputArtifacts ? {} : normalizePlainObject(existing.outputArtifacts),
+      pickOutputArtifacts: request.removeOutputArtifacts ? {} : normalizePlainObject(existing.pickOutputArtifacts),
       channels: archivedChannels(existing.channels, {
         actorUid,
         reason: request.reason,
         timestamp,
-        removedVideoJob: Boolean(cleanup.videoJob?.job?.id),
+        removedVideoJob: cleanup.videoJobs.length > 0 || Boolean(cleanup.videoJob?.job?.id),
         removedOutputArtifacts: request.removeOutputArtifacts,
         removedPublications: cleanup.publications.length > 0,
       }),
@@ -416,52 +451,142 @@ export function createRecommendationBatchService({
     return batch;
   }
 
-  async function ensureScriptJob(batch, publicData, { actorUid, timestamp }) {
-    if (batch.scriptJobId) {
-      const existingJob = await repository.getJob(batch.scriptJobId);
-      if (existingJob) {
-        return existingJob;
-      }
-    }
-    const script = buildHeyGenScript(publicData);
-    const scenes = buildHeyGenScenes(publicData);
+  async function ensureScriptJobs(batch, publicData, { actorUid, timestamp }) {
     const createJob = jobStateService?.createJob
       ? (input) => jobStateService.createJob(input)
       : (input) => repository.createJob(input);
+    const jobs = [];
 
-    return createJob({
-      title: `Daily Picks - ${publicData.tradeDate}`,
-      type: 'recommendation_video',
-      status: 'script_ready',
-      sourceType: 'text_to_heygen',
-      ownerUid: actorUid,
-      targetDurationSec: 180,
-      metadata: {
-        owner: actorUid ?? 'admin',
-        topic: 'Daily picks recommendations',
-        sourceArtifact: 'Recommendation batch',
+    for (const [index, recommendation] of publicData.recommendations.entries()) {
+      const existingJob = await findExistingPickScriptJob(batch, recommendation, index, publicData.recommendations.length);
+      if (existingJob) {
+        jobs.push(existingJob);
+        continue;
+      }
+
+      const pickPublicData = buildPublicRecommendationPick(publicData, recommendation, index);
+      const script = buildHeyGenScript(pickPublicData);
+      const scenes = buildHeyGenScenes(pickPublicData);
+      const job = await createJob({
+        title: `Daily Pick - ${recommendation.symbol} - ${publicData.tradeDate}`,
+        type: 'recommendation_video',
+        status: 'script_ready',
         sourceType: 'text_to_heygen',
-        stage: 'Recommendation script ready',
-        intakeMode: 'text_to_heygen',
-        intakeModeLabel: 'Text to HeyGen',
-        recommendationBatchId: batch.id,
-        recommendationTradeDate: publicData.tradeDate,
-        prompt: script,
-        reviewScriptText: script,
-        scriptPreview: scenes.map((scene) => scene.narration),
-        scriptQuality: 'Generated from approved recommendation batch',
-        scenes,
-        recommendations: publicData.recommendations.map((item) => ({
-          id: item.id,
-          symbol: item.symbol,
-          strategy: item.strategy,
-          direction: item.direction,
-          thesis: item.thesis,
-          riskNotes: item.riskNotes,
-        })),
-        createdFromRecommendationAt: timestamp,
-      },
-    });
+        ownerUid: actorUid,
+        targetDurationSec: 90,
+        metadata: {
+          owner: actorUid ?? 'admin',
+          topic: `${recommendation.symbol} daily pick recommendation`,
+          sourceArtifact: 'Recommendation pick',
+          sourceType: 'text_to_heygen',
+          stage: 'Recommendation script ready',
+          intakeMode: 'text_to_heygen',
+          intakeModeLabel: 'Text to HeyGen',
+          recommendationBatchId: batch.id,
+          recommendationTradeDate: publicData.tradeDate,
+          recommendationId: recommendation.id,
+          recommendationTileId: recommendation.tileId,
+          recommendationSymbol: recommendation.symbol,
+          recommendationSortOrder: recommendation.sortOrder,
+          prompt: script,
+          reviewScriptText: script,
+          scriptPreview: scenes.map((scene) => scene.narration),
+          scriptQuality: 'Generated from approved recommendation pick',
+          scenes,
+          recommendations: [{
+            id: recommendation.id,
+            symbol: recommendation.symbol,
+            strategy: recommendation.strategy,
+            direction: recommendation.direction,
+            thesis: recommendation.thesis,
+            riskNotes: recommendation.riskNotes,
+          }],
+          createdFromRecommendationAt: timestamp,
+        },
+      });
+      jobs.push(job);
+    }
+
+    return jobs;
+  }
+
+  async function findExistingPickScriptJob(batch, recommendation, index, pickCount) {
+    const pickJobs = normalizePickJobs(batch.pickJobs);
+    const matchingPickJob = pickJobs.find((item) =>
+      item.recommendationId === recommendation.id
+      || (item.symbol === recommendation.symbol && item.sortOrder === recommendation.sortOrder),
+    );
+    const mappedJobId = matchingPickJob?.jobId ?? (
+      Array.isArray(batch.scriptJobIds) && batch.scriptJobIds.length === pickCount
+        ? cleanString(batch.scriptJobIds[index], { maxLength: 160 })
+        : null
+    );
+    const legacySinglePickJobId = pickCount === 1 ? cleanString(batch.scriptJobId, { maxLength: 160 }) : null;
+    const jobId = mappedJobId ?? legacySinglePickJobId;
+    if (!jobId) {
+      return null;
+    }
+    const job = await repository.getJob(jobId);
+    return job ?? null;
+  }
+
+  async function ensurePickOutputArtifacts({ batch, publicData, scriptJobs, actorUid, timestamp }) {
+    const existingPickOutputArtifacts = normalizePlainObject(batch.pickOutputArtifacts);
+    const outputArtifacts = {};
+
+    for (const [index, recommendation] of publicData.recommendations.entries()) {
+      const scriptJob = scriptJobs[index];
+      if (!scriptJob) {
+        continue;
+      }
+      const existingForPick = normalizePlainObject(
+        existingPickOutputArtifacts[recommendation.id]
+        ?? (publicData.recommendations.length === 1 ? batch.outputArtifacts : {}),
+      );
+      outputArtifacts[recommendation.id] = await recommendationOutputService.ensureOutputs({
+        batch: {
+          ...batch,
+          outputArtifacts: existingForPick,
+        },
+        publicData: buildPublicRecommendationPick(publicData, recommendation, index),
+        scriptJob,
+        actorUid,
+        timestamp,
+      });
+    }
+
+    return outputArtifacts;
+  }
+
+  async function getRecommendationScriptJobs(batch) {
+    const jobs = [];
+    for (const jobId of collectRecommendationScriptJobIds(batch)) {
+      const job = await repository.getJob(jobId);
+      if (job) {
+        jobs.push(job);
+      }
+    }
+    return jobs;
+  }
+
+  async function assertRecommendationVideoJobsCanBeDeleted(jobs) {
+    for (const job of jobs) {
+      if (!RECOMMENDATION_JOB_DELETE_STATUSES.has(job.status)) {
+        throw conflict('Recommendation video workflow cannot be deleted in its current status', {
+          jobId: job.id,
+          status: job.status,
+        });
+      }
+      const publishAttempts = await repository.listPublishAttempts({ jobId: job.id });
+      const remainingProviderBackedAttempts = publishAttempts.filter(isProviderBackedAttempt);
+      if (remainingProviderBackedAttempts.length > 0) {
+        throw conflict('Recommendation video still has live provider publications. Select every live platform before deleting the video workflow.', {
+          jobId: job.id,
+          providerPublicationIds: remainingProviderBackedAttempts.map((attempt) => attempt.id),
+          providerPlatforms: [...new Set(remainingProviderBackedAttempts.map((attempt) => attempt.platform))],
+        });
+      }
+    }
   }
 
   async function deleteSelectedPublications({ jobId, platforms, actorUid, reason, timestamp }) {
@@ -843,15 +968,104 @@ function archivedChannels(channels, {
 
 function collectOutputArtifactIds(outputArtifacts = {}) {
   const ids = [];
-  for (const value of Object.values(normalizePlainObject(outputArtifacts))) {
-    if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      continue;
+  const visit = (value) => {
+    if (!value || typeof value !== 'object') {
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach(visit);
+      return;
     }
     const artifactId = cleanString(value.artifactId ?? value.id, { maxLength: 160 });
     if (artifactId && !ids.includes(artifactId)) {
       ids.push(artifactId);
     }
+    Object.values(value).forEach(visit);
+  };
+  visit(outputArtifacts);
+  return ids;
+}
+
+function collectOutputArtifactIdsByKind(pickOutputArtifacts = {}, kind) {
+  return Object.values(normalizePlainObject(pickOutputArtifacts))
+    .map((outputs) => outputs?.[kind]?.artifactId ?? outputs?.[kind]?.id)
+    .map((artifactId) => cleanString(artifactId, { maxLength: 160 }))
+    .filter((artifactId, index, all) => artifactId && all.indexOf(artifactId) === index);
+}
+
+function aggregatePickOutputArtifacts({
+  recommendations,
+  pickOutputArtifacts,
+  fallback,
+  timestamp,
+}) {
+  const normalizedPickOutputs = normalizePlainObject(pickOutputArtifacts);
+  const firstPickId = recommendations[0]?.id;
+  const firstOutputs = normalizePlainObject(firstPickId ? normalizedPickOutputs[firstPickId] : null);
+  const normalizedFallback = normalizePlainObject(fallback);
+  return {
+    archive: firstOutputs.archive ?? normalizedFallback.archive ?? null,
+    videoScript: firstOutputs.videoScript ?? normalizedFallback.videoScript ?? null,
+    pdf: firstOutputs.pdf ?? normalizedFallback.pdf ?? null,
+    socialCopy: firstOutputs.socialCopy ?? normalizedFallback.socialCopy ?? null,
+    generatedAt: firstOutputs.generatedAt ?? normalizedFallback.generatedAt ?? timestamp,
+    pickCount: recommendations.length,
+  };
+}
+
+function buildPickJobSummaries(recommendations, scriptJobs) {
+  return recommendations.map((recommendation, index) => {
+    const job = scriptJobs[index];
+    return {
+      recommendationId: recommendation.id,
+      tileId: recommendation.tileId,
+      symbol: recommendation.symbol,
+      sortOrder: recommendation.sortOrder,
+      jobId: job?.id ?? null,
+      status: job?.status ?? null,
+      title: job?.title ?? null,
+    };
+  }).filter((item) => item.jobId);
+}
+
+function normalizePickJobs(value = []) {
+  if (!Array.isArray(value)) {
+    return [];
   }
+  return value
+    .map((item) => ({
+      recommendationId: cleanString(item?.recommendationId ?? item?.id, { maxLength: 160 }),
+      tileId: cleanString(item?.tileId, { maxLength: 160 }),
+      symbol: cleanSymbolOrNull(item?.symbol),
+      sortOrder: cleanNumberOrNull(item?.sortOrder),
+      jobId: cleanString(item?.jobId ?? item?.scriptJobId, { maxLength: 160 }),
+      status: cleanString(item?.status, { maxLength: 80 }),
+      title: cleanString(item?.title, { maxLength: 200 }),
+    }))
+    .filter((item) => item.jobId);
+}
+
+function collectRecommendationScriptJobIds(batch = {}) {
+  const ids = [];
+  const add = (value) => {
+    const id = cleanString(value, { maxLength: 160 });
+    if (id && !ids.includes(id)) {
+      ids.push(id);
+    }
+  };
+  normalizePickJobs(batch.pickJobs).forEach((item) => add(item.jobId));
+  if (Array.isArray(batch.scriptJobIds)) {
+    batch.scriptJobIds.forEach(add);
+  }
+  if (Array.isArray(batch.channels?.script?.jobIds)) {
+    batch.channels.script.jobIds.forEach(add);
+  }
+  if (Array.isArray(batch.channels?.video?.jobIds)) {
+    batch.channels.video.jobIds.forEach(add);
+  }
+  add(batch.scriptJobId);
+  add(batch.channels?.script?.jobId);
+  add(batch.channels?.video?.jobId);
   return ids;
 }
 
@@ -1277,6 +1491,11 @@ function normalizeBatchRecord(batch = {}) {
     recommendations: normalizeRecommendations(batch.recommendations ?? [], { allowEmpty: true }),
     channels: normalizeChannels(batch.channels),
     publicData: batch.publicData ? buildPublicRecommendationBatch(batch, batch.publishedAt ?? batch.updatedAt) : null,
+    scriptJobId: cleanString(batch.scriptJobId, { maxLength: 160 }),
+    scriptJobIds: collectRecommendationScriptJobIds(batch),
+    pickJobs: normalizePickJobs(batch.pickJobs),
+    outputArtifacts: normalizePlainObject(batch.outputArtifacts),
+    pickOutputArtifacts: normalizePlainObject(batch.pickOutputArtifacts),
   };
 }
 
@@ -1370,6 +1589,18 @@ function buildPublicRecommendationBatch(batch, publishedAt) {
     source: batch.metadata?.source ?? 'admin-curated',
     recommendations,
     picks: recommendations,
+  };
+}
+
+function buildPublicRecommendationPick(publicData, recommendation, index) {
+  return {
+    ...publicData,
+    title: `${publicData.title || 'Daily Pick'} - ${recommendation.symbol}`,
+    recommendationId: recommendation.id,
+    recommendationSymbol: recommendation.symbol,
+    pickIndex: index,
+    recommendations: [recommendation],
+    picks: [recommendation],
   };
 }
 
@@ -1485,6 +1716,11 @@ function cleanSymbol(value) {
   return symbol;
 }
 
+function cleanSymbolOrNull(value) {
+  const symbol = String(value ?? '').trim().toUpperCase();
+  return symbol || null;
+}
+
 function cleanDate(value) {
   const date = cleanString(value, { maxLength: 20 });
   if (!date) return null;
@@ -1514,6 +1750,12 @@ function cleanNumber(value, defaultValue = null, min = Number.NEGATIVE_INFINITY,
     throw badRequest('Recommendation numeric value is out of range', { min, max });
   }
   return numberValue;
+}
+
+function cleanNumberOrNull(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
 }
 
 function normalizePlainObject(value = {}) {

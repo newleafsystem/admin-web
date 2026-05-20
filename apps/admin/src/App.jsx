@@ -1637,11 +1637,13 @@ export default function App({ session }) {
       ]);
       setRecommendationBatches(refreshedBatches);
       setJobs(refreshedJobs);
-      setSelectedJobId(updated.scriptJobId ?? refreshedJobs[0]?.id ?? null);
+      const primaryScriptJobId = updated.scriptJobIds?.[0] ?? updated.pickJobs?.[0]?.jobId ?? updated.scriptJobId ?? null;
+      setSelectedJobId(primaryScriptJobId ?? refreshedJobs[0]?.id ?? null);
       setAuditEvents((current) =>
         addAuditEvent(current, "publish_recommendation_batch", updated.id, currentActor(session), {
           tradeDate: updated.tradeDate,
-          scriptJobId: updated.scriptJobId
+          scriptJobId: primaryScriptJobId,
+          scriptJobIds: updated.scriptJobIds ?? []
         })
       );
       return updated;

@@ -117,17 +117,21 @@ const recommendationMarketDataService = {
 };
 const recommendationOutputService = {
   async ensureOutputs({ batch, publicData, scriptJob }) {
+    const pick = publicData.recommendations?.[0] ?? {};
+    const pickKey = pick.id ?? scriptJob.metadata?.recommendationId ?? 'batch';
     outputCalls.push({
       batchId: batch.id,
       scriptJobId: scriptJob.id,
+      recommendationId: pickKey,
+      symbol: pick.symbol ?? scriptJob.metadata?.recommendationSymbol ?? null,
       existingPdfArtifactId: batch.outputArtifacts?.pdf?.artifactId ?? null,
     });
     const suffix = batch.outputArtifacts?.pdf?.artifactId ? 'reused' : 'created';
     return {
-      archive: batch.outputArtifacts?.archive ?? artifactSummary(`archive-${suffix}`, 'recommendation_archive'),
-      videoScript: batch.outputArtifacts?.videoScript ?? artifactSummary(`script-${suffix}`, 'recommendation_video_script'),
-      pdf: batch.outputArtifacts?.pdf ?? artifactSummary(`pdf-${suffix}`, 'recommendation_pdf'),
-      socialCopy: batch.outputArtifacts?.socialCopy ?? artifactSummary(`social-${suffix}`, 'recommendation_social_copy'),
+      archive: batch.outputArtifacts?.archive ?? artifactSummary(`archive-${pickKey}-${suffix}`, 'recommendation_archive'),
+      videoScript: batch.outputArtifacts?.videoScript ?? artifactSummary(`script-${pickKey}-${suffix}`, 'recommendation_video_script'),
+      pdf: batch.outputArtifacts?.pdf ?? artifactSummary(`pdf-${pickKey}-${suffix}`, 'recommendation_pdf'),
+      socialCopy: batch.outputArtifacts?.socialCopy ?? artifactSummary(`social-${pickKey}-${suffix}`, 'recommendation_social_copy'),
       generatedAt: '2026-05-18T00:00:00.000Z',
     };
   },
@@ -196,6 +200,18 @@ try {
         thesis: 'Range-bound setup with model-estimated premium support.',
         riskNotes: 'Momentum breakout through the short strikes would invalidate the setup.',
       },
+      {
+        symbol: 'MSFT',
+        strategy: 'Call debit spread',
+        direction: 'BULLISH',
+        price: 424.2,
+        expiry: '2026-06-19',
+        rewardRisk: 1.15,
+        oddsOfProfit: 57,
+        maxProfit: 430,
+        thesis: 'Trend continuation setup with defined debit risk.',
+        riskNotes: 'A close below the breakout retest would invalidate the setup.',
+      },
     ],
   };
 
@@ -231,28 +247,40 @@ try {
   assert.equal(published.body.recommendationBatch.publicData.recommendationBatchId, batchId);
   assert.equal(published.body.recommendationBatch.publicData.picks[0].symbol, 'ADBE');
   assert.ok(published.body.recommendationBatch.scriptJobId);
+  assert.equal(published.body.recommendationBatch.scriptJobIds.length, 2);
+  assert.equal(published.body.recommendationBatch.pickJobs.length, 2);
+  assert.deepEqual(published.body.recommendationBatch.pickJobs.map((item) => item.symbol), ['ADBE', 'MSFT']);
   assert.equal(published.body.recommendationBatch.channels.liveSite.status, 'published');
   assert.equal(published.body.recommendationBatch.channels.pdf.status, 'ready');
   assert.equal(published.body.recommendationBatch.channels.social.status, 'ready');
   assert.equal(published.body.recommendationBatch.channels.archive.status, 'ready');
   assert.equal(published.body.recommendationBatch.channels.video.status, 'script_ready');
-  assert.equal(published.body.recommendationBatch.outputArtifacts.pdf.artifactId, 'pdf-created');
-  assert.equal(published.body.recommendationBatch.outputArtifacts.socialCopy.artifactId, 'social-created');
-  assert.equal(outputCalls.length, 1);
+  assert.deepEqual(published.body.recommendationBatch.channels.video.jobIds, published.body.recommendationBatch.scriptJobIds);
+  assert.equal(published.body.recommendationBatch.outputArtifacts.pdf.artifactId, 'pdf-pick_10_adbe-created');
+  assert.equal(published.body.recommendationBatch.outputArtifacts.socialCopy.artifactId, 'social-pick_10_adbe-created');
+  assert.equal(published.body.recommendationBatch.pickOutputArtifacts.pick_10_adbe.pdf.artifactId, 'pdf-pick_10_adbe-created');
+  assert.equal(published.body.recommendationBatch.pickOutputArtifacts.pick_20_msft.pdf.artifactId, 'pdf-pick_20_msft-created');
+  assert.equal(outputCalls.length, 2);
 
   const republished = await json({
     method: 'POST',
     path: `/api/v1/recommendation-batches/${encodeURIComponent(batchId)}/publish`,
   });
   assert.equal(republished.status, 200);
-  assert.equal(republished.body.recommendationBatch.outputArtifacts.pdf.artifactId, 'pdf-created');
-  assert.equal(outputCalls.length, 2);
-  assert.equal(outputCalls[1].existingPdfArtifactId, 'pdf-created');
+  assert.equal(republished.body.recommendationBatch.outputArtifacts.pdf.artifactId, 'pdf-pick_10_adbe-created');
+  assert.equal(outputCalls.length, 4);
+  assert.equal(outputCalls[2].existingPdfArtifactId, 'pdf-pick_10_adbe-created');
+  assert.equal(outputCalls[3].existingPdfArtifactId, 'pdf-pick_20_msft-created');
 
   const scriptJob = await repository.getJob(published.body.recommendationBatch.scriptJobId);
   assert.equal(scriptJob.status, 'script_ready');
   assert.equal(scriptJob.sourceType, 'text_to_heygen');
   assert.equal(scriptJob.metadata.recommendationBatchId, batchId);
+  assert.equal(scriptJob.metadata.recommendationId, 'pick_10_adbe');
+  assert.equal(scriptJob.metadata.recommendationSymbol, 'ADBE');
+  const secondScriptJob = await repository.getJob(published.body.recommendationBatch.scriptJobIds[1]);
+  assert.equal(secondScriptJob.metadata.recommendationId, 'pick_20_msft');
+  assert.equal(secondScriptJob.metadata.recommendationSymbol, 'MSFT');
 
   const latest = await json({
     method: 'GET',
@@ -260,7 +288,7 @@ try {
   });
   assert.equal(latest.status, 200);
   assert.equal(latest.body.recommendationBatch.recommendationBatchId, batchId);
-  assert.equal(latest.body.recommendationBatch.recommendations.length, 1);
+  assert.equal(latest.body.recommendationBatch.recommendations.length, 2);
 
   const list = await json({
     method: 'GET',
@@ -358,17 +386,26 @@ try {
   assert.equal(listAfterGeneration.status, 200);
   assert.equal(listAfterGeneration.body.recommendationBatches.length, 2);
 
+  const [firstJobId, secondJobId] = published.body.recommendationBatch.scriptJobIds;
   const livePlan = await repository.createPublishPlan({
-    jobId: published.body.recommendationBatch.scriptJobId,
+    jobId: firstJobId,
     platforms: ['youtube', 'x', 'linkedin'],
     status: 'published',
     metadata: {
       title: 'Daily Picks',
     },
   });
+  const secondPlan = await repository.createPublishPlan({
+    jobId: secondJobId,
+    platforms: ['youtube'],
+    status: 'queued',
+    metadata: {
+      title: 'Daily Picks MSFT',
+    },
+  });
   const youtubeAttempt = await repository.createPublishAttempt({
     planId: livePlan.id,
-    jobId: published.body.recommendationBatch.scriptJobId,
+    jobId: firstJobId,
     platform: 'youtube',
     status: 'published',
     providerPostId: 'youtube-video-123',
@@ -377,7 +414,7 @@ try {
   });
   const xAttempt = await repository.createPublishAttempt({
     planId: livePlan.id,
-    jobId: published.body.recommendationBatch.scriptJobId,
+    jobId: firstJobId,
     platform: 'x',
     status: 'published',
     providerPostId: 'tweet-123',
@@ -386,17 +423,27 @@ try {
   });
   const linkedinAttempt = await repository.createPublishAttempt({
     planId: livePlan.id,
-    jobId: published.body.recommendationBatch.scriptJobId,
+    jobId: firstJobId,
     platform: 'linkedin',
     status: 'failed',
     metadata: {},
   });
   await repository.createArtifact({
-    id: 'pdf-created',
-    jobId: published.body.recommendationBatch.scriptJobId,
+    id: 'pdf-pick_10_adbe-created',
+    jobId: firstJobId,
     kind: 'recommendation_pdf',
     storageProvider: 'gcs',
-    storageKey: `uploads/${published.body.recommendationBatch.scriptJobId}/recommendation_pdf/report.pdf`,
+    storageKey: `uploads/${firstJobId}/recommendation_pdf/report.pdf`,
+    mimeType: 'application/pdf',
+    sizeBytes: 512,
+    metadata: { filename: 'report.pdf' },
+  });
+  await repository.createArtifact({
+    id: 'pdf-pick_20_msft-created',
+    jobId: secondJobId,
+    kind: 'recommendation_pdf',
+    storageProvider: 'gcs',
+    storageKey: `uploads/${secondJobId}/recommendation_pdf/report.pdf`,
     mimeType: 'application/pdf',
     sizeBytes: 512,
     metadata: { filename: 'report.pdf' },
@@ -417,17 +464,21 @@ try {
   assert.equal(deletedBatch.body.recommendationBatch, null);
   assert.equal(deletedBatch.body.cleanup.recommendationRecord.deleted, true);
   assert.equal(deletedBatch.body.cleanup.publications.length, 3);
-  assert.equal(deletedBatch.body.cleanup.videoJob.job.id, published.body.recommendationBatch.scriptJobId);
+  assert.equal(deletedBatch.body.cleanup.videoJobs.length, 2);
+  assert.equal(deletedBatch.body.cleanup.videoJob.job.id, firstJobId);
   assert.equal(deletedBatch.body.cleanup.videoJob.storageCleanup.artifactCount, 1);
   assert.equal(deletedBatch.body.cleanup.videoJob.storageCleanup.deletedObjectCount, 1);
-  assert.equal(deletedBatch.body.cleanup.videoJob.storageCleanup.prefix.storagePrefix, `uploads/${published.body.recommendationBatch.scriptJobId}/`);
+  assert.equal(deletedBatch.body.cleanup.videoJob.storageCleanup.prefix.storagePrefix, `uploads/${firstJobId}/`);
   assert.deepEqual(deletedPublicationAttempts.map((item) => item.attemptId).sort(), [xAttempt.id, youtubeAttempt.id].sort());
-  assert.equal(deletedStorageArtifacts.length, 1);
-  assert.deepEqual(deletedStoragePrefixes, [`uploads/${published.body.recommendationBatch.scriptJobId}/`]);
+  assert.equal(deletedStorageArtifacts.length, 2);
+  assert.deepEqual(deletedStoragePrefixes.sort(), [`uploads/${firstJobId}/`, `uploads/${secondJobId}/`].sort());
   assert.equal(await repository.getRecommendationBatch(batchId), undefined);
-  assert.equal(await repository.getJob(published.body.recommendationBatch.scriptJobId), undefined);
-  assert.equal(await repository.getArtifact('pdf-created'), undefined);
+  assert.equal(await repository.getJob(firstJobId), undefined);
+  assert.equal(await repository.getJob(secondJobId), undefined);
+  assert.equal(await repository.getArtifact('pdf-pick_10_adbe-created'), undefined);
+  assert.equal(await repository.getArtifact('pdf-pick_20_msft-created'), undefined);
   assert.equal((await repository.getPublishPlan(livePlan.id)).status, 'deleted');
+  assert.equal((await repository.getPublishPlan(secondPlan.id)).status, 'deleted');
   assert.equal((await repository.getPublishAttempt(youtubeAttempt.id)).status, 'deleted');
   assert.equal((await repository.getPublishAttempt(xAttempt.id)).status, 'deleted');
   assert.equal((await repository.getPublishAttempt(linkedinAttempt.id)).status, 'deleted');

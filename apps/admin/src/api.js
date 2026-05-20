@@ -1093,8 +1093,11 @@ export function normalizeRecommendationBatch(batch = {}) {
       : [],
     channels: normalizeRecommendationChannels(batch.channels),
     outputArtifacts: normalizeRecommendationOutputArtifacts(batch.outputArtifacts),
+    pickOutputArtifacts: normalizeRecommendationPickOutputArtifacts(batch.pickOutputArtifacts),
     publicData: batch.publicData ?? null,
     scriptJobId: batch.scriptJobId ?? null,
+    scriptJobIds: Array.isArray(batch.scriptJobIds) ? batch.scriptJobIds.filter(Boolean) : [],
+    pickJobs: normalizeRecommendationPickJobs(batch.pickJobs),
     createdBy: batch.createdBy ?? null,
     approvedBy: batch.approvedBy ?? null,
     approvedAt: formatDate(batch.approvedAt),
@@ -1145,9 +1148,40 @@ function normalizeRecommendationChannels(channels = {}) {
         status: value?.status ?? "unknown",
         updatedAt: formatDate(value?.updatedAt),
         jobId: value?.jobId ?? null,
+        jobIds: Array.isArray(value?.jobIds) ? value.jobIds.filter(Boolean) : [],
         artifactId: value?.artifactId ?? null,
+        artifactIds: Array.isArray(value?.artifactIds) ? value.artifactIds.filter(Boolean) : [],
         artifact: value?.artifact ?? null
       }
+    ])
+  );
+}
+
+function normalizeRecommendationPickJobs(pickJobs = []) {
+  if (!Array.isArray(pickJobs)) {
+    return [];
+  }
+  return pickJobs
+    .map((item) => ({
+      recommendationId: item?.recommendationId ?? item?.id ?? "",
+      tileId: item?.tileId ?? "",
+      symbol: String(item?.symbol ?? "").toUpperCase(),
+      sortOrder: Number(item?.sortOrder ?? 0),
+      jobId: item?.jobId ?? item?.scriptJobId ?? null,
+      status: item?.status ?? "",
+      title: item?.title ?? ""
+    }))
+    .filter((item) => item.jobId);
+}
+
+function normalizeRecommendationPickOutputArtifacts(pickOutputArtifacts = {}) {
+  if (!pickOutputArtifacts || typeof pickOutputArtifacts !== "object" || Array.isArray(pickOutputArtifacts)) {
+    return {};
+  }
+  return Object.fromEntries(
+    Object.entries(pickOutputArtifacts).map(([pickId, outputs]) => [
+      pickId,
+      normalizeRecommendationOutputArtifacts(outputs)
     ])
   );
 }

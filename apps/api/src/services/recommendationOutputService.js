@@ -93,6 +93,8 @@ export function createRecommendationOutputService({
       checksum,
       metadata: {
         recommendationBatchId: context.publicData.recommendationBatchId,
+        recommendationId: context.publicData.recommendationId ?? context.publicData.recommendations?.[0]?.id ?? null,
+        recommendationSymbol: context.publicData.recommendationSymbol ?? context.publicData.recommendations?.[0]?.symbol ?? null,
         tradeDate: context.publicData.tradeDate,
         outputType: type.kind,
         generatedAt: context.timestamp,
@@ -158,6 +160,7 @@ export function createRecommendationOutputService({
     const storageKey = path.join(
       'recommendation-artifacts',
       safePathSegment(batchId),
+      safePathSegment(jobId),
       safePathSegment(kind),
       filename,
     );
@@ -841,9 +844,16 @@ function normalizeOutputArtifacts(value = {}) {
 
 function outputFilename(baseFilename, publicData) {
   const date = String(publicData.tradeDate ?? 'daily-picks').replace(/[^0-9-]/g, '');
+  const pick = Array.isArray(publicData.recommendations) && publicData.recommendations.length === 1
+    ? publicData.recommendations[0]
+    : null;
+  const scope = [
+    date || 'daily-picks',
+    pick?.symbol ? safePathSegment(pick.symbol).toLowerCase() : '',
+  ].filter(Boolean).join('-');
   const name = baseFilename === 'recommendation-report.pdf'
-    ? `${date || 'daily-picks'}-recommendation-report.pdf`
-    : baseFilename;
+    ? `${scope}-recommendation-report.pdf`
+    : `${scope}-${baseFilename}`;
   return sanitizeFilename(name);
 }
 
