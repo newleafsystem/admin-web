@@ -9,6 +9,10 @@ import {
   uploadBufferToObjectStorage,
 } from '../lib/assetStorage.js';
 import { badRequest } from '../lib/httpErrors.js';
+import {
+  isInstitutionalRecommendationPdfEnabled,
+  renderInstitutionalRecommendationPdf,
+} from './recommendationReportRenderer.js';
 
 const OUTPUT_TYPES = Object.freeze({
   archive: {
@@ -59,7 +63,7 @@ export function createRecommendationOutputService({
       Buffer.from(buildVideoScript(publicData, timestamp), 'utf8'),
     );
     const pdf = await ensureArtifact(existing.pdf, context, OUTPUT_TYPES.pdf, () =>
-      buildPdfBuffer(buildPdfDocument(publicData, timestamp)),
+      buildRecommendationPdfBuffer({ publicData, generatedAt: timestamp, serviceConfig }),
     );
     const socialCopy = await ensureArtifact(existing.socialCopy, context, OUTPUT_TYPES.socialCopy, () =>
       Buffer.from(`${JSON.stringify(buildSocialCopy(publicData, timestamp), null, 2)}\n`, 'utf8'),
@@ -190,6 +194,23 @@ export function createRecommendationOutputService({
   return {
     ensureOutputs,
   };
+}
+
+async function buildRecommendationPdfBuffer({ publicData, generatedAt, serviceConfig }) {
+  const legacyBuffer = () => buildPdfBuffer(buildPdfDocument(publicData, generatedAt));
+  if (!isInstitutionalRecommendationPdfEnabled(serviceConfig)) {
+    return legacyBuffer();
+  }
+
+  try {
+    return await renderInstitutionalRecommendationPdf({ publicData, generatedAt, serviceConfig });
+  } catch (error) {
+    if (serviceConfig.pdf?.fallbackToLegacy === false) {
+      throw error;
+    }
+    console.warn(`Falling back to legacy recommendation PDF renderer: ${error.message}`);
+    return legacyBuffer();
+  }
 }
 
 function buildPicksArchive(publicData, generatedAt) {

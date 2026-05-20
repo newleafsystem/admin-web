@@ -9,6 +9,7 @@ process.env.GCS_BUCKET = '';
 
 const { createInMemoryRepository } = await import('../lib/repository.js');
 const { createRecommendationOutputService } = await import('./recommendationOutputService.js');
+const { buildInstitutionalRecommendationReportData } = await import('./recommendationReportRenderer.js');
 
 const tempDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'newleaf-recommendation-output-'));
 const repository = createInMemoryRepository();
@@ -16,6 +17,9 @@ const service = createRecommendationOutputService({
   repository,
   serviceConfig: {
     localDataDir: tempDir,
+    pdf: {
+      recommendationRenderer: 'legacy-custom',
+    },
   },
   clock: () => '2026-05-18T12:00:00.000Z',
 });
@@ -49,8 +53,39 @@ try {
         exit: 'Exit on breakout or target profit.',
         ivContext: {},
         sentiment: {},
-        lifecycle: {},
-        legs: [],
+        lifecycle: {
+          marketData: {
+            spotPrice: 482.15,
+            priceChange: 3.25,
+            priceChangePercent: 0.68,
+          },
+          gammaContext: {
+            put_wall: 460,
+            call_wall: 505,
+            oiByStrike: [{ strike: 480, totalOI: 400 }],
+          },
+          technicalIndicators: {
+            rsi14: 54,
+            sma20: 478,
+            sma50: 471,
+            sma100: 455,
+            bollingerUpper: 500,
+            bollingerLower: 450,
+            bollingerWidth: 10.5,
+            smaTrend: 'mixed',
+          },
+          strategyAdvisor: {
+            score: 82,
+            marketRead: 'ADBE is range-bound between strong gamma walls.',
+            rationale: 'Range-bound technicals and gamma walls favor a defined-risk iron condor.',
+          },
+        },
+        legs: [
+          { action: 'BUY', type: 'PUT', strike: 450, premium: 1.15, bid: 1.1, ask: 1.2, iv: 0.31 },
+          { action: 'SELL', type: 'PUT', strike: 460, premium: 2.35, bid: 2.3, ask: 2.4, iv: 0.32 },
+          { action: 'SELL', type: 'CALL', strike: 505, premium: 2.1, bid: 2.05, ask: 2.15, iv: 0.3 },
+          { action: 'BUY', type: 'CALL', strike: 515, premium: 1.05, bid: 1, ask: 1.1, iv: 0.29 },
+        ],
       },
     ],
   };
@@ -89,6 +124,16 @@ try {
   });
   assert.equal(second.pdf.artifactId, first.pdf.artifactId);
   assert.equal(second.socialCopy.artifactId, first.socialCopy.artifactId);
+
+  const reportData = buildInstitutionalRecommendationReportData(publicData, '2026-05-18T12:00:00.000Z');
+  assert.equal(reportData.SYMBOL, 'ADBE');
+  assert.equal(reportData.STRATEGY_NAME, 'Iron condor');
+  assert.equal(reportData.CURRENT_PRICE, '$482.15');
+  assert.equal(reportData.MAX_PROFIT, '$240');
+  assert.equal(reportData.PUT_GAMMA_WALL, '$460');
+  assert.equal(reportData.CALL_GAMMA_WALL, '$505');
+  assert.match(reportData.EXECUTION_TABLE_ROWS, /Short Put/);
+  assert.match(reportData.GAMMA_CHART_SVG, /svg/);
 
   console.log('Recommendation output service tests passed.');
 } finally {

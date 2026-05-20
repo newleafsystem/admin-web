@@ -86,6 +86,13 @@ export const config = Object.freeze({
     mediaOriginUrl: readOptionalString('PUBLIC_MEDIA_ORIGIN_URL'),
     cacheMaxAgeSec: readNumber('PUBLIC_ASSET_CACHE_MAX_AGE_SEC', 300),
   },
+  pdf: {
+    recommendationRenderer: readOptionalString('RECOMMENDATION_PDF_RENDERER') ?? 'institutional',
+    pythonPath: readOptionalString('WEASYPRINT_PYTHON_PATH') ?? readOptionalString('PYTHON_PATH'),
+    chromePath: readOptionalString('CHROME_PATH') ?? readOptionalString('PUPPETEER_EXECUTABLE_PATH'),
+    renderTimeoutMs: readNumber('RECOMMENDATION_PDF_RENDER_TIMEOUT_MS', 90000),
+    fallbackToLegacy: readBoolean('RECOMMENDATION_PDF_FALLBACK_TO_LEGACY', true),
+  },
   marketApi: {
     baseUrl: readOptionalString('NEWLEAF_MARKET_API_BASE_URL') ??
       readOptionalString('NEWLEAF_API_BASE_URL') ??
