@@ -3,7 +3,10 @@ import { Router } from 'express';
 import { config } from '../config.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
 import { badGateway, badRequest, conflict, notFound } from '../lib/httpErrors.js';
-import { tryStreamObjectStorageKey } from '../lib/assetStorage.js';
+import {
+  isObjectStorageProvider,
+  tryStreamObjectStorageKey,
+} from '../lib/assetStorage.js';
 
 const RESPONSE_HEADERS = [
   'accept-ranges',
@@ -17,13 +20,22 @@ const RESPONSE_HEADERS = [
   'last-modified',
 ];
 
-export function createPublicAssetsRouter() {
+export function createPublicAssetsRouter({
+  recommendationBatchService = null,
+  repository = null,
+} = {}) {
   const router = Router();
 
   router.get('/data/reports/latest', proxyLatestReportsBatch);
   router.post('/data/reports/latest', proxyLatestReportsBatch);
-  router.get('/data/*', proxyPublicAsset(() => config.publicAssets.dataOriginUrl, 'data'));
-  router.head('/data/*', proxyPublicAsset(() => config.publicAssets.dataOriginUrl, 'data'));
+  router.get('/data/*', proxyPublicAsset(() => config.publicAssets.dataOriginUrl, 'data', {
+    recommendationBatchService,
+    repository,
+  }));
+  router.head('/data/*', proxyPublicAsset(() => config.publicAssets.dataOriginUrl, 'data', {
+    recommendationBatchService,
+    repository,
+  }));
   router.get('/media/*', proxyPublicAsset(() => config.publicAssets.mediaOriginUrl, 'media'));
   router.head('/media/*', proxyPublicAsset(() => config.publicAssets.mediaOriginUrl, 'media'));
 
@@ -100,7 +112,7 @@ const proxyLatestReportsBatch = asyncHandler(async (req, res) => {
   });
 });
 
-function proxyPublicAsset(originResolver, label) {
+function proxyPublicAsset(originResolver, label, services = {}) {
   return asyncHandler(async (req, res) => {
     const origin = normalizeOrigin(originResolver(), label);
     const assetPath = readAssetPath(req);
@@ -135,6 +147,17 @@ function proxyPublicAsset(originResolver, label) {
         if (servedFromObjectStorage) {
           return;
         }
+        const servedFromPublishedArtifact = await tryStreamPublishedRecommendationPdf({
+          assetPath,
+          range,
+          response: res,
+          headOnly: req.method === 'HEAD',
+          recommendationBatchService: services.recommendationBatchService,
+          repository: services.repository,
+        });
+        if (servedFromPublishedArtifact) {
+          return;
+        }
       }
       throw notFound('Public asset not found', { assetType: label, assetPath });
     }
@@ -163,6 +186,91 @@ function proxyPublicAsset(originResolver, label) {
 
     return Readable.fromWeb(upstream.body).pipe(res);
   });
+}
+
+async function tryStreamPublishedRecommendationPdf({
+  assetPath,
+  range,
+  response,
+  headOnly,
+  recommendationBatchService,
+  repository,
+}) {
+  if (!recommendationBatchService?.getLatestPublishedBatch || !repository?.getArtifact) {
+    return false;
+  }
+  const request = parseRecommendationPdfAssetPath(assetPath);
+  if (!request) {
+    return false;
+  }
+  const batch = await recommendationBatchService.getLatestPublishedBatch();
+  if (!batch?.publicData) {
+    return false;
+  }
+  const recommendations = Array.isArray(batch.publicData.recommendations)
+    ? batch.publicData.recommendations
+    : [];
+  const recommendation = recommendations.find((item) =>
+    recommendationPdfFilename(item) === request.filename
+    && String(item.symbol ?? '').trim().toUpperCase() === request.symbol,
+  );
+  if (!recommendation?.id) {
+    return false;
+  }
+
+  const outputArtifacts = findPickOutputArtifacts(batch, recommendation.id, recommendations.length);
+  const artifactId = outputArtifacts?.pdf?.artifactId ?? outputArtifacts?.pdf?.id;
+  if (!artifactId) {
+    return false;
+  }
+  const artifact = await repository.getArtifact(artifactId);
+  if (!artifact || !isObjectStorageProvider(artifact.storageProvider)) {
+    return false;
+  }
+  return tryStreamObjectStorageKey({
+    storageKey: artifact.storageKey,
+    range,
+    response,
+    fallbackContentType: artifact.mimeType ?? 'application/pdf',
+    headOnly,
+    cacheControl: `public, max-age=${config.publicAssets.cacheMaxAgeSec}`,
+    contentDisposition: `attachment; filename="${request.filename}"`,
+  });
+}
+
+function parseRecommendationPdfAssetPath(assetPath) {
+  const match = /^reports\/pdf\/([^/]+)\/([^/]+-latest\.pdf)$/i.exec(String(assetPath ?? ''));
+  if (!match) return null;
+  const symbol = String(match[1] ?? '').trim().toUpperCase();
+  const filename = String(match[2] ?? '').trim();
+  if (!/^[A-Z0-9^][A-Z0-9.\-^=]{0,23}$/.test(symbol) || !filename) {
+    return null;
+  }
+  return { symbol, filename };
+}
+
+function recommendationPdfFilename(recommendation) {
+  const symbol = String(recommendation?.symbol ?? '').trim().toUpperCase();
+  if (!symbol) return '';
+  const strategySlug = String(recommendation?.strategy ?? 'Recommendation')
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'Recommendation';
+  return `${symbol}-${strategySlug}-latest.pdf`;
+}
+
+function findPickOutputArtifacts(batch, recommendationId, recommendationCount) {
+  const pickOutputArtifacts = batch?.pickOutputArtifacts;
+  if (pickOutputArtifacts && typeof pickOutputArtifacts === 'object' && !Array.isArray(pickOutputArtifacts)) {
+    const direct = pickOutputArtifacts[recommendationId];
+    if (direct && typeof direct === 'object' && !Array.isArray(direct)) {
+      return direct;
+    }
+  }
+  if (recommendationCount === 1 && batch?.outputArtifacts && typeof batch.outputArtifacts === 'object') {
+    return batch.outputArtifacts;
+  }
+  return null;
 }
 
 function contentTypeForPublicDataPath(assetPath) {

@@ -113,14 +113,16 @@ export async function streamObjectStorageKey({
   response,
   fallbackContentType = 'application/octet-stream',
   headOnly = false,
+  cacheControl = null,
+  contentDisposition = null,
 }) {
   const file = objectStorageBucket().file(assertSafeObjectKey(storageKey));
   const [rawMetadata] = await file.getMetadata();
   const metadata = {
     sizeBytes: Number(rawMetadata.size ?? 0),
     contentType: rawMetadata.contentType ?? fallbackContentType,
-    cacheControl: rawMetadata.cacheControl ?? null,
-    contentDisposition: rawMetadata.contentDisposition ?? null,
+    cacheControl: cacheControl ?? rawMetadata.cacheControl ?? null,
+    contentDisposition: contentDisposition ?? rawMetadata.contentDisposition ?? null,
   };
   const fileSize = metadata.sizeBytes;
   const contentType = metadata.contentType;
@@ -159,6 +161,8 @@ export async function tryStreamObjectStorageKey({
   response,
   fallbackContentType = 'application/octet-stream',
   headOnly = false,
+  cacheControl = null,
+  contentDisposition = null,
 }) {
   if (!shouldUseObjectStorage()) {
     return false;
@@ -170,6 +174,8 @@ export async function tryStreamObjectStorageKey({
       response,
       fallbackContentType,
       headOnly,
+      cacheControl,
+      contentDisposition,
     });
     return true;
   } catch (error) {
