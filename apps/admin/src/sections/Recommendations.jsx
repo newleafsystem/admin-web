@@ -77,12 +77,21 @@ export function Recommendations({
 }) {
   const [draft, setDraft] = useState(emptyDraft);
   const [generation, setGeneration] = useState(emptyGenerationState);
+  const [activeSection, setActiveSection] = useState("workspace");
   const [artifactDownloads, setArtifactDownloads] = useState({});
   const [artifactDownloadError, setArtifactDownloadError] = useState(null);
   const [deleteDialog, setDeleteDialog] = useState(null);
   const sortedBatches = useMemo(
     () => [...batches].sort((left, right) => String(right.updatedAt).localeCompare(String(left.updatedAt))),
     [batches]
+  );
+  const publishedBatches = useMemo(
+    () => sortedBatches.filter((batch) => batch.status === "published"),
+    [sortedBatches]
+  );
+  const publishedRecommendationRows = useMemo(
+    () => buildPublishedRecommendationRows(publishedBatches),
+    [publishedBatches]
   );
 
   function resetDraft() {
@@ -355,337 +364,383 @@ export function Recommendations({
 
   return (
     <div className="stack">
-      <section className="panel">
+      <section className="panel recommendation-section-tabs">
         <div className="panel-heading">
           <div>
-            <p className="eyebrow">Daily picks</p>
-            <h2>{draft.id ? "Edit recommendation batch" : "Create recommendation batch"}</h2>
+            <p className="eyebrow">Recommendations</p>
+            <h2>Recommendation workspace</h2>
           </div>
-          <button type="button" onClick={resetDraft}>New batch</button>
+          <span className="muted">{publishedRecommendationRows.length} published pick{publishedRecommendationRows.length === 1 ? "" : "s"}</span>
         </div>
-
-        <div className="form-grid compact-grid">
-          <label>
-            <span>Trade date</span>
-            <input
-              type="date"
-              value={draft.tradeDate}
-              onChange={(event) => updateDraftField("tradeDate", event.target.value)}
-            />
-          </label>
-          <label>
-            <span>Title</span>
-            <input
-              value={draft.title}
-              onChange={(event) => updateDraftField("title", event.target.value)}
-              placeholder="Daily Picks"
-            />
-          </label>
-          <label>
-            <span>Date range</span>
-            <input
-              value={draft.dateRange}
-              onChange={(event) => updateDraftField("dateRange", event.target.value)}
-              placeholder="May 17, 2026"
-            />
-          </label>
-          <label>
-            <span>Theme</span>
-            <input
-              value={draft.theme}
-              onChange={(event) => updateDraftField("theme", event.target.value)}
-              placeholder="Defined-risk premium ideas"
-            />
-          </label>
+        <div className="mode-tabs recommendation-mode-tabs" role="tablist" aria-label="Recommendation sections">
+          <button
+            className={activeSection === "workspace" ? "mode-tab active" : "mode-tab"}
+            role="tab"
+            type="button"
+            aria-selected={activeSection === "workspace"}
+            onClick={() => setActiveSection("workspace")}
+          >
+            Build & Queue
+            <span>{sortedBatches.length} total batch{sortedBatches.length === 1 ? "" : "es"}</span>
+          </button>
+          <button
+            className={activeSection === "published" ? "mode-tab active" : "mode-tab"}
+            role="tab"
+            type="button"
+            aria-selected={activeSection === "published"}
+            onClick={() => setActiveSection("published")}
+          >
+            Published
+            <span>{publishedRecommendationRows.length} live pick{publishedRecommendationRows.length === 1 ? "" : "s"}</span>
+          </button>
         </div>
-
-        <form className="recommendation-generator-block" onSubmit={generateFromPrompts}>
-          <div className="section-title-row">
-            <div>
-              <p className="eyebrow">Prompt generator</p>
-              <h3>Generate picks</h3>
-            </div>
-            <button type="button" onClick={addPromptRow} disabled={generation.rows.length >= MAX_PROMPT_ROWS}>
-              Add prompt
-            </button>
-          </div>
-
-          <div className="recommendation-prompt-grid">
-            {generation.rows.map((row, index) => (
-              <article className="recommendation-prompt-card" key={row.id}>
-                <div className="section-title-row">
-                  <h4>Prompt {index + 1}</h4>
-                  <button type="button" onClick={() => removePromptRow(row.id)}>Remove</button>
-                </div>
-                <label>
-                  <span>Prompt</span>
-                  <textarea
-                    value={row.prompt}
-                    onChange={(event) => updatePromptRow(row.id, event.target.value)}
-                    placeholder="Generate one defined-risk options idea for AAPL with a risk-aware thesis."
-                  />
-                </label>
-              </article>
-            ))}
-          </div>
-
-          {generation.error && <section className="form-error">{generation.error}</section>}
-          {generation.message && <section className="form-success">{generation.message}</section>}
-
-          <div className="button-row">
-            <button disabled={generation.isGenerating} type="submit">
-              {generation.isGenerating ? "Generating..." : "Generate picks"}
-            </button>
-          </div>
-        </form>
-
-        <form className="form-grid" onSubmit={submitBatch}>
-          <div className="section-title-row">
-            <div>
-              <p className="eyebrow">Review</p>
-              <h3>{draft.recommendations.filter(hasRecommendationContent).length} editable picks</h3>
-            </div>
-            <button type="button" onClick={addRecommendation}>Add manual pick</button>
-          </div>
-
-          <div className="recommendation-editor-grid">
-            {draft.recommendations.map((item, index) => (
-              <article className="recommendation-editor-card" key={item.id || `recommendation-${index}`}>
-                <div className="section-title-row">
-                  <div>
-                    <h4>Pick {index + 1}</h4>
-                    <span className="muted">Sort {(index + 1) * 10}</span>
-                  </div>
-                  <button type="button" onClick={() => removeRecommendation(index)}>Remove</button>
-                </div>
-                <div className="form-grid compact-grid">
-                  <label>
-                    <span>Symbol</span>
-                    <input
-                      value={item.symbol}
-                      onChange={(event) => updateRecommendation(index, "symbol", event.target.value)}
-                      placeholder="ADBE"
-                    />
-                  </label>
-                  <label>
-                    <span>Strategy</span>
-                    <input
-                      value={item.strategy}
-                      onChange={(event) => updateRecommendation(index, "strategy", event.target.value)}
-                      placeholder="Iron condor"
-                    />
-                  </label>
-                  <label>
-                    <span>Direction</span>
-                    <select
-                      value={item.direction}
-                      onChange={(event) => updateRecommendation(index, "direction", event.target.value)}
-                    >
-                      <option value="NEUTRAL">Neutral</option>
-                      <option value="BULLISH">Bullish</option>
-                      <option value="BEARISH">Bearish</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>Price</span>
-                    <input
-                      inputMode="decimal"
-                      value={item.price}
-                      onChange={(event) => updateRecommendation(index, "price", event.target.value)}
-                      placeholder="482.15"
-                    />
-                  </label>
-                  <label>
-                    <span>Expiry</span>
-                    <input
-                      type="date"
-                      value={item.expiry}
-                      onChange={(event) => updateRecommendation(index, "expiry", event.target.value)}
-                    />
-                  </label>
-                  <label>
-                    <span>Reward/risk</span>
-                    <input
-                      inputMode="decimal"
-                      value={item.rewardRisk}
-                      onChange={(event) => updateRecommendation(index, "rewardRisk", event.target.value)}
-                      placeholder="0.42"
-                    />
-                  </label>
-                  <label>
-                    <span>Probability</span>
-                    <input
-                      inputMode="numeric"
-                      value={item.oddsOfProfit}
-                      onChange={(event) => updateRecommendation(index, "oddsOfProfit", event.target.value)}
-                      placeholder="68"
-                    />
-                  </label>
-                  <label>
-                    <span>Max profit</span>
-                    <input
-                      inputMode="decimal"
-                      value={item.maxProfit}
-                      onChange={(event) => updateRecommendation(index, "maxProfit", event.target.value)}
-                      placeholder="240"
-                    />
-                  </label>
-                </div>
-                <div className="form-grid">
-                  <label>
-                    <span>Thesis</span>
-                    <textarea
-                      value={item.thesis}
-                      onChange={(event) => updateRecommendation(index, "thesis", event.target.value)}
-                      placeholder="Why this setup may act as a good defined-risk opportunity."
-                    />
-                  </label>
-                  <label>
-                    <span>Risk notes</span>
-                    <textarea
-                      value={item.riskNotes}
-                      onChange={(event) => updateRecommendation(index, "riskNotes", event.target.value)}
-                      placeholder="What would invalidate or stress this setup."
-                    />
-                  </label>
-                  <label>
-                    <span>Entry</span>
-                    <textarea
-                      value={item.entry}
-                      onChange={(event) => updateRecommendation(index, "entry", event.target.value)}
-                      placeholder="Entry guidance for admin review."
-                    />
-                  </label>
-                  <label>
-                    <span>Exit</span>
-                    <textarea
-                      value={item.exit}
-                      onChange={(event) => updateRecommendation(index, "exit", event.target.value)}
-                      placeholder="Exit, stop, or invalidation guidance."
-                    />
-                  </label>
-                </div>
-              </article>
-            ))}
-          </div>
-
-          {draft.error && <section className="form-error">{draft.error}</section>}
-          {draft.message && <section className="form-success">{draft.message}</section>}
-
-          <div className="button-row">
-            <button disabled={draft.isSaving} type="submit">
-              {draft.isSaving ? "Saving..." : draft.id ? "Save batch" : "Create batch"}
-            </button>
-            <button type="button" onClick={resetDraft}>Clear</button>
-          </div>
-        </form>
       </section>
 
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <p className="eyebrow">Queue</p>
-            <h2>Recommendation batches</h2>
-          </div>
-          <span className="muted">{sortedBatches.length} batches</span>
-        </div>
-        {artifactDownloadError && <section className="form-error">{artifactDownloadError}</section>}
+      {activeSection === "published" ? (
+        <PublishedRecommendationsSection
+          artifactDownloadError={artifactDownloadError}
+          artifactDownloads={artifactDownloads}
+          downloadOutputArtifact={downloadOutputArtifact}
+          onOpenScriptJob={onOpenScriptJob}
+          onRequestDelete={requestBatchDelete}
+          publishedBatches={publishedBatches}
+          rows={publishedRecommendationRows}
+        />
+      ) : (
+        <>
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Daily picks</p>
+                <h2>{draft.id ? "Edit recommendation batch" : "Create recommendation batch"}</h2>
+              </div>
+              <button type="button" onClick={resetDraft}>New batch</button>
+            </div>
 
-        {sortedBatches.length === 0 ? (
-          <div className="empty-inline">No recommendation batches have been created yet.</div>
-        ) : (
-          <div className="recommendation-batch-list">
-            {sortedBatches.map((batch) => (
-              <article className="recommendation-batch-card" key={batch.id}>
-                <div className="recommendation-batch-top">
-                  <div>
-                    <div className="button-row">
-                      <h3>{batch.title || batch.tradeDate}</h3>
-                      <StatusBadge status={batch.status} />
+            <div className="form-grid compact-grid">
+              <label>
+                <span>Trade date</span>
+                <input
+                  type="date"
+                  value={draft.tradeDate}
+                  onChange={(event) => updateDraftField("tradeDate", event.target.value)}
+                />
+              </label>
+              <label>
+                <span>Title</span>
+                <input
+                  value={draft.title}
+                  onChange={(event) => updateDraftField("title", event.target.value)}
+                  placeholder="Daily Picks"
+                />
+              </label>
+              <label>
+                <span>Date range</span>
+                <input
+                  value={draft.dateRange}
+                  onChange={(event) => updateDraftField("dateRange", event.target.value)}
+                  placeholder="May 17, 2026"
+                />
+              </label>
+              <label>
+                <span>Theme</span>
+                <input
+                  value={draft.theme}
+                  onChange={(event) => updateDraftField("theme", event.target.value)}
+                  placeholder="Defined-risk premium ideas"
+                />
+              </label>
+            </div>
+
+            <form className="recommendation-generator-block" onSubmit={generateFromPrompts}>
+              <div className="section-title-row">
+                <div>
+                  <p className="eyebrow">Prompt generator</p>
+                  <h3>Generate picks</h3>
+                </div>
+                <button type="button" onClick={addPromptRow} disabled={generation.rows.length >= MAX_PROMPT_ROWS}>
+                  Add prompt
+                </button>
+              </div>
+
+              <div className="recommendation-prompt-grid">
+                {generation.rows.map((row, index) => (
+                  <article className="recommendation-prompt-card" key={row.id}>
+                    <div className="section-title-row">
+                      <h4>Prompt {index + 1}</h4>
+                      <button type="button" onClick={() => removePromptRow(row.id)}>Remove</button>
                     </div>
-                    <p className="muted">
-                      {batch.tradeDate} {batch.theme ? `- ${batch.theme}` : ""}
-                    </p>
-                  </div>
-                  <div className="button-row">
-                    {batch.status !== "published" && (
-                      <button type="button" onClick={() => editBatch(batch)}>Edit</button>
-                    )}
-                    {batch.status === "draft" && (
-                      <button type="button" onClick={() => runBatchAction(onApprove, batch.id)}>Approve</button>
-                    )}
-                    {batch.status === "approved" && (
-                      <button type="button" onClick={() => runBatchAction(onPublish, batch.id)}>Publish</button>
-                    )}
-                    {(batch.status === "published" || batch.status === "approved" || hasScriptJobs(batch)) && onDelete && (
-                      <button className="danger" type="button" onClick={() => requestBatchDelete(batch)}>
-                        {batch.status === "published" ? "Unpublish / delete" : "Delete"}
-                      </button>
-                    )}
-                  </div>
-                </div>
+                    <label>
+                      <span>Prompt</span>
+                      <textarea
+                        value={row.prompt}
+                        onChange={(event) => updatePromptRow(row.id, event.target.value)}
+                        placeholder="Generate one defined-risk options idea for AAPL with a risk-aware thesis."
+                      />
+                    </label>
+                  </article>
+                ))}
+              </div>
 
-                <div className="recommendation-symbol-strip">
-                  {batch.recommendations.map((item) => (
-                    <span key={item.id || item.symbol}>{item.symbol}</span>
-                  ))}
-                </div>
+              {generation.error && <section className="form-error">{generation.error}</section>}
+              {generation.message && <section className="form-success">{generation.message}</section>}
 
-                <div className="recommendation-channel-grid">
-                  {Object.entries(channelLabels).map(([key, label]) => (
-                    <div key={key}>
-                      <span>{label}</span>
-                      <StatusBadge status={batch.channels?.[key]?.status ?? "not_requested"} />
-                    </div>
-                  ))}
-                </div>
+              <div className="button-row">
+                <button disabled={generation.isGenerating} type="submit">
+                  {generation.isGenerating ? "Generating..." : "Generate picks"}
+                </button>
+              </div>
+            </form>
 
-                {hasScriptJobs(batch) && (
-                  <div className="recommendation-script-job-list">
-                    {getScriptJobRows(batch).map((job) => (
-                      <div className="recommendation-script-job-row" key={job.jobId}>
-                        <p className="muted">
-                          {job.symbol ? `${job.symbol} video workflow` : "Video workflow"}: {job.jobId}
-                        </p>
-                        <button type="button" onClick={() => onOpenScriptJob?.(job.jobId)}>
-                          Open workflow
-                        </button>
+            <form className="form-grid" onSubmit={submitBatch}>
+              <div className="section-title-row">
+                <div>
+                  <p className="eyebrow">Review</p>
+                  <h3>{draft.recommendations.filter(hasRecommendationContent).length} editable picks</h3>
+                </div>
+                <button type="button" onClick={addRecommendation}>Add manual pick</button>
+              </div>
+
+              <div className="recommendation-editor-grid">
+                {draft.recommendations.map((item, index) => (
+                  <article className="recommendation-editor-card" key={item.id || `recommendation-${index}`}>
+                    <div className="section-title-row">
+                      <div>
+                        <h4>Pick {index + 1}</h4>
+                        <span className="muted">Sort {(index + 1) * 10}</span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <button type="button" onClick={() => removeRecommendation(index)}>Remove</button>
+                    </div>
+                    <div className="form-grid compact-grid">
+                      <label>
+                        <span>Symbol</span>
+                        <input
+                          value={item.symbol}
+                          onChange={(event) => updateRecommendation(index, "symbol", event.target.value)}
+                          placeholder="ADBE"
+                        />
+                      </label>
+                      <label>
+                        <span>Strategy</span>
+                        <input
+                          value={item.strategy}
+                          onChange={(event) => updateRecommendation(index, "strategy", event.target.value)}
+                          placeholder="Iron condor"
+                        />
+                      </label>
+                      <label>
+                        <span>Direction</span>
+                        <select
+                          value={item.direction}
+                          onChange={(event) => updateRecommendation(index, "direction", event.target.value)}
+                        >
+                          <option value="NEUTRAL">Neutral</option>
+                          <option value="BULLISH">Bullish</option>
+                          <option value="BEARISH">Bearish</option>
+                        </select>
+                      </label>
+                      <label>
+                        <span>Price</span>
+                        <input
+                          inputMode="decimal"
+                          value={item.price}
+                          onChange={(event) => updateRecommendation(index, "price", event.target.value)}
+                          placeholder="482.15"
+                        />
+                      </label>
+                      <label>
+                        <span>Expiry</span>
+                        <input
+                          type="date"
+                          value={item.expiry}
+                          onChange={(event) => updateRecommendation(index, "expiry", event.target.value)}
+                        />
+                      </label>
+                      <label>
+                        <span>Reward/risk</span>
+                        <input
+                          inputMode="decimal"
+                          value={item.rewardRisk}
+                          onChange={(event) => updateRecommendation(index, "rewardRisk", event.target.value)}
+                          placeholder="0.42"
+                        />
+                      </label>
+                      <label>
+                        <span>Probability</span>
+                        <input
+                          inputMode="numeric"
+                          value={item.oddsOfProfit}
+                          onChange={(event) => updateRecommendation(index, "oddsOfProfit", event.target.value)}
+                          placeholder="68"
+                        />
+                      </label>
+                      <label>
+                        <span>Max profit</span>
+                        <input
+                          inputMode="decimal"
+                          value={item.maxProfit}
+                          onChange={(event) => updateRecommendation(index, "maxProfit", event.target.value)}
+                          placeholder="240"
+                        />
+                      </label>
+                    </div>
+                    <div className="form-grid">
+                      <label>
+                        <span>Thesis</span>
+                        <textarea
+                          value={item.thesis}
+                          onChange={(event) => updateRecommendation(index, "thesis", event.target.value)}
+                          placeholder="Why this setup may act as a good defined-risk opportunity."
+                        />
+                      </label>
+                      <label>
+                        <span>Risk notes</span>
+                        <textarea
+                          value={item.riskNotes}
+                          onChange={(event) => updateRecommendation(index, "riskNotes", event.target.value)}
+                          placeholder="What would invalidate or stress this setup."
+                        />
+                      </label>
+                      <label>
+                        <span>Entry</span>
+                        <textarea
+                          value={item.entry}
+                          onChange={(event) => updateRecommendation(index, "entry", event.target.value)}
+                          placeholder="Entry guidance for admin review."
+                        />
+                      </label>
+                      <label>
+                        <span>Exit</span>
+                        <textarea
+                          value={item.exit}
+                          onChange={(event) => updateRecommendation(index, "exit", event.target.value)}
+                          placeholder="Exit, stop, or invalidation guidance."
+                        />
+                      </label>
+                    </div>
+                  </article>
+                ))}
+              </div>
 
-                {getOutputGroups(batch).length > 0 && (
-                  <div className="recommendation-pick-output-list">
-                    {getOutputGroups(batch).map((group) => (
-                      <div className="recommendation-pick-output-row" key={group.id}>
-                        {group.label && <p className="muted">{group.label}</p>}
-                        <div className="recommendation-output-row">
-                          {Object.entries(outputLabels).map(([key, label]) => {
-                            const artifact = group.outputs?.[key];
-                            const artifactId = artifact?.artifactId ?? artifact?.id;
-                            const isDownloading = Boolean(artifactId && artifactDownloads[artifactId]);
-                            return artifactId ? (
-                              <button
-                                disabled={isDownloading}
-                                key={key}
-                                type="button"
-                                onClick={() => downloadOutputArtifact(artifact, `${group.label || "Recommendation"} ${label}`)}
-                              >
-                                {isDownloading ? "Downloading..." : label}
-                              </button>
-                            ) : null;
-                          })}
+              {draft.error && <section className="form-error">{draft.error}</section>}
+              {draft.message && <section className="form-success">{draft.message}</section>}
+
+              <div className="button-row">
+                <button disabled={draft.isSaving} type="submit">
+                  {draft.isSaving ? "Saving..." : draft.id ? "Save batch" : "Create batch"}
+                </button>
+                <button type="button" onClick={resetDraft}>Clear</button>
+              </div>
+            </form>
+          </section>
+
+          <section className="panel">
+            <div className="panel-heading">
+              <div>
+                <p className="eyebrow">Queue</p>
+                <h2>Recommendation batches</h2>
+              </div>
+              <span className="muted">{sortedBatches.length} batches</span>
+            </div>
+            {artifactDownloadError && <section className="form-error">{artifactDownloadError}</section>}
+
+            {sortedBatches.length === 0 ? (
+              <div className="empty-inline">No recommendation batches have been created yet.</div>
+            ) : (
+              <div className="recommendation-batch-list">
+                {sortedBatches.map((batch) => (
+                  <article className="recommendation-batch-card" key={batch.id}>
+                    <div className="recommendation-batch-top">
+                      <div>
+                        <div className="button-row">
+                          <h3>{batch.title || batch.tradeDate}</h3>
+                          <StatusBadge status={batch.status} />
                         </div>
+                        <p className="muted">
+                          {batch.tradeDate} {batch.theme ? `- ${batch.theme}` : ""}
+                        </p>
                       </div>
-                    ))}
-                  </div>
-                )}
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+                      <div className="button-row">
+                        {batch.status !== "published" && (
+                          <button type="button" onClick={() => editBatch(batch)}>Edit</button>
+                        )}
+                        {batch.status === "draft" && (
+                          <button type="button" onClick={() => runBatchAction(onApprove, batch.id)}>Approve</button>
+                        )}
+                        {batch.status === "approved" && (
+                          <button type="button" onClick={() => runBatchAction(onPublish, batch.id)}>Publish</button>
+                        )}
+                        {(batch.status === "published" || batch.status === "approved" || hasScriptJobs(batch)) && onDelete && (
+                          <button className="danger" type="button" onClick={() => requestBatchDelete(batch)}>
+                            {batch.status === "published" ? "Unpublish / delete" : "Delete"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="recommendation-symbol-strip">
+                      {batch.recommendations.map((item) => (
+                        <span key={item.id || item.symbol}>{item.symbol}</span>
+                      ))}
+                    </div>
+
+                    <div className="recommendation-channel-grid">
+                      {Object.entries(channelLabels).map(([key, label]) => (
+                        <div key={key}>
+                          <span>{label}</span>
+                          <StatusBadge status={batch.channels?.[key]?.status ?? "not_requested"} />
+                        </div>
+                      ))}
+                    </div>
+
+                    {hasScriptJobs(batch) && (
+                      <div className="recommendation-script-job-list">
+                        {getScriptJobRows(batch).map((job) => (
+                          <div className="recommendation-script-job-row" key={job.jobId}>
+                            <p className="muted">
+                              {job.symbol ? `${job.symbol} video workflow` : "Video workflow"}: {job.jobId}
+                            </p>
+                            <button type="button" onClick={() => onOpenScriptJob?.(job.jobId)}>
+                              Open workflow
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {getOutputGroups(batch).length > 0 && (
+                      <div className="recommendation-pick-output-list">
+                        {getOutputGroups(batch).map((group) => (
+                          <div className="recommendation-pick-output-row" key={group.id}>
+                            {group.label && <p className="muted">{group.label}</p>}
+                            <div className="recommendation-output-row">
+                              {Object.entries(outputLabels).map(([key, label]) => {
+                                const artifact = group.outputs?.[key];
+                                const artifactId = artifact?.artifactId ?? artifact?.id;
+                                const isDownloading = Boolean(artifactId && artifactDownloads[artifactId]);
+                                return artifactId ? (
+                                  <button
+                                    disabled={isDownloading}
+                                    key={key}
+                                    type="button"
+                                    onClick={() => downloadOutputArtifact(artifact, `${group.label || "Recommendation"} ${label}`)}
+                                  >
+                                    {isDownloading ? "Downloading..." : label}
+                                  </button>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+        </>
+      )}
 
       {deleteDialog && (
         <RecommendationDeleteDialog
@@ -706,6 +761,169 @@ const outputLabels = {
   archive: "Picks JSON",
   videoScript: "Video script"
 };
+
+function PublishedRecommendationsSection({
+  artifactDownloadError,
+  artifactDownloads,
+  downloadOutputArtifact,
+  onOpenScriptJob,
+  onRequestDelete,
+  publishedBatches,
+  rows
+}) {
+  const latestPublishedAt = rows
+    .map((row) => Date.parse(row.batch.publishedAt ?? row.batch.updatedAt ?? 0) || 0)
+    .reduce((latest, value) => Math.max(latest, value), 0);
+
+  return (
+    <section className="panel">
+      <div className="panel-heading">
+        <div>
+          <p className="eyebrow">Live recommendations</p>
+          <h2>Currently published picks</h2>
+        </div>
+        <span className="muted">{publishedBatches.length} published batch{publishedBatches.length === 1 ? "" : "es"}</span>
+      </div>
+
+      <div className="recommendation-published-summary">
+        <div>
+          <span>Published picks</span>
+          <strong>{rows.length}</strong>
+        </div>
+        <div>
+          <span>Published batches</span>
+          <strong>{publishedBatches.length}</strong>
+        </div>
+        <div>
+          <span>Latest publish</span>
+          <strong>{latestPublishedAt ? new Date(latestPublishedAt).toLocaleString() : "None"}</strong>
+        </div>
+      </div>
+      {artifactDownloadError && <section className="form-error">{artifactDownloadError}</section>}
+
+      {rows.length === 0 ? (
+        <div className="empty-inline">No recommendations are currently published.</div>
+      ) : (
+        <div className="recommendation-published-list">
+          {rows.map((row) => {
+            const { batch, job, outputs, recommendation } = row;
+            return (
+              <article className="recommendation-published-card" key={row.id}>
+                <div className="recommendation-published-top">
+                  <div>
+                    <div className="recommendation-published-title">
+                      <span>{recommendation.symbol}</span>
+                      <h3>{recommendation.strategy}</h3>
+                      <StatusBadge status={recommendation.direction} />
+                    </div>
+                    <p className="muted">
+                      {batch.title || "Published recommendations"} | {batch.tradeDate || "No trade date"}
+                    </p>
+                  </div>
+                  <StatusBadge status={batch.channels?.liveSite?.status ?? batch.status} />
+                </div>
+
+                <div className="recommendation-published-metrics">
+                  <MetricCell label="Reference" value={formatMoneyMetric(recommendation.price)} />
+                  <MetricCell label="Expiry" value={recommendation.expiry || "N/A"} />
+                  <MetricCell label="Max profit" value={formatMoneyMetric(recommendation.maxProfit)} />
+                  <MetricCell label="Reward/risk" value={formatPlainMetric(recommendation.rewardRisk)} />
+                  <MetricCell label="Model PoP" value={formatPercentMetric(recommendation.oddsOfProfit)} />
+                </div>
+
+                <div className="recommendation-published-copy">
+                  <div>
+                    <span>Thesis</span>
+                    <p>{recommendation.thesis || "No thesis recorded."}</p>
+                  </div>
+                  <div>
+                    <span>Risk notes</span>
+                    <p>{recommendation.riskNotes || "No risk notes recorded."}</p>
+                  </div>
+                </div>
+
+                <div className="recommendation-published-footer">
+                  <div className="recommendation-output-row">
+                    {Object.entries(outputLabels).map(([key, label]) => {
+                      const artifact = outputs?.[key];
+                      const artifactId = artifact?.artifactId ?? artifact?.id;
+                      const isDownloading = Boolean(artifactId && artifactDownloads[artifactId]);
+                      return artifactId ? (
+                        <button
+                          disabled={isDownloading}
+                          key={key}
+                          type="button"
+                          onClick={() => downloadOutputArtifact(artifact, `${recommendation.symbol} ${label}`)}
+                        >
+                          {isDownloading ? "Downloading..." : label}
+                        </button>
+                      ) : null;
+                    })}
+                  </div>
+                  <div className="button-row">
+                    {job?.jobId && (
+                      <button type="button" onClick={() => onOpenScriptJob?.(job.jobId)}>
+                        Open workflow
+                      </button>
+                    )}
+                    <button className="danger" type="button" onClick={() => onRequestDelete(batch)}>
+                      Unpublish / delete
+                    </button>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MetricCell({ label, value }) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function buildPublishedRecommendationRows(batches = []) {
+  return batches.flatMap((batch) =>
+    [...(batch.recommendations ?? [])]
+      .sort((left, right) => Number(left.sortOrder ?? 0) - Number(right.sortOrder ?? 0))
+      .map((recommendation, index) => ({
+        id: `${batch.id}-${recommendation.id || recommendation.symbol || index}`,
+        batch,
+        recommendation,
+        outputs: getOutputsForRecommendation(batch, recommendation),
+        job: getScriptJobForRecommendation(batch, recommendation, index)
+      }))
+  );
+}
+
+function getOutputsForRecommendation(batch = {}, recommendation = {}) {
+  const pickOutputs = batch.pickOutputArtifacts?.[recommendation.id];
+  if (pickOutputs) {
+    return pickOutputs;
+  }
+  if ((batch.recommendations ?? []).length === 1) {
+    return batch.outputArtifacts ?? {};
+  }
+  return {};
+}
+
+function getScriptJobForRecommendation(batch = {}, recommendation = {}, index = 0) {
+  const pickJob = (batch.pickJobs ?? []).find((item) =>
+    item.recommendationId === recommendation.id ||
+    (item.symbol === recommendation.symbol && item.sortOrder === recommendation.sortOrder)
+  );
+  if (pickJob?.jobId) {
+    return pickJob;
+  }
+  return getScriptJobRows(batch)[index] ?? null;
+}
 
 function hasOutputArtifacts(outputArtifacts = {}) {
   return Object.values(outputArtifacts ?? {}).some((artifact) => artifact?.artifactId);
@@ -928,4 +1146,21 @@ function numericOrUndefined(value) {
 
 function valueToInput(value) {
   return value === null || value === undefined ? "" : String(value);
+}
+
+function formatMoneyMetric(value) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return "N/A";
+  return `$${numberValue.toFixed(2)}`;
+}
+
+function formatPlainMetric(value) {
+  const text = String(value ?? "").trim();
+  return text || "N/A";
+}
+
+function formatPercentMetric(value) {
+  const numberValue = Number(value);
+  if (!Number.isFinite(numberValue)) return "N/A";
+  return `${numberValue}%`;
 }

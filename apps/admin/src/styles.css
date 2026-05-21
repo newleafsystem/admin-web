@@ -3105,6 +3105,24 @@ textarea.script-editor:focus {
   display: flex;
 }
 
+.recommendation-section-tabs {
+  display: grid;
+  gap: 12px;
+}
+
+.recommendation-mode-tabs .mode-tab {
+  display: grid;
+  gap: 3px;
+  justify-items: start;
+  text-align: left;
+}
+
+.recommendation-mode-tabs .mode-tab span {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
 .recommendation-generator-block,
 .recommendation-editor-grid,
 .recommendation-batch-list {
@@ -3281,6 +3299,108 @@ textarea.script-editor:focus {
 
 .recommendation-pick-output-row p {
   margin: 0;
+}
+
+.recommendation-published-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.recommendation-published-summary div,
+.recommendation-published-metrics div {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fbfcfd;
+  min-width: 0;
+}
+
+.recommendation-published-summary span,
+.recommendation-published-metrics span,
+.recommendation-published-copy span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.recommendation-published-summary strong,
+.recommendation-published-metrics strong {
+  color: var(--ink);
+  font-size: 0.96rem;
+  overflow-wrap: anywhere;
+}
+
+.recommendation-published-list {
+  display: grid;
+  gap: 12px;
+}
+
+.recommendation-published-card {
+  display: grid;
+  gap: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  background: #ffffff;
+}
+
+.recommendation-published-top,
+.recommendation-published-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recommendation-published-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.recommendation-published-title span {
+  display: inline-grid;
+  min-height: 30px;
+  place-items: center;
+  border: 1px solid rgba(39, 116, 92, 0.18);
+  border-radius: 8px;
+  padding: 4px 9px;
+  background: var(--green-bg);
+  color: var(--green);
+  font-family: var(--font-mono);
+  font-weight: 850;
+}
+
+.recommendation-published-title h3 {
+  margin: 0;
+}
+
+.recommendation-published-metrics {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.recommendation-published-copy {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.recommendation-published-copy div {
+  display: grid;
+  gap: 6px;
+}
+
+.recommendation-published-copy p {
+  margin: 0;
+  color: #34423e;
+  line-height: 1.5;
 }
 
 .recommendation-delete-options {
@@ -3652,6 +3772,9 @@ textarea.script-editor:focus {
   .dashboard-main-grid,
   .dashboard-report-grid,
   .split-grid,
+  .recommendation-published-summary,
+  .recommendation-published-metrics,
+  .recommendation-published-copy,
   .publish-grid,
   .publication-grid,
   .platform-grid,
@@ -3680,6 +3803,12 @@ textarea.script-editor:focus {
 
   .dashboard-command-panel,
   .dashboard-command-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .recommendation-published-top,
+  .recommendation-published-footer {
     align-items: stretch;
     flex-direction: column;
   }
