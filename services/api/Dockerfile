@@ -3,14 +3,14 @@ FROM node:20-bookworm-slim
 WORKDIR /app
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends ffmpeg ca-certificates fonts-dejavu-core chromium \
+  && apt-get install -y --no-install-recommends ffmpeg ca-certificates fonts-dejavu-core chromium python3 weasyprint \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV=production
 ENV NEWLEAF_SKIP_DOTENV=1
 ENV LOCAL_DATA_DIR=/tmp/newleaf-api
 ENV FFMPEG_FONT_FILE=/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf
-ENV RECOMMENDATION_PDF_RENDERER=chrome
+ENV RECOMMENDATION_PDF_RENDERER=institutional
 ENV CHROME_PATH=/usr/bin/chromium
 
 COPY package.json package-lock.json ./

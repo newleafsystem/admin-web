@@ -85,9 +85,10 @@ p { margin-bottom: 4pt; color: var(--charcoal); font-size: 8.5pt; }
 .report-meta { font-size: 8pt; color: var(--grey); margin-bottom: 12pt; }
 
 /* ---- METRICS GRID ---- */
-.metrics-grid { display: flex; gap: 0; margin: 10pt 0; border: 1.5pt solid var(--grey-lt); border-radius: 4pt; overflow: hidden; }
-.metric-cell { flex: 1; padding: 10pt 8pt; text-align: center; border-right: 1pt solid var(--grey-lt); }
-.metric-cell:last-child { border-right: none; }
+.metrics-grid { display: flex; flex-wrap: wrap; gap: 0; margin: 10pt 0; border: 1.5pt solid var(--grey-lt); border-radius: 4pt; overflow: hidden; }
+.metric-cell { flex: 0 0 33.333%; padding: 10pt 8pt; text-align: center; border-right: 1pt solid var(--grey-lt); border-bottom: 1pt solid var(--grey-lt); min-height: 50pt; }
+.metric-cell:nth-child(3n) { border-right: none; }
+.metric-cell:nth-child(n+4) { border-bottom: none; }
 .metric-cell.highlight { background: var(--gold-bg); }
 .metric-value { font-size: 18pt; font-weight: 800; color: var(--charcoal); margin-bottom: 2pt; }
 .metric-value.green { color: var(--green); }
@@ -225,17 +226,17 @@ ul.checklist li::before { content: "\2713"; position: absolute; left: 0; color: 
 </div>
 
 <div class="section-label">{{SYMBOL}} &middot; {{COMPANY_NAME}} &middot; Options Strategy</div>
-<h1><span class="symbol">{{SYMBOL}}</span> {{STRATEGY_NAME}}</h1>
+<h1><span class="symbol">{{COMPANY_NAME}}</span> {{STRATEGY_NAME}}</h1>
 <div class="report-subtitle">Strategic Trade Recommendation</div>
 <div class="report-meta">Expiration: {{EXPIRATION_DATE}} ({{DAYS_TO_EXPIRY}} Days) &nbsp;|&nbsp; Generated: {{REPORT_TIME}} &nbsp;|&nbsp; Entry Price: {{CURRENT_PRICE}}</div>
 
 <div class="metrics-grid">
     <div class="metric-cell"><div class="metric-label">MAX PROFIT</div><div class="metric-value green">{{MAX_PROFIT}}</div><div class="metric-sub">{{MAX_PROFIT_DESC}}</div></div>
     <div class="metric-cell"><div class="metric-label">MAX LOSS</div><div class="metric-value red">{{MAX_LOSS}}</div><div class="metric-sub">{{MAX_LOSS_DESC}}</div></div>
+    <div class="metric-cell highlight"><div class="metric-label">CONFIDENCE INDEX&trade;</div><div class="metric-value gold">{{TRADE_SCORE}}</div><div class="metric-sub">{{CONFIDENCE_LEVEL}}</div></div>
     <div class="metric-cell"><div class="metric-label">WIN PROBABILITY</div><div class="metric-value">{{WIN_RATE}}%</div><div class="metric-sub">{{WIN_RATE_DESC}}</div></div>
     <div class="metric-cell"><div class="metric-label">RISK / REWARD</div><div class="metric-value">{{RISK_REWARD}}</div><div class="metric-sub">{{RISK_REWARD_DESC}}</div></div>
     <div class="metric-cell"><div class="metric-label">BREAK-EVEN RANGE</div><div class="metric-value" style="font-size:14pt;">{{BREAKEVEN_RANGE}}</div><div class="metric-sub">{{BREAKEVEN_RANGE_DESC}}</div></div>
-    <div class="metric-cell highlight"><div class="metric-label">CONFIDENCE INDEX&trade;</div><div class="metric-value gold">{{TRADE_SCORE}}</div><div class="metric-sub">{{CONFIDENCE_LEVEL}}</div></div>
 </div>
 
 <div class="insight-box">
